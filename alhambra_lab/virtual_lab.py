@@ -28,8 +28,9 @@ class Led(QFrame):
 
     def set_on(self, enabled: bool) -> None:
         fill = self._color if enabled else "#334155"
-        glow = f"0 0 10px {self._color}" if enabled else "none"
-        self.setStyleSheet(f"background:{fill}; border:2px solid #64748b; border-radius:12px; box-shadow:{glow};")
+        # Qt Style Sheets no implementa box-shadow; se evita el aviso del parser.
+        border = self._color if enabled else "#64748b"
+        self.setStyleSheet(f"background:{fill}; border:2px solid {border}; border-radius:12px;")
 
 
 class SevenSegmentDisplay(QLabel):
@@ -70,6 +71,7 @@ class AlhambraVirtualLab(QWidget):
         self._worker.state_changed.connect(self._paint_state)
         self._worker.failure.connect(self._show_failure)
         self._worker.stopped.connect(self._thread.quit)
+        self._thread.finished.connect(self._worker.deleteLater)
         self._thread.start()
 
     def _build_ui(self) -> None:
