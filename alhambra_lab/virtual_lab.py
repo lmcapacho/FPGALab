@@ -142,7 +142,11 @@ class AlhambraVirtualLab(QWidget):
         self.setWindowTitle(f"AlhambraLab · simulación detenida: {error}")
 
     def closeEvent(self, event) -> None:
+        # El timer se detiene dentro del QThread que lo creó.
         self.shutdown_requested.emit()
-        self._thread.quit()
-        self._thread.wait(1500)
-        event.accept()
+        if self._thread.wait(3000):
+            event.accept()
+        else:
+            # Evita destruir el worker desde el hilo de la GUI.
+            self._show_failure("esperando el cierre seguro de la simulación")
+            event.ignore()
