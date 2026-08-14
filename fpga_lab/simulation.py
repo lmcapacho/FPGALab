@@ -37,6 +37,7 @@ class VerilatorSimulation:
         self._close = self._function("close_sim", None)
         self._eval = self._function("eval_sim", None)
         self._step = self._function("step_clock", None)
+        self._run_cycles = self._function("run_cycles", None, (ctypes.c_uint64,))
         self._set_clk = self._function("sim_set_clk", None, (ctypes.c_uint8,))
         self._get_clk = self._function("sim_get_clk", ctypes.c_uint8)
         self._setters = {
@@ -53,8 +54,9 @@ class VerilatorSimulation:
         self._step()
 
     def ticks(self, count: int) -> None:
-        for _ in range(count):
-            self._step()
+        if count < 0:
+            raise ValueError("La cantidad de ciclos no puede ser negativa.")
+        self._run_cycles(count)
 
     @property
     def clk(self) -> bool:

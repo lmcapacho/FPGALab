@@ -1,4 +1,4 @@
-"""Ejecución del modelo fuera del hilo de la interfaz Qt."""
+"""Ejecución del reloj virtual fuera del hilo de la interfaz Qt."""
 
 from __future__ import annotations
 
@@ -10,40 +10,53 @@ from .simulation import VerilatorSimulation
 
 
 class SimulationWorker(QObject):
-    """Avanza N ciclos por frame y publica solo el estado necesario para pintar."""
+    """Mantiene el reloj virtual y publica estados solo a frecuencia visual."""
 
     state_changed = pyqtSignal(list, int, int)  # leds, segments, gpio_out
     failure = pyqtSignal(str)
     stopped = pyqtSignal()
 
-    def __init__(self, simulation: VerilatorSimulation, ticks_per_frame: int = 12_000):
+    def __init__(
+        self,
+        simulation: VerilatorSimulation,
+        clock_hz: int = 12_000_000,
+        ui_refresh_hz: int = 60,
+    ):
         super().__init__()
+        if clock_hz <= 0 or ui_refresh_hz <= 0:
+            raise ValueError("clock_hz y ui_refresh_hz deben ser positivos.")
         self._simulation = simulation
-        self._ticks_per_frame = ticks_per_frame
+        self._clock_hz = clock_hz
+        self._ui_refresh_hz = ui_refresh_hz
         self._timer: QTimer | None = None
+        self._last_frame_time = 0.0
+        self._cycle_remainder = 0.0
 
     @pyqtSlot()
     def start(self) -> None:
         self._timer = QTimer(self)
         self._timer.setTimerType(Qt.TimerType.PreciseTimer)
-        self._timer.setInterval(1)  # Qt lo limita según SO; el modelo vive fuera de la GUI.
+        self._timer.setInterval(max(1, round(1000 / self._ui_refresh_hz)))
         self._timer.timeout.connect(self._run_frame)
+        self._last_frame_time = perf_counter()
         self._timer.start()
 
     @pyqtSlot()
     def _run_frame(self) -> None:
         try:
-            started = perf_counter()
-            self._simulation.ticks(self._ticks_per_frame)
+            now = perf_counter()
+            # Evita que una pausa del depurador produzca una ráfaga enorme.
+            elapsed = min(now - self._last_frame_time, 0.100)
+            self._last_frame_time = now
+            exact_cycles = elapsed * self._clock_hz + self._cycle_remainder
+            cycles = int(exact_cycles)
+            self._cycle_remainder = exact_cycles - cycles
+            self._simulation.ticks(cycles)
             leds = self._simulation.read_leds()
             segments = self._simulation.get_output("segments") if "segments" in self._simulation.profile.outputs else 0
             gpio_out = self._simulation.get_output("gpio_out") if "gpio_out" in self._simulation.profile.outputs else 0
             self.state_changed.emit(leds, segments, gpio_out)
-            # Si una máquina no sostiene el presupuesto, evita que el hilo se
-            # monopolice: reduce gradualmente ciclos, conservando interactividad.
-            if perf_counter() - started > 0.012 and self._ticks_per_frame > 100:
-                self._ticks_per_frame = max(100, int(self._ticks_per_frame * 0.8))
-        except Exception as exc:  # Evita que una excepción silenciosa mate el hilo Qt.
+        except Exception as exc:
             if self._timer:
                 self._timer.stop()
             self.failure.emit(str(exc))

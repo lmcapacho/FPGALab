@@ -3,14 +3,14 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "alhambra-lab"
+name = "fpga-lab"
 version = "0.1.0"
-description = "Laboratorio virtual interactivo para la FPGA Alhambra II"
+description = "Laboratorio virtual interactivo para diseños y placas FPGA"
 requires-python = ">=3.10"
 dependencies = ["PyQt6>=6.5"]
 
 [project.scripts]
-alhambra-lab = "alhambra_lab.app:main"
+fpga-lab = "fpga_lab.app:main"
 
 [tool.setuptools.packages.find]
-include = ["alhambra_lab*"]
+include = ["fpga_lab*"]

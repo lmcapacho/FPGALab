@@ -1,6 +1,6 @@
-# AlhambraLab
+# FPGALab
 
-Laboratorio virtual interactivo para diseños Verilog de la FPGA Alhambra II.
+Laboratorio virtual interactivo para diseños Verilog y perfiles de placas FPGA.
 El diseño se compila con Verilator a una biblioteca compartida y la GUI PyQt6
 interactúa con ella por medio de una ABI C y `ctypes`; no se generan ni se
 consumen archivos VCD durante la simulación interactiva.
@@ -11,13 +11,13 @@ consumen archivos VCD durante la simulación interactiva.
 main.v + board_profile.json
         │
         ▼
-VerilatorCompiler ──► sim_main.cpp (ABI C) ──► libVtop_shared.{so,dylib,dll}
+VerilatorCompiler ──► sim_main.cpp (ABI C + run_cycles) ──► libVtop_shared.{so,dylib,dll}
                                                      │ ctypes
                                                      ▼
                                             VerilatorSimulation
                                                      │ QThread + QTimer
                                                      ▼
-                                            AlhambraVirtualLab
+                                            FPGAVirtualLab
 ```
 
 El perfil de placa describe los puertos reales del módulo superior. La plantilla
@@ -43,14 +43,25 @@ verilator --version
 El ejemplo incluido usa los puertos declarados en `examples/main.v`.
 
 ```bash
-python -m alhambra_lab.compiler examples/main.v \
+python -m fpga_lab.compiler examples/main.v \
   --profile examples/board_profile.json --top top
-python -m alhambra_lab.app --library build/verilator/obj_dir/libVtop_shared.so \
-  --profile examples/board_profile.json
+python -m fpga_lab.app --library build/verilator/obj_dir/libVtop_shared.so \
+  --profile examples/board_profile.json --clock-hz 12000000 --ui-refresh-hz 60
 ```
 
 En Windows, cambie la última extensión por `.dll`; en macOS por `.dylib`.
 La misma lista de argumentos puede entregarse a `QProcess` desde una UI sin usar una shell.
+
+## Reloj virtual y refresco visual
+
+El modelo avanza según el tiempo real y `--clock-hz` (12 MHz por defecto).
+Cada frame llama una sola vez a `run_cycles()` dentro de C++, evitando miles
+de cruces `ctypes`. La interfaz recibe el estado a `--ui-refresh-hz` (60 Hz
+por defecto), suficiente para el ojo humano sin alterar la relación temporal
+de contadores, divisores y prescaladores.
+
+Si un diseño no alcanza 12 MHz en el anfitrión, mantener tiempo real requiere
+el núcleo disponible; se puede bajar `--clock-hz` para un modo didáctico.
 
 ## Contrato HDL
 
@@ -74,7 +85,7 @@ deben existir como puertos públicos de `--top-module`.
 ```bash
 git init
 git add .
-git commit -m "feat: base del laboratorio virtual Alhambra II"
+git commit -m "feat: base del laboratorio virtual FPGA"
 ```
 
 Los directorios de construcción y las bibliotecas producidas se ignoran. No

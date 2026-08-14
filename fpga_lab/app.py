@@ -1,4 +1,4 @@
-"""Punto de entrada de la GUI independiente de AlhambraLab."""
+"""Punto de entrada de la GUI independiente de FPGALab."""
 
 from __future__ import annotations
 
@@ -11,18 +11,19 @@ from PyQt6.QtWidgets import QApplication
 from .compiler import shared_library_name
 from .profile import BoardProfile
 from .simulation import VerilatorSimulation
-from .virtual_lab import AlhambraVirtualLab
+from .virtual_lab import FPGAVirtualLab
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Abre el laboratorio virtual Alhambra II.")
+    parser = argparse.ArgumentParser(description="Abre el laboratorio virtual FPGA.")
     parser.add_argument("--library", type=Path, default=Path("build/verilator/obj_dir") / shared_library_name())
     parser.add_argument("--profile", type=Path, default=Path("examples/board_profile.json"))
-    parser.add_argument("--ticks-per-frame", type=int, default=12_000)
+    parser.add_argument("--clock-hz", type=int, default=12_000_000, help="Frecuencia virtual objetivo.")
+    parser.add_argument("--ui-refresh-hz", type=int, default=60, help="Frecuencia máxima de pintado.")
     ns = parser.parse_args()
     app = QApplication(sys.argv)
     simulation = VerilatorSimulation(ns.library, BoardProfile.load(ns.profile))
-    window = AlhambraVirtualLab(simulation, ns.ticks_per_frame)
+    window = FPGAVirtualLab(simulation, ns.clock_hz, ns.ui_refresh_hz)
     window.show()
     sys.exit(app.exec())
 

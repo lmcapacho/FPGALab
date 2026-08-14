@@ -48,22 +48,23 @@ class SevenSegmentDisplay(QLabel):
         self.setStyleSheet("background:#020617; color:#f97316; border:1px solid #475569; border-radius:10px; padding:10px; font: 22px monospace;")
 
 
-class AlhambraVirtualLab(QWidget):
+class FPGAVirtualLab(QWidget):
     """Ventana integrable. Sus señales se entregan al worker mediante Qt queued slots."""
 
     set_input_requested = pyqtSignal(str, int)
     shutdown_requested = pyqtSignal()
 
-    def __init__(self, simulation: VerilatorSimulation, ticks_per_frame: int = 12_000, parent=None):
+    def __init__(self, simulation: VerilatorSimulation, clock_hz: int = 12_000_000, ui_refresh_hz: int = 60, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("AlhambraLab · Laboratorio Virtual")
+        self.setWindowTitle("FPGALab · Laboratorio Virtual")
         self.setMinimumSize(800, 520)
         self.setStyleSheet(_QSS)
         self._bounce_timers: list[QTimer] = []
+        self._board_name = simulation.profile.board_name
         self._build_ui()
 
         self._thread = QThread(self)
-        self._worker = SimulationWorker(simulation, ticks_per_frame)
+        self._worker = SimulationWorker(simulation, clock_hz, ui_refresh_hz)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.start)
         self.set_input_requested.connect(self._worker.set_input)
@@ -78,10 +79,10 @@ class AlhambraVirtualLab(QWidget):
         root = QHBoxLayout(self)
         board = QFrame(objectName="board")
         board_layout = QVBoxLayout(board)
-        title = QLabel("ALHAMBRA II · FPGA VIRTUAL")
+        title = QLabel(f"{self._board_name.upper()} · FPGA VIRTUAL")
         title.setStyleSheet("font-size: 20px; font-weight: 800; color:#bbf7d0;")
         board_layout.addWidget(title)
-        board_layout.addWidget(QLabel("Motor Verilator · 12 MHz objetivo", objectName="caption"))
+        board_layout.addWidget(QLabel("Motor Verilator · reloj virtual en tiempo real", objectName="caption"))
         board_layout.addStretch()
         chip = QLabel("iCE40HX4K\nFPGA", alignment=__import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
         chip.setStyleSheet("background:#111827; border:2px solid #64748b; border-radius:16px; padding:42px; font-weight:800;")
@@ -139,7 +140,7 @@ class AlhambraVirtualLab(QWidget):
         self._gpio.setText(f"GPIO OUT: {gpio_out:08b}")
 
     def _show_failure(self, error: str) -> None:
-        self.setWindowTitle(f"AlhambraLab · simulación detenida: {error}")
+        self.setWindowTitle(f"FPGALab · simulación detenida: {error}")
 
     def closeEvent(self, event) -> None:
         # El timer se detiene dentro del QThread que lo creó.

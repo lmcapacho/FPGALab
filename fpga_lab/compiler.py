@@ -52,7 +52,7 @@ class VerilatorCompiler:
         # objetivo (sin main()) en una biblioteca cargable por ctypes.
         args = [
             "--cc", str(verilog), "--top-module", request.top_module, "--prefix", f"V{request.top_module}",
-            "--Mdir", str(obj_dir), "-O3", "--exe", str(wrapper), "--build", "-j", "0",
+            "--Mdir", str(obj_dir), "-O3", "--exe", str(wrapper), "--build", "-j", "0", "-MAKEFLAGS", "OPT_FAST=-O3",
             "-CFLAGS", "-O3 -fPIC", "-LDFLAGS", "-shared", "-o", library,
         ]
         return obj_dir / library, args
@@ -66,7 +66,7 @@ class VerilatorCompiler:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compila un diseño Verilog para AlhambraLab.")
+    parser = argparse.ArgumentParser(description="Compila un diseño Verilog para FPGALab.")
     parser.add_argument("verilog", type=Path)
     parser.add_argument("--profile", required=True, type=Path)
     parser.add_argument("--top", default="top")
