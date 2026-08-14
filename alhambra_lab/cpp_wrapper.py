@@ -17,7 +17,7 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
         for name in profile.outputs
     )
     return f'''// Generado por AlhambraLab. No editar: cambie board_profile.json.
-#include "Vtop.h"
+#include "{model_class}.h"
 #include "verilated.h"
 #include <cstdint>
 

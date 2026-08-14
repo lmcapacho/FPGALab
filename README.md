@@ -45,7 +45,7 @@ El ejemplo incluido usa los puertos declarados en `examples/main.v`.
 ```bash
 python -m alhambra_lab.compiler examples/main.v \
   --profile examples/board_profile.json --top top
-python -m alhambra_lab.app --library build/verilator/libVtop_shared.so \
+python -m alhambra_lab.app --library build/verilator/obj_dir/libVtop_shared.so \
   --profile examples/board_profile.json
 ```
 
