@@ -53,7 +53,7 @@ class VerilatorCompiler:
         args = [
             "--cc", str(verilog), "--top-module", request.top_module, "--prefix", f"V{request.top_module}",
             "--Mdir", str(obj_dir), "-O3", "--exe", str(wrapper), "--build", "-j", "0", "-MAKEFLAGS", "OPT_FAST=-O3",
-            "-CFLAGS", "-O3 -fPIC", "-LDFLAGS", "-shared", "-o", library,
+            "-CFLAGS", "-O3 -fPIC -march=native", "-LDFLAGS", "-shared", "-o", library,
         ]
         return obj_dir / library, args
 

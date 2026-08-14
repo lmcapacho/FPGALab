@@ -67,8 +67,10 @@ void run_cycles(uint64_t cycles) {{
     for (uint64_t cycle = 0; cycle < cycles; ++cycle) {{
         g_top->clk = 1; g_top->eval();
         g_top->clk = 0; g_top->eval();
-        g_context->timeInc(1);
-    }}
+        }}
+    // Los diseños FPGA sintetizables no usan #delay o $time: avanzar el
+    // contexto una vez por lote elimina una llamada no inline por ciclo.
+    g_context->timeInc(cycles);
 }}
 
 {setters}
