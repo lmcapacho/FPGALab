@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.idea/
+.vscode/
+
+# Artefactos generados por Verilator
+build/
+obj_dir/
+*.so
+*.dll
+*.dylib
+
+# Empaquetado
+dist/
+*.egg-info/

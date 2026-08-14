@@ -1,0 +1,21 @@
+{
+  "board_name": "Alhambra II",
+  "inputs": {
+    "clk": 1,
+    "SW1": 1,
+    "SW2": 1,
+    "gpio_in": 8
+  },
+  "outputs": {
+    "LED0": 1,
+    "LED1": 1,
+    "LED2": 1,
+    "LED3": 1,
+    "LED4": 1,
+    "LED5": 1,
+    "LED6": 1,
+    "LED7": 1,
+    "segments": 14,
+    "gpio_out": 8
+  }
+}
