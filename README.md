@@ -50,7 +50,7 @@ python -m alhambra_lab.app --library build/verilator/libVtop_shared.so \
 ```
 
 En Windows, cambie la última extensión por `.dll`; en macOS por `.dylib`.
-También se puede seleccionar **Compilar diseño…** desde la aplicación.
+La misma lista de argumentos puede entregarse a `QProcess` desde una UI sin usar una shell.
 
 ## Contrato HDL
 
