@@ -1,0 +1,14 @@
+{
+  "peripherals": [
+    {
+      "id": "led_externo_0",
+      "type": "led",
+      "connections": {"anode": "D0"}
+    },
+    {
+      "id": "display_0",
+      "type": "seven_segment",
+      "connections": {"a": "D0", "b": "D1"}
+    }
+  ]
+}

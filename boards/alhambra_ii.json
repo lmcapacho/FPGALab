@@ -1,0 +1,20 @@
+{
+  "id": "alhambra-ii",
+  "label": "Alhambra II",
+  "clock_hz": 12000000,
+  "pins": [
+    {"id": "LED0", "fpga_pin": "45", "direction": "output", "location": "board.led.0"},
+    {"id": "LED1", "fpga_pin": "44", "direction": "output", "location": "board.led.1"},
+    {"id": "LED2", "fpga_pin": "43", "direction": "output", "location": "board.led.2"},
+    {"id": "LED3", "fpga_pin": "42", "direction": "output", "location": "board.led.3"},
+    {"id": "LED4", "fpga_pin": "41", "direction": "output", "location": "board.led.4"},
+    {"id": "LED5", "fpga_pin": "39", "direction": "output", "location": "board.led.5"},
+    {"id": "LED6", "fpga_pin": "38", "direction": "output", "location": "board.led.6"},
+    {"id": "LED7", "fpga_pin": "37", "direction": "output", "location": "board.led.7"},
+    {"id": "SW1", "fpga_pin": "34", "direction": "input", "location": "board.button.1"},
+    {"id": "SW2", "fpga_pin": "33", "direction": "input", "location": "board.button.2"},
+    {"id": "CLK", "fpga_pin": "49", "direction": "input", "location": "board.clock"},
+    {"id": "D0", "fpga_pin": "2", "direction": "inout", "location": "header.top.D0"},
+    {"id": "D1", "fpga_pin": "1", "direction": "inout", "location": "header.top.D1"}
+  ]
+}
