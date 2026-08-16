@@ -3,14 +3,14 @@
   "svg": "../boards/alhambra_ii.svg",
   "viewBox": [0, 0, 262.1037, 203.64104],
   "components": [
-    {"id":"LED0", "type":"led", "signal":"LED0", "x":10.5, "y":61.8, "width":5.8, "height":3.6},
-    {"id":"LED1", "type":"led", "signal":"LED1", "x":10.5, "y":56.3, "width":5.8, "height":3.6},
-    {"id":"LED2", "type":"led", "signal":"LED2", "x":10.5, "y":50.8, "width":5.8, "height":3.6},
-    {"id":"LED3", "type":"led", "signal":"LED3", "x":10.5, "y":45.3, "width":5.8, "height":3.6},
-    {"id":"LED4", "type":"led", "signal":"LED4", "x":10.5, "y":39.8, "width":5.8, "height":3.6},
-    {"id":"LED5", "type":"led", "signal":"LED5", "x":10.5, "y":34.3, "width":5.8, "height":3.6},
-    {"id":"LED6", "type":"led", "signal":"LED6", "x":10.5, "y":28.8, "width":5.8, "height":3.6},
-    {"id":"LED7", "type":"led", "signal":"LED7", "x":10.5, "y":23.3, "width":5.8, "height":3.6},
+    {"id":"LED0", "type":"led", "signal":"LED0", "x":18, "y":66, "width":5.8, "height":3.6},
+    {"id":"LED1", "type":"led", "signal":"LED1", "x":18, "y":61, "width":5.8, "height":3.6},
+    {"id":"LED2", "type":"led", "signal":"LED2", "x":18, "y":56, "width":5.8, "height":3.6},
+    {"id":"LED3", "type":"led", "signal":"LED3", "x":18, "y":51, "width":5.8, "height":3.6},
+    {"id":"LED4", "type":"led", "signal":"LED4", "x":18, "y":46, "width":5.8, "height":3.6},
+    {"id":"LED5", "type":"led", "signal":"LED5", "x":18, "y":41, "width":5.8, "height":3.6},
+    {"id":"LED6", "type":"led", "signal":"LED6", "x":18, "y":36, "width":5.8, "height":3.6},
+    {"id":"LED7", "type":"led", "signal":"LED7", "x":18, "y":31, "width":5.8, "height":3.6},
     {"id":"SW1", "type":"button", "signal":"SW1", "x":32.33, "y":26.91, "width":14.05, "height":5.60},
     {"id":"SW2", "type":"button", "signal":"SW2", "x":46.39, "y":26.91, "width":14.05, "height":5.60}
   ]

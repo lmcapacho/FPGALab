@@ -22,7 +22,7 @@ class BoardLedItem(QGraphicsRectItem):
     def set_brightness(self, brightness: float) -> None:
         value = max(0.0, min(1.0, brightness))
         color = QColor(self._color)
-        color.setAlpha(round(220 * value))
+        color.setAlpha(round(255 * value))
         self.setBrush(QBrush(color))
         self.setPen(QPen(Qt.PenStyle.NoPen))
 
