@@ -7,7 +7,7 @@ from collections.abc import Callable
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
-from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView
+from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
 from .board_layout import BoardLayout, BoardLayoutElement
 
@@ -18,20 +18,13 @@ class BoardLedItem(QGraphicsRectItem):
         self._color = QColor(element.color)
         self.setPen(QPen(QColor("#475569"), 1.5))
         self.set_brightness(0.0)
-        label = QGraphicsSimpleTextItem(element.id, self)
-        label.setBrush(QBrush(QColor("#cbd5e1")))
-        label.setPos(0, -15)
-        label.setScale(0.65)
 
     def set_brightness(self, brightness: float) -> None:
         value = max(0.0, min(1.0, brightness))
-        color = QColor(
-            round(51 + (self._color.red() - 51) * value),
-            round(65 + (self._color.green() - 65) * value),
-            round(85 + (self._color.blue() - 85) * value),
-        )
+        color = QColor(self._color)
+        color.setAlpha(round(220 * value))
         self.setBrush(QBrush(color))
-        self.setPen(QPen(self._color if value > 0.04 else QColor("#475569"), 1.5))
+        self.setPen(QPen(Qt.PenStyle.NoPen))
 
 
 class BoardButtonItem(QGraphicsRectItem):
@@ -39,16 +32,12 @@ class BoardButtonItem(QGraphicsRectItem):
         super().__init__(element.x, element.y, element.width, element.height)
         self._signal = element.signal
         self._changed = changed
-        self._idle = QBrush(QColor("#64748b"))
-        self._pressed = QBrush(QColor("#94a3b8"))
+        self._idle = QBrush(QColor(0, 0, 0, 0))
+        self._pressed = QBrush(QColor(255, 255, 255, 95))
         self.setBrush(self._idle)
-        self.setPen(QPen(QColor("#e2e8f0"), 1.5))
+        self.setPen(QPen(Qt.PenStyle.NoPen))
         self.setAcceptedMouseButtons(Qt.MouseButton.LeftButton)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        label = QGraphicsSimpleTextItem(element.id, self)
-        label.setBrush(QBrush(QColor("#0f172a")))
-        label.setPos(7, 5)
-        label.setScale(0.75)
 
     def mousePressEvent(self, event) -> None:
         self.setBrush(self._pressed)
