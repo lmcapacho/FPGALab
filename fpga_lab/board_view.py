@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PyQt6.QtCore import QRectF, Qt
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView
@@ -74,20 +74,31 @@ class BoardView(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._leds: dict[str, BoardLedItem] = {}
-        self._add_svg()
+        artwork_bounds = self._add_svg()
         for element in layout.elements:
+            element = self._map_element(element, artwork_bounds)
             if element.kind == "led":
                 self._leds[element.signal] = BoardLedItem(element)
                 self._scene.addItem(self._leds[element.signal])
             elif element.kind == "button":
                 self._scene.addItem(BoardButtonItem(element, input_changed))
-        x, y, width, height = layout.view_box
-        self._scene.setSceneRect(QRectF(x, y, width, height))
+        self._scene.setSceneRect(artwork_bounds)
 
-    def _add_svg(self) -> None:
+    def _add_svg(self):
         artwork = QGraphicsSvgItem(str(self._layout.svg))
         artwork.setZValue(-10)
         self._scene.addItem(artwork)
+        return artwork.boundingRect()
+
+    def _map_element(self, element: BoardLayoutElement, artwork_bounds):
+        origin_x, origin_y, layout_width, layout_height = self._layout.view_box
+        return BoardLayoutElement(
+            id=element.id, kind=element.kind, signal=element.signal, color=element.color,
+            x=artwork_bounds.x() + (element.x - origin_x) * artwork_bounds.width() / layout_width,
+            y=artwork_bounds.y() + (element.y - origin_y) * artwork_bounds.height() / layout_height,
+            width=element.width * artwork_bounds.width() / layout_width,
+            height=element.height * artwork_bounds.height() / layout_height,
+        )
 
     def set_led_brightness(self, signal: str, brightness: float) -> None:
         if led := self._leds.get(signal):
