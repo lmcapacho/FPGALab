@@ -8,12 +8,13 @@ module top (
     output wire [13:0] segments,
     output wire [7:0] gpio_out
 );
-    reg [23:0] counter = 0;
+    reg [26:0] counter = 0;
     always @(posedge clk)
         counter <= counter + 1'b1;
 
+    // Rango visible: LED0 cambia a 11.44 Hz; cada LED siguiente a la mitad.
     assign {LED7, LED6, LED5, LED4, LED3, LED2, LED1, LED0} =
-        counter[23:16] ^ {8{SW1}} ^ gpio_in;
+        counter[26:19] ^ {8{SW1}} ^ gpio_in;
     assign gpio_out = counter[15:8] ^ {8{SW2}};
     // Activo alto: abcdefg para cada dígito.
     assign segments = {7'b1110111, 7'b0111111}; // L y 0
