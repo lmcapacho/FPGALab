@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QBrush, QColor, QPen
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
@@ -18,15 +18,30 @@ class BoardLedItem(QGraphicsRectItem):
         super().__init__(element.x, element.y, element.width, element.height)
         self._color = QColor(element.color)
         self._calibrating = False
+        self._intensity = 0.0
         self.setPen(QPen(QColor("#475569"), 1.5))
         self.set_brightness(0.0)
 
     def set_brightness(self, brightness: float) -> None:
-        value = max(0.0, min(1.0, brightness))
-        color = QColor(self._color)
-        color.setAlpha(round(255 * value ** 0.38))
-        self.setBrush(QBrush(color))
-        self.setPen(QPen(QColor("#f43f5e"), 0.5) if self._calibrating else QPen(Qt.PenStyle.NoPen))
+        self._intensity = max(0.0, min(1.0, brightness)) ** 0.38
+        self.update()
+
+    def paint(self, painter: QPainter, _option, _widget=None) -> None:
+        if self._intensity:
+            rect = self.rect()
+            halo = QColor("#39ff14")
+            halo.setAlpha(round(105 * self._intensity))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(halo)
+            painter.drawRoundedRect(rect.adjusted(-1.4, -0.9, 1.4, 0.9), 1.6, 1.6)
+            core = QColor("#d9ff00")
+            core.setAlpha(round(255 * self._intensity))
+            painter.setBrush(core)
+            painter.drawRoundedRect(rect.adjusted(0.25, 0.25, -0.25, -0.25), 0.7, 0.7)
+        if self._calibrating:
+            painter.setPen(QPen(QColor("#f43f5e"), 0.5))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(self.rect())
 
 
     def set_calibration(self, enabled: bool) -> None:
