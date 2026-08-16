@@ -20,10 +20,11 @@ def main() -> None:
     parser.add_argument("--profile", type=Path, default=Path("examples/board_profile.json"))
     parser.add_argument("--clock-hz", type=int, default=12_000_000, help="Frecuencia virtual objetivo.")
     parser.add_argument("--ui-refresh-hz", type=int, default=60, help="Frecuencia máxima de pintado.")
+    parser.add_argument("--observation-hz", type=int, default=1_000_000, help="Muestreo temporal para periféricos.")
     ns = parser.parse_args()
     app = QApplication(sys.argv)
     simulation = VerilatorSimulation(ns.library, BoardProfile.load(ns.profile))
-    window = FPGAVirtualLab(simulation, ns.clock_hz, ns.ui_refresh_hz)
+    window = FPGAVirtualLab(simulation, ns.clock_hz, ns.ui_refresh_hz, ns.observation_hz)
     window.show()
     sys.exit(app.exec())
 

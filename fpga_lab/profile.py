@@ -15,12 +15,13 @@ class BoardProfile:
     board_name: str
     inputs: dict[str, int]
     outputs: dict[str, int]
+    observed: dict[str, int] | None = None
 
     @classmethod
     def load(cls, path: str | Path) -> "BoardProfile":
         source = Path(path)
         raw = json.loads(source.read_text(encoding="utf-8"))
-        profile = cls(raw.get("board_name", "Alhambra II"), raw["inputs"], raw["outputs"])
+        profile = cls(raw.get("board_name", "Alhambra II"), raw["inputs"], raw["outputs"], raw.get("observed"))
         profile.validate()
         return profile
 
@@ -34,6 +35,20 @@ class BoardProfile:
                 if not isinstance(width, int) or not 1 <= width <= 64:
                     raise ValueError(f"Ancho inválido para {name}: {width!r}; use 1..64.")
 
+        if self.observed is not None:
+            for name, width in self.observed.items():
+                if self.outputs.get(name) != width:
+                    raise ValueError("Cada señal observada debe coincidir con una salida declarada.")
+
     @property
     def ports(self) -> dict[str, int]:
         return self.inputs | self.outputs
+
+    @property
+    def observed_bits(self) -> tuple[tuple[str, int], ...]:
+        """Bits de salida en el orden estable usado por la sonda temporal."""
+        return tuple(
+            (name, bit)
+            for name, width in (self.observed if self.observed is not None else self.outputs).items()
+            for bit in range(width)
+        )

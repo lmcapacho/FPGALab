@@ -46,7 +46,7 @@ El ejemplo incluido usa los puertos declarados en `examples/main.v`.
 python -m fpga_lab.compiler examples/main.v \
   --profile examples/board_profile.json --top top
 python -m fpga_lab.app --library build/verilator/obj_dir/libVtop_shared.so \
-  --profile examples/board_profile.json --clock-hz 12000000 --ui-refresh-hz 60
+  --profile examples/board_profile.json --clock-hz 12000000 --ui-refresh-hz 60 --observation-hz 1000000
 ```
 
 En Windows, cambie la última extensión por `.dll`; en macOS por `.dylib`.
@@ -56,9 +56,11 @@ La misma lista de argumentos puede entregarse a `QProcess` desde una UI sin usar
 
 El modelo avanza según el tiempo real y `--clock-hz` (12 MHz por defecto).
 Cada frame llama una sola vez a `run_cycles()` dentro de C++, evitando miles
-de cruces `ctypes`. La interfaz recibe el estado a `--ui-refresh-hz` (60 Hz
-por defecto), suficiente para el ojo humano sin alterar la relación temporal
-de contadores, divisores y prescaladores.
+de cruces `ctypes`. La interfaz se pinta a `--ui-refresh-hz` (60 Hz por defecto). La sonda temporal
+trabaja por separado a `--observation-hz` (1 MHz por defecto): entrega ciclo de
+trabajo, transiciones y estado final, de modo que PWM y señales rápidas se
+presentan como brillo sin depender de la fase del temporizador de Qt. Cada
+periférico podrá declarar sus señales y resolución de observación.
 
 Si un diseño no alcanza 12 MHz en el anfitrión, mantener tiempo real requiere
 el núcleo disponible; se puede bajar `--clock-hz` para un modo didáctico.

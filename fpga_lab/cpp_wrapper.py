@@ -7,6 +7,13 @@ from .profile import BoardProfile
 
 def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
     """Crea una API sin mangling: init/reset/eval y lecturas/escrituras por puerto."""
+    observed_bits = profile.observed_bits
+    if len(observed_bits) > 64:
+        raise ValueError("La sonda temporal base admite hasta 64 bits de salida.")
+    observed_reads = ",\n        ".join(
+        f"static_cast<uint8_t>((g_top->{name} >> {bit}) & 1U)"
+        for name, bit in observed_bits
+    ) or "0"
     setters = "\n".join(
         f"void sim_set_{name}(uint64_t value) {{ if (g_top) g_top->{name} = value; }}"
         for name in profile.inputs
@@ -23,6 +30,38 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
 
 static {model_class}* g_top = nullptr;
 static VerilatedContext* g_context = nullptr;
+static constexpr uint32_t kObservedCount = {len(observed_bits)};
+static uint8_t g_observed_previous[kObservedCount ? kObservedCount : 1] = {{0}};
+static uint8_t g_observed_start[kObservedCount ? kObservedCount : 1] = {{0}};
+static uint8_t g_observed_end[kObservedCount ? kObservedCount : 1] = {{0}};
+static uint64_t g_observed_high_halves[kObservedCount ? kObservedCount : 1] = {{0}};
+static uint64_t g_observed_edges[kObservedCount ? kObservedCount : 1] = {{0}};
+static uint64_t g_observed_samples = 0;
+static uint64_t g_observation_divisor = 12;
+
+static void sample_observed(bool first) {{
+    ++g_observed_samples;
+    const uint8_t values[kObservedCount ? kObservedCount : 1] = {{
+        {observed_reads}
+    }};
+    for (uint32_t index = 0; index < kObservedCount; ++index) {{
+        if (first) g_observed_start[index] = values[index];
+        else if (values[index] != g_observed_previous[index]) ++g_observed_edges[index];
+        g_observed_previous[index] = values[index];
+        g_observed_end[index] = values[index];
+        g_observed_high_halves[index] += values[index];
+    }}
+}}
+
+static void reset_observation() {{
+    g_observed_samples = 0;
+    for (uint32_t index = 0; index < kObservedCount; ++index) {{
+        g_observed_start[index] = g_observed_previous[index];
+        g_observed_end[index] = g_observed_previous[index];
+        g_observed_high_halves[index] = 0;
+        g_observed_edges[index] = 0;
+    }}
+}}
 
 extern "C" {{
 
@@ -32,6 +71,7 @@ void init_sim() {{
     g_top = new {model_class}{{g_context}};
     g_top->clk = 0;
     g_top->eval();
+    sample_observed(true);
 }}
 
 void reset_sim() {{
@@ -64,14 +104,29 @@ void step_clock() {{
 }}
 void run_cycles(uint64_t cycles) {{
     if (!g_top) init_sim();
+    reset_observation();
+    uint64_t remaining = 0;
     for (uint64_t cycle = 0; cycle < cycles; ++cycle) {{
-        g_top->clk = 1; g_top->eval();
+        const bool observe = remaining == 0;
+        g_top->clk = 1; g_top->eval(); if (observe) sample_observed(cycle == 0);
         g_top->clk = 0; g_top->eval();
-        }}
+        if (observe) {{
+            sample_observed(false);
+            remaining = g_observation_divisor - 1;
+        }} else --remaining;
+    }}
     // Los diseños FPGA sintetizables no usan #delay o $time: avanzar el
     // contexto una vez por lote elimina una llamada no inline por ciclo.
     g_context->timeInc(cycles);
 }}
+
+uint32_t sim_observed_count() {{ return kObservedCount; }}
+uint64_t sim_observed_samples() {{ return g_observed_samples; }}
+void sim_set_observation_divisor(uint64_t value) {{ g_observation_divisor = value ? value : 1; }}
+uint8_t sim_observed_start(uint32_t index) {{ return index < kObservedCount ? g_observed_start[index] : 0; }}
+uint8_t sim_observed_end(uint32_t index) {{ return index < kObservedCount ? g_observed_end[index] : 0; }}
+uint64_t sim_observed_high_halves(uint32_t index) {{ return index < kObservedCount ? g_observed_high_halves[index] : 0; }}
+uint64_t sim_observed_edges(uint32_t index) {{ return index < kObservedCount ? g_observed_edges[index] : 0; }}
 
 {setters}
 

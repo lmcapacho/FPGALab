@@ -6,6 +6,10 @@
     "SW2": 1,
     "gpio_in": 8
   },
+  "observed": {
+    "LED0": 1, "LED1": 1, "LED2": 1, "LED3": 1,
+    "LED4": 1, "LED5": 1, "LED6": 1, "LED7": 1
+  },
   "outputs": {
     "LED0": 1,
     "LED1": 1,

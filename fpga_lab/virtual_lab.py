@@ -26,11 +26,14 @@ class Led(QFrame):
         self.setFixedSize(24, 24)
         self.set_on(False)
 
-    def set_on(self, enabled: bool) -> None:
-        fill = self._color if enabled else "#334155"
-        # Qt Style Sheets no implementa box-shadow; se evita el aviso del parser.
-        border = self._color if enabled else "#64748b"
+    def set_brightness(self, brightness: float) -> None:
+        level = max(0, min(255, round(255 * brightness)))
+        fill = f"rgb({round(34 * brightness)}, {level}, {round(94 * brightness)})" if level else "#334155"
+        border = self._color if level else "#64748b"
         self.setStyleSheet(f"background:{fill}; border:2px solid {border}; border-radius:12px;")
+
+    def set_on(self, enabled: bool) -> None:
+        self.set_brightness(1.0 if enabled else 0.0)
 
 
 class SevenSegmentDisplay(QLabel):
@@ -54,7 +57,7 @@ class FPGAVirtualLab(QWidget):
     set_input_requested = pyqtSignal(str, int)
     shutdown_requested = pyqtSignal()
 
-    def __init__(self, simulation: VerilatorSimulation, clock_hz: int = 12_000_000, ui_refresh_hz: int = 60, parent=None):
+    def __init__(self, simulation: VerilatorSimulation, clock_hz: int = 12_000_000, ui_refresh_hz: int = 60, observation_hz: int = 1_000_000, parent=None):
         super().__init__(parent)
         self.setWindowTitle("FPGALab · Laboratorio Virtual")
         self.setMinimumSize(800, 520)
@@ -64,7 +67,7 @@ class FPGAVirtualLab(QWidget):
         self._build_ui()
 
         self._thread = QThread(self)
-        self._worker = SimulationWorker(simulation, clock_hz, ui_refresh_hz)
+        self._worker = SimulationWorker(simulation, clock_hz, ui_refresh_hz, observation_hz)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.start)
         self.set_input_requested.connect(self._worker.set_input)
@@ -135,7 +138,7 @@ class FPGAVirtualLab(QWidget):
 
     def _paint_state(self, leds: list, segments: int, gpio_out: int) -> None:
         for led, state in zip(self._leds, leds):
-            led.set_on(bool(state))
+            led.set_brightness(float(state))
         self._display.set_segments(segments)
         self._gpio.setText(f"GPIO OUT: {gpio_out:08b}")
 

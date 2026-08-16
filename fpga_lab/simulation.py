@@ -6,6 +6,7 @@ import ctypes
 from pathlib import Path
 
 from .profile import BoardProfile
+from .temporal import SignalWindow
 
 
 class VerilatorSimulation:
@@ -38,6 +39,13 @@ class VerilatorSimulation:
         self._eval = self._function("eval_sim", None)
         self._step = self._function("step_clock", None)
         self._run_cycles = self._function("run_cycles", None, (ctypes.c_uint64,))
+        self._observed_count = self._function("sim_observed_count", ctypes.c_uint32)
+        self._observed_samples = self._function("sim_observed_samples", ctypes.c_uint64)
+        self._set_observation_divisor = self._function("sim_set_observation_divisor", None, (ctypes.c_uint64,))
+        self._observed_start = self._function("sim_observed_start", ctypes.c_uint8, (ctypes.c_uint32,))
+        self._observed_end = self._function("sim_observed_end", ctypes.c_uint8, (ctypes.c_uint32,))
+        self._observed_high_halves = self._function("sim_observed_high_halves", ctypes.c_uint64, (ctypes.c_uint32,))
+        self._observed_edges = self._function("sim_observed_edges", ctypes.c_uint64, (ctypes.c_uint32,))
         self._set_clk = self._function("sim_set_clk", None, (ctypes.c_uint8,))
         self._get_clk = self._function("sim_get_clk", ctypes.c_uint8)
         self._setters = {
@@ -57,6 +65,31 @@ class VerilatorSimulation:
         if count < 0:
             raise ValueError("La cantidad de ciclos no puede ser negativa.")
         self._run_cycles(count)
+
+    def set_observation_divisor(self, cycles: int) -> None:
+        """Cada cuántos ciclos virtuales se observa la salida (mínimo uno)."""
+        if cycles < 1:
+            raise ValueError("El divisor de observación debe ser positivo.")
+        self._set_observation_divisor(cycles)
+
+    def observed_windows(self, cycles: int) -> dict[str, SignalWindow]:
+        """Métricas del último ``ticks``; claves como ``gpio_out[3]``."""
+        if cycles < 0:
+            raise ValueError("La cantidad de ciclos no puede ser negativa.")
+        observed_bits = self.profile.observed_bits
+        if self._observed_count() != len(observed_bits):
+            raise RuntimeError("El perfil no coincide con la biblioteca Verilator compilada.")
+        half_cycles = int(self._observed_samples())
+        return {
+            f"{name}[{bit}]": SignalWindow(
+                start=bool(self._observed_start(index)),
+                end=bool(self._observed_end(index)),
+                high_halves=int(self._observed_high_halves(index)),
+                half_cycles=half_cycles,
+                edges=int(self._observed_edges(index)),
+            )
+            for index, (name, bit) in enumerate(observed_bits)
+        }
 
     @property
     def clk(self) -> bool:
