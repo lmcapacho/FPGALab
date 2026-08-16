@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QThread, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
-                             QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from .board_layout import BoardLayout, bundled_layout
+from .board_view import BoardView
 from .simulation import VerilatorSimulation
 from .simulation_worker import SimulationWorker
 
@@ -17,23 +18,6 @@ QPushButton#switch { background: #334155; border: 1px solid #64748b; border-radi
 QPushButton#switch:pressed { background: #22c55e; color: #052e16; }
 QLabel#caption { color: #94a3b8; font-size: 11px; }
 """
-
-
-class Led(QFrame):
-    def __init__(self, color: str = "#22c55e"):
-        super().__init__()
-        self._color = color
-        self.setFixedSize(24, 24)
-        self.set_on(False)
-
-    def set_brightness(self, brightness: float) -> None:
-        level = max(0, min(255, round(255 * brightness)))
-        fill = f"rgb({round(34 * brightness)}, {level}, {round(94 * brightness)})" if level else "#334155"
-        border = self._color if level else "#64748b"
-        self.setStyleSheet(f"background:{fill}; border:2px solid {border}; border-radius:12px;")
-
-    def set_on(self, enabled: bool) -> None:
-        self.set_brightness(1.0 if enabled else 0.0)
 
 
 class SevenSegmentDisplay(QLabel):
@@ -64,6 +48,7 @@ class FPGAVirtualLab(QWidget):
         self.setStyleSheet(_QSS)
         self._bounce_timers: list[QTimer] = []
         self._board_name = simulation.profile.board_name
+        self._layout = BoardLayout.load(bundled_layout())
         self._build_ui()
 
         self._thread = QThread(self)
@@ -80,40 +65,22 @@ class FPGAVirtualLab(QWidget):
 
     def _build_ui(self) -> None:
         root = QHBoxLayout(self)
-        board = QFrame(objectName="board")
-        board_layout = QVBoxLayout(board)
+        board_panel = QFrame(objectName="board")
+        board_layout = QVBoxLayout(board_panel)
         title = QLabel(f"{self._board_name.upper()} · FPGA VIRTUAL")
         title.setStyleSheet("font-size: 20px; font-weight: 800; color:#bbf7d0;")
         board_layout.addWidget(title)
-        board_layout.addWidget(QLabel("Motor Verilator · reloj virtual en tiempo real", objectName="caption"))
-        board_layout.addStretch()
-        chip = QLabel("iCE40HX4K\nFPGA", alignment=__import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
-        chip.setStyleSheet("background:#111827; border:2px solid #64748b; border-radius:16px; padding:42px; font-weight:800;")
-        board_layout.addWidget(chip)
-        board_layout.addStretch()
-        root.addWidget(board, 2)
+        board_layout.addWidget(QLabel("SVG + layout de placa · controles interactivos", objectName="caption"))
+        self._board_view = BoardView(self._layout, self._bouncy_input)
+        board_layout.addWidget(self._board_view, 1)
+        root.addWidget(board_panel, 3)
 
         controls = QVBoxLayout()
-        switch_panel = QFrame(objectName="panel")
-        switch_layout = QVBoxLayout(switch_panel)
-        switch_layout.addWidget(QLabel("Pulsadores de placa"))
-        for signal in ("SW1", "SW2"):
-            button = QPushButton(signal, objectName="switch")
-            button.pressed.connect(lambda pin=signal: self._bouncy_input(pin, 1))
-            button.released.connect(lambda pin=signal: self._bouncy_input(pin, 0))
-            switch_layout.addWidget(button)
-        controls.addWidget(switch_panel)
-
-        led_panel = QFrame(objectName="panel")
-        led_layout = QGridLayout(led_panel)
-        led_layout.addWidget(QLabel("LEDs de placa"), 0, 0, 1, 4)
-        self._leds: list[Led] = []
-        for index in range(8):
-            led_layout.addWidget(QLabel(f"LED{index}", objectName="caption"), 1 + (index // 4) * 2, index % 4)
-            led = Led()
-            self._leds.append(led)
-            led_layout.addWidget(led, 2 + (index // 4) * 2, index % 4)
-        controls.addWidget(led_panel)
+        info_panel = QFrame(objectName="panel")
+        info_layout = QVBoxLayout(info_panel)
+        info_layout.addWidget(QLabel("Controles integrados"))
+        info_layout.addWidget(QLabel("Presione SW1 o SW2 directamente sobre la placa.", objectName="caption"))
+        controls.addWidget(info_panel)
 
         display_panel = QFrame(objectName="panel")
         display_layout = QVBoxLayout(display_panel)
@@ -123,7 +90,8 @@ class FPGAVirtualLab(QWidget):
         self._gpio = QLabel("GPIO OUT: 00000000", objectName="caption")
         display_layout.addWidget(self._gpio)
         controls.addWidget(display_panel)
-        root.addLayout(controls, 3)
+        controls.addStretch()
+        root.addLayout(controls, 2)
 
     def _bouncy_input(self, name: str, final_value: int) -> None:
         """Tres cambios cortos hacen perceptible y configurable el rebote de botón."""
@@ -137,8 +105,8 @@ class FPGAVirtualLab(QWidget):
             self._bounce_timers.append(timer)
 
     def _paint_state(self, leds: list, segments: int, gpio_out: int) -> None:
-        for led, state in zip(self._leds, leds):
-            led.set_brightness(float(state))
+        for index, state in enumerate(leds):
+            self._board_view.set_led_brightness(f"LED{index}", float(state))
         self._display.set_segments(segments)
         self._gpio.setText(f"GPIO OUT: {gpio_out:08b}")
 

@@ -1,0 +1,17 @@
+{
+  "board_id": "alhambra_ii",
+  "svg": "../boards/alhambra_ii.svg",
+  "viewBox": [0, 0, 1000, 620],
+  "components": [
+    {"id":"LED0", "type":"led", "signal":"LED0", "x":740, "y":125, "width":78, "height":16},
+    {"id":"LED1", "type":"led", "signal":"LED1", "x":740, "y":155, "width":78, "height":16},
+    {"id":"LED2", "type":"led", "signal":"LED2", "x":740, "y":185, "width":78, "height":16},
+    {"id":"LED3", "type":"led", "signal":"LED3", "x":740, "y":215, "width":78, "height":16},
+    {"id":"LED4", "type":"led", "signal":"LED4", "x":740, "y":245, "width":78, "height":16},
+    {"id":"LED5", "type":"led", "signal":"LED5", "x":740, "y":275, "width":78, "height":16},
+    {"id":"LED6", "type":"led", "signal":"LED6", "x":740, "y":305, "width":78, "height":16},
+    {"id":"LED7", "type":"led", "signal":"LED7", "x":740, "y":335, "width":78, "height":16},
+    {"id":"SW1", "type":"button", "signal":"SW1", "x":120, "y":540, "width":72, "height":32},
+    {"id":"SW2", "type":"button", "signal":"SW2", "x":225, "y":540, "width":72, "height":32}
+  ]
+}

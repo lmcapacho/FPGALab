@@ -92,3 +92,16 @@ git commit -m "feat: base del laboratorio virtual FPGA"
 
 Los directorios de construcción y las bibliotecas producidas se ignoran. No
 versione artefactos generados: versiona HDL, perfiles y código fuente.
+
+
+## Layout visual de placa
+
+La apariencia y los controles integrados viven fuera de Python:
+
+- `fpga_lab/assets/boards/alhambra_ii.svg`: arte vectorial escalable.
+- `fpga_lab/assets/board_layouts/alhambra_ii.json`: posición, tamaño, señal y tipo de cada elemento.
+
+Un componente `led` se enlaza a una salida HDL y un `button` a una entrada. Por
+ello se pueden ajustar posiciones, añadir controles o crear un perfil para otra
+placa sin tocar el motor Verilator. Los periféricos externos se añadirán como
+layouts separados conectados por el esquema de cableado virtual.

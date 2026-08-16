@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620">
+  <rect width="1000" height="620" rx="28" fill="#155e45"/>
+  <rect x="16" y="16" width="968" height="588" rx="20" fill="#166534" stroke="#86efac" stroke-width="3"/>
+  <text x="55" y="78" fill="#dcfce7" font-family="sans-serif" font-size="36" font-weight="700">ALHAMBRA II</text>
+  <text x="57" y="108" fill="#bbf7d0" font-family="sans-serif" font-size="16">iCE40HX4K · FPGA VIRTUAL</text>
+  <rect x="330" y="160" width="290" height="270" rx="18" fill="#111827" stroke="#94a3b8" stroke-width="4"/>
+  <text x="402" y="276" fill="#e2e8f0" font-family="sans-serif" font-size="28" font-weight="700">iCE40</text>
+  <text x="382" y="310" fill="#94a3b8" font-family="sans-serif" font-size="22">HX4K FPGA</text>
+  <g fill="#1f2937" stroke="#94a3b8" stroke-width="2">
+    <rect x="55" y="150" width="180" height="32"/><rect x="55" y="198" width="180" height="32"/>
+    <rect x="55" y="246" width="180" height="32"/><rect x="55" y="294" width="180" height="32"/>
+    <rect x="55" y="342" width="180" height="32"/><rect x="55" y="390" width="180" height="32"/>
+  </g>
+  <text x="72" y="172" fill="#cbd5e1" font-family="monospace" font-size="15">GPIO / EXPANSION</text>
+  <text x="72" y="220" fill="#cbd5e1" font-family="monospace" font-size="15">D0 D1 D2 D3 D4 D5</text>
+  <circle cx="688" cy="285" r="44" fill="#0f172a" stroke="#64748b" stroke-width="3"/>
+  <text x="653" y="292" fill="#94a3b8" font-family="sans-serif" font-size="14">12 MHz</text>
+  <text x="750" y="88" fill="#dcfce7" font-family="sans-serif" font-size="17">LEDs</text>
+  <text x="120" y="525" fill="#dcfce7" font-family="sans-serif" font-size="17">PULSADORES</text>
+  <g fill="#334155" stroke="#64748b"><rect x="700" y="130" width="165" height="270" rx="12"/></g>
+</svg>
