@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QThread, QTimer, pyqtSignal
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from .board_layout import BoardLayout, bundled_layout
 from .board_view import BoardView
@@ -80,6 +80,12 @@ class FPGAVirtualLab(QWidget):
         info_layout = QVBoxLayout(info_panel)
         info_layout.addWidget(QLabel("Controles integrados"))
         info_layout.addWidget(QLabel("Presione SW1 o SW2 directamente sobre la placa.", objectName="caption"))
+        self._calibrate_leds = QPushButton("Ajustar LEDs", checkable=True)
+        self._calibrate_leds.toggled.connect(self._board_view.set_calibration_mode)
+        info_layout.addWidget(self._calibrate_leds)
+        self._save_layout = QPushButton("Guardar posiciones")
+        self._save_layout.clicked.connect(self._save_led_positions)
+        info_layout.addWidget(self._save_layout)
         controls.addWidget(info_panel)
 
         display_panel = QFrame(objectName="panel")
@@ -92,6 +98,10 @@ class FPGAVirtualLab(QWidget):
         controls.addWidget(display_panel)
         controls.addStretch()
         root.addLayout(controls, 2)
+
+    def _save_led_positions(self) -> None:
+        self._board_view.save_led_positions()
+        self._save_layout.setText("Posiciones guardadas")
 
     def _bouncy_input(self, name: str, final_value: int) -> None:
         """Tres cambios cortos hacen perceptible y configurable el rebote de botón."""

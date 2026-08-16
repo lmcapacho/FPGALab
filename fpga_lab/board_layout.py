@@ -22,6 +22,7 @@ class BoardLayoutElement:
 @dataclass(frozen=True)
 class BoardLayout:
     board_id: str
+    source: Path
     svg: Path
     view_box: tuple[float, float, float, float]
     elements: tuple[BoardLayoutElement, ...]
@@ -42,7 +43,7 @@ class BoardLayout:
         view_box = tuple(float(value) for value in raw["viewBox"])
         if len(view_box) != 4:
             raise ValueError("viewBox debe tener cuatro valores.")
-        layout = cls(raw["board_id"], source.parent / raw["svg"], view_box, elements)
+        layout = cls(raw["board_id"], source, source.parent / raw["svg"], view_box, elements)
         layout.validate()
         return layout
 

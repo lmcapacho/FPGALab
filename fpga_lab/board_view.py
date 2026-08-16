@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
-from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
 from .board_layout import BoardLayout, BoardLayoutElement
 
@@ -16,6 +17,7 @@ class BoardLedItem(QGraphicsRectItem):
     def __init__(self, element: BoardLayoutElement):
         super().__init__(element.x, element.y, element.width, element.height)
         self._color = QColor(element.color)
+        self._calibrating = False
         self.setPen(QPen(QColor("#475569"), 1.5))
         self.set_brightness(0.0)
 
@@ -24,7 +26,13 @@ class BoardLedItem(QGraphicsRectItem):
         color = QColor(self._color)
         color.setAlpha(round(255 * value ** 0.38))
         self.setBrush(QBrush(color))
-        self.setPen(QPen(Qt.PenStyle.NoPen))
+        self.setPen(QPen(QColor("#f43f5e"), 0.5) if self._calibrating else QPen(Qt.PenStyle.NoPen))
+
+
+    def set_calibration(self, enabled: bool) -> None:
+        self._calibrating = enabled
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, enabled)
+        self.setPen(QPen(QColor("#f43f5e"), 0.5) if enabled else QPen(Qt.PenStyle.NoPen))
 
 
 class BoardButtonItem(QGraphicsRectItem):
@@ -63,11 +71,14 @@ class BoardView(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._leds: dict[str, BoardLedItem] = {}
+        self._led_items: dict[str, BoardLedItem] = {}
+        self._calibration_mode = False
         artwork_bounds = self._add_svg()
         for element in layout.elements:
             element = self._map_element(element, artwork_bounds)
             if element.kind == "led":
                 self._leds[element.signal] = BoardLedItem(element)
+                self._led_items[element.id] = self._leds[element.signal]
                 self._scene.addItem(self._leds[element.signal])
             elif element.kind == "button":
                 self._scene.addItem(BoardButtonItem(element, input_changed))
@@ -88,6 +99,22 @@ class BoardView(QGraphicsView):
             width=element.width * artwork_bounds.width() / layout_width,
             height=element.height * artwork_bounds.height() / layout_height,
         )
+
+    def set_calibration_mode(self, enabled: bool) -> None:
+        for item in self._led_items.values():
+            item.set_calibration(enabled)
+
+    def save_led_positions(self) -> None:
+        raw = json.loads(self._layout.source.read_text(encoding="utf-8"))
+        origin_x, origin_y, layout_width, layout_height = self._layout.view_box
+        bounds = self._scene.sceneRect()
+        by_id = {component["id"]: component for component in raw["components"]}
+        for element_id, item in self._led_items.items():
+            rect = item.sceneBoundingRect()
+            component = by_id[element_id]
+            component["x"] = round(origin_x + (rect.x() - bounds.x()) * layout_width / bounds.width(), 3)
+            component["y"] = round(origin_y + (rect.y() - bounds.y()) * layout_height / bounds.height(), 3)
+        self._layout.source.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
 
     def set_led_brightness(self, signal: str, brightness: float) -> None:
         if led := self._leds.get(signal):
