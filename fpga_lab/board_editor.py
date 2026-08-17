@@ -30,6 +30,17 @@ class EditableItem(QGraphicsRectItem):
 
 
 class EditorCanvas(QGraphicsView):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.key_handler = None
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def keyPressEvent(self, event) -> None:
+        if self.key_handler and self.key_handler(event):
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def wheelEvent(self, event) -> None:
         factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
         self.scale(factor, factor)
@@ -49,6 +60,7 @@ class BoardLayoutEditor(QDialog):
         self._scene = QGraphicsScene(self)
         self._canvas = EditorCanvas(self)
         self._canvas.setScene(self._scene)
+        self._canvas.key_handler = self._move_selected_key
         self._canvas.setRenderHint(QPainter.RenderHint.Antialiasing)
         self._canvas.setBackgroundBrush(QColor("#0f172a"))
         self._items: dict[str, EditableItem] = {}
@@ -94,7 +106,7 @@ class BoardLayoutEditor(QDialog):
         close.rejected.connect(self.reject)
         side.addWidget(close)
         root.addWidget(side_frame)
-        QTimer.singleShot(0, self.fit_to_canvas)
+        QTimer.singleShot(0, self._prepare_canvas)
 
     def _map_to_scene(self, element: BoardLayoutElement) -> BoardLayoutElement:
         origin_x, origin_y, width, height = self._layout.view_box
@@ -126,7 +138,11 @@ class BoardLayoutEditor(QDialog):
         self._id.setText(source.id); self._kind.setText(source.kind); self._signal.setText(source.signal)
         self._position.setText(f"x={x}, y={y}")
 
-    def keyPressEvent(self, event) -> None:
+    def _prepare_canvas(self) -> None:
+        self.fit_to_canvas()
+        self._canvas.setFocus()
+
+    def _move_selected_key(self, event) -> bool:
         selected = self._scene.selectedItems()
         arrows = {
             Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_Right: (1, 0),
@@ -137,9 +153,8 @@ class BoardLayoutEditor(QDialog):
             dx, dy = arrows[event.key()]
             selected[0].moveBy(dx * step, dy * step)
             self._show_selection()
-            event.accept()
-            return
-        super().keyPressEvent(event)
+            return True
+        return False
 
     def fit_to_canvas(self) -> None:
         self._canvas.fitInView(self._bounds, Qt.AspectRatioMode.KeepAspectRatio)
