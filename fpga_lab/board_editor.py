@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import (
-    QDialog, QDialogButtonBox, QFormLayout, QGraphicsItem, QGraphicsRectItem,
+    QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem,
     QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
 )
 
@@ -42,7 +42,10 @@ class BoardLayoutEditor(QDialog):
         super().__init__(parent)
         self._layout = layout
         self.setWindowTitle(f"Editar layout · {layout.board_id}")
-        self.resize(980, 680)
+        self.setWindowFlag(Qt.WindowType.Window, True)
+        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
+        self.setMinimumSize(900, 600)
+        self.resize(1280, 820)
         self._scene = QGraphicsScene(self)
         self._canvas = EditorCanvas(self)
         self._canvas.setScene(self._scene)
@@ -63,9 +66,13 @@ class BoardLayoutEditor(QDialog):
 
         root = QHBoxLayout(self)
         root.addWidget(self._canvas, 1)
-        side = QVBoxLayout()
+        side_frame = QFrame()
+        side_frame.setFixedWidth(280)
+        side = QVBoxLayout(side_frame)
         side.addWidget(QLabel("Editor de layout"))
-        side.addWidget(QLabel("Arrastre para recorridos grandes; flechas: 0.25 unidades; Mayús+flechas: 2 unidades."))
+        instructions = QLabel("Arrastre: recorrido grande. Flechas: 0.25 unidades. Mayús+flechas: 2 unidades.")
+        instructions.setWordWrap(True)
+        side.addWidget(instructions)
         form = QFormLayout()
         self._id = QLabel("—")
         self._kind = QLabel("—")
@@ -86,8 +93,8 @@ class BoardLayoutEditor(QDialog):
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(self.reject)
         side.addWidget(close)
-        root.addLayout(side)
-        self.fit_to_canvas()
+        root.addWidget(side_frame)
+        QTimer.singleShot(0, self.fit_to_canvas)
 
     def _map_to_scene(self, element: BoardLayoutElement) -> BoardLayoutElement:
         origin_x, origin_y, width, height = self._layout.view_box

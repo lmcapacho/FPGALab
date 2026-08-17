@@ -41,6 +41,8 @@ class FPGAVirtualLab(QWidget):
 
     set_input_requested = pyqtSignal(str, int)
     shutdown_requested = pyqtSignal()
+    play_requested = pyqtSignal()
+    pause_requested = pyqtSignal()
 
     def __init__(self, simulation: VerilatorSimulation, clock_hz: int = 12_000_000, ui_refresh_hz: int = 60, observation_hz: int = 1_000_000, parent=None):
         super().__init__(parent)
@@ -58,6 +60,8 @@ class FPGAVirtualLab(QWidget):
         self._thread.started.connect(self._worker.start)
         self.set_input_requested.connect(self._worker.set_input)
         self.shutdown_requested.connect(self._worker.shutdown)
+        self.play_requested.connect(self._worker.play)
+        self.pause_requested.connect(self._worker.pause)
         self._worker.state_changed.connect(self._paint_state)
         self._worker.failure.connect(self._show_failure)
         self._worker.stopped.connect(self._thread.quit)
@@ -88,6 +92,15 @@ class FPGAVirtualLab(QWidget):
         info_layout = QVBoxLayout(info_panel)
         info_layout.addWidget(QLabel("Controles integrados"))
         info_layout.addWidget(QLabel("Presione SW1 o SW2 directamente sobre la placa.", objectName="caption"))
+        self._run_state = QLabel("Estado: detenido", objectName="caption")
+        info_layout.addWidget(self._run_state)
+        run_buttons = QHBoxLayout()
+        play = QPushButton("▶ Ejecutar")
+        play.clicked.connect(self._play)
+        pause = QPushButton("■ Detener")
+        pause.clicked.connect(self._pause)
+        run_buttons.addWidget(play); run_buttons.addWidget(pause)
+        info_layout.addLayout(run_buttons)
         controls.addWidget(info_panel)
 
         display_panel = QFrame(objectName="panel")
@@ -100,6 +113,14 @@ class FPGAVirtualLab(QWidget):
         controls.addWidget(display_panel)
         controls.addStretch()
         root.addLayout(controls, 2)
+
+    def _play(self) -> None:
+        self.play_requested.emit()
+        self._run_state.setText("Estado: ejecutando")
+
+    def _pause(self) -> None:
+        self.pause_requested.emit()
+        self._run_state.setText("Estado: detenido")
 
     def _open_layout_editor(self) -> None:
         editor = BoardLayoutEditor(BoardLayout.load(bundled_layout()), self)
