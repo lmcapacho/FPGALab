@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QThread, QTimer, pyqtSignal
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenuBar, QPushButton, QVBoxLayout, QWidget
 
+from .board_editor import BoardLayoutEditor
 from .board_layout import BoardLayout, bundled_layout
 from .board_view import BoardView
 from .simulation import VerilatorSimulation
@@ -64,7 +65,14 @@ class FPGAVirtualLab(QWidget):
         self._thread.start()
 
     def _build_ui(self) -> None:
-        root = QHBoxLayout(self)
+        outer = QVBoxLayout(self)
+        menu_bar = QMenuBar(self)
+        board_menu = menu_bar.addMenu("Placa")
+        edit_layout = board_menu.addAction("Editar layout…")
+        edit_layout.triggered.connect(self._open_layout_editor)
+        outer.addWidget(menu_bar)
+        root = QHBoxLayout()
+        outer.addLayout(root)
         board_panel = QFrame(objectName="board")
         board_layout = QVBoxLayout(board_panel)
         title = QLabel(f"{self._board_name.upper()} · FPGA VIRTUAL")
@@ -98,6 +106,11 @@ class FPGAVirtualLab(QWidget):
         controls.addWidget(display_panel)
         controls.addStretch()
         root.addLayout(controls, 2)
+
+    def _open_layout_editor(self) -> None:
+        editor = BoardLayoutEditor(BoardLayout.load(bundled_layout()), self)
+        if editor.exec():
+            self.setWindowTitle("FPGALab · layout guardado; reinicie la vista para recargarlo")
 
     def _save_led_positions(self) -> None:
         self._board_view.save_led_positions()
