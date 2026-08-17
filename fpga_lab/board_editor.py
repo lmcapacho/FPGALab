@@ -24,9 +24,7 @@ class EditableItem(QGraphicsRectItem):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
     def paint(self, painter: QPainter, _option, _widget=None) -> None:
-        if not self.isSelected():
-            return
-        painter.setPen(QPen(QColor("#f43f5e"), 0.65))
+        painter.setPen(QPen(QColor("#f43f5e") if self.isSelected() else QColor("#facc15"), 0.65))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(self.rect())
 
@@ -67,7 +65,7 @@ class BoardLayoutEditor(QDialog):
         root.addWidget(self._canvas, 1)
         side = QVBoxLayout()
         side.addWidget(QLabel("Editor de layout"))
-        side.addWidget(QLabel("Seleccione y arrastre un componente sobre la placa."))
+        side.addWidget(QLabel("Arrastre para recorridos grandes; flechas: 0.25 unidades; Mayús+flechas: 2 unidades."))
         form = QFormLayout()
         self._id = QLabel("—")
         self._kind = QLabel("—")
@@ -120,6 +118,21 @@ class BoardLayoutEditor(QDialog):
         x, y = self._map_to_layout(item)
         self._id.setText(source.id); self._kind.setText(source.kind); self._signal.setText(source.signal)
         self._position.setText(f"x={x}, y={y}")
+
+    def keyPressEvent(self, event) -> None:
+        selected = self._scene.selectedItems()
+        arrows = {
+            Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_Right: (1, 0),
+            Qt.Key.Key_Up: (0, -1), Qt.Key.Key_Down: (0, 1),
+        }
+        if selected and event.key() in arrows:
+            step = 2.0 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else 0.25
+            dx, dy = arrows[event.key()]
+            selected[0].moveBy(dx * step, dy * step)
+            self._show_selection()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def fit_to_canvas(self) -> None:
         self._canvas.fitInView(self._bounds, Qt.AspectRatioMode.KeepAspectRatio)
