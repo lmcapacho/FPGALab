@@ -52,10 +52,16 @@ class SimulationWorker(QObject):
             self._cycle_remainder = 0.0
             self._timer.start()
 
-    @pyqtSlot()
+    ()
     def pause(self) -> None:
         if self._timer:
             self._timer.stop()
+
+    ()
+    def power_off(self) -> None:
+        self.pause()
+        self._simulation.reset()
+        self.state_changed.emit([0.0] * 8, 0, 0)
 
     @pyqtSlot()
     def _run_frame(self) -> None:

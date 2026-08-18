@@ -63,7 +63,7 @@ class FPGAVirtualLab(QWidget):
         self.set_input_requested.connect(self._worker.set_input)
         self.shutdown_requested.connect(self._worker.shutdown)
         self.play_requested.connect(self._worker.play)
-        self.pause_requested.connect(self._worker.pause)
+        self.pause_requested.connect(self._worker.power_off)
         self.reset_requested.connect(self._worker.reset)
         self._worker.state_changed.connect(self._paint_state)
         self._worker.failure.connect(self._show_failure)
