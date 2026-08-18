@@ -25,7 +25,7 @@ def main() -> None:
     app = QApplication(sys.argv)
     simulation = VerilatorSimulation(ns.library, BoardProfile.load(ns.profile))
     window = FPGAVirtualLab(simulation, ns.clock_hz, ns.ui_refresh_hz, ns.observation_hz)
-    window.showFullScreen()
+    window.showMaximized()
     sys.exit(app.exec())
 
 
