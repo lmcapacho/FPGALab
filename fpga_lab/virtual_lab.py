@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenuBar, QPushButton, QVBoxLayout, QWidget
 
+from .board import BoardDefinition
 from .board_editor import BoardLayoutEditor
+from .peripherals_panel import PeripheralsPanel
 from .board_layout import BoardLayout, bundled_layout
 from .board_view import BoardView
 from .simulation import VerilatorSimulation
@@ -105,6 +109,11 @@ class FPGAVirtualLab(QWidget):
         run_buttons.addWidget(play); run_buttons.addWidget(pause)
         info_layout.addLayout(run_buttons)
         controls.addWidget(info_panel)
+        gpio_panel = QFrame(objectName="panel")
+        gpio_layout = QVBoxLayout(gpio_panel)
+        self._peripherals = PeripheralsPanel(BoardDefinition.load(Path("boards/alhambra_ii.json")), Path("examples/main.pcf"), Path("examples/lab.json"))
+        gpio_layout.addWidget(self._peripherals)
+        controls.addWidget(gpio_panel)
 
         display_panel = QFrame(objectName="panel")
         display_layout = QVBoxLayout(display_panel)
