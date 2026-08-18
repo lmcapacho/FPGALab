@@ -43,6 +43,7 @@ class FPGAVirtualLab(QWidget):
     shutdown_requested = pyqtSignal()
     play_requested = pyqtSignal()
     pause_requested = pyqtSignal()
+    reset_requested = pyqtSignal()
 
     def __init__(self, simulation: VerilatorSimulation, clock_hz: int = 12_000_000, ui_refresh_hz: int = 60, observation_hz: int = 1_000_000, parent=None):
         super().__init__(parent)
@@ -51,6 +52,7 @@ class FPGAVirtualLab(QWidget):
         self.setStyleSheet(_QSS)
         self._bounce_timers: list[QTimer] = []
         self._board_name = simulation.profile.board_name
+        self._available_inputs = frozenset(simulation.profile.inputs)
         self._layout = BoardLayout.load(bundled_layout())
         self._build_ui()
 
@@ -62,6 +64,7 @@ class FPGAVirtualLab(QWidget):
         self.shutdown_requested.connect(self._worker.shutdown)
         self.play_requested.connect(self._worker.play)
         self.pause_requested.connect(self._worker.pause)
+        self.reset_requested.connect(self._worker.reset)
         self._worker.state_changed.connect(self._paint_state)
         self._worker.failure.connect(self._show_failure)
         self._worker.stopped.connect(self._thread.quit)
@@ -116,10 +119,12 @@ class FPGAVirtualLab(QWidget):
 
     def _play(self) -> None:
         self.play_requested.emit()
+        self._board_view.set_led_brightness("PWR", 1.0)
         self._run_state.setText("Estado: ejecutando")
 
     def _pause(self) -> None:
         self.pause_requested.emit()
+        self._board_view.set_led_brightness("PWR", 0.0)
         self._run_state.setText("Estado: detenido")
 
     def _open_layout_editor(self) -> None:
@@ -129,6 +134,12 @@ class FPGAVirtualLab(QWidget):
 
     def _bouncy_input(self, name: str, final_value: int) -> None:
         """Tres cambios cortos hacen perceptible y configurable el rebote de botón."""
+        if name == "RESET":
+            self.reset_requested.emit()
+            return
+        if name not in self._available_inputs:
+            self._show_failure(f"{name}: no existe como entrada del perfil HDL")
+            return
         values = [final_value, 1 - final_value, final_value]
         for index, value in enumerate(values):
             timer = QTimer(self)

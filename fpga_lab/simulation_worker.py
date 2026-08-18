@@ -83,9 +83,21 @@ class SimulationWorker(QObject):
                 self._timer.stop()
             self.failure.emit(str(exc))
 
+    @pyqtSlot()
+    def reset(self) -> None:
+        was_running = bool(self._timer and self._timer.isActive())
+        if self._timer:
+            self._timer.stop()
+        self._simulation.reset()
+        if was_running:
+            self.play()
+
     @pyqtSlot(str, int)
     def set_input(self, name: str, value: int) -> None:
-        self._simulation.set_input(name, value)
+        try:
+            self._simulation.set_input(name, value)
+        except Exception as exc:
+            self.failure.emit(str(exc))
 
     @pyqtSlot()
     def shutdown(self) -> None:

@@ -66,6 +66,10 @@ class VerilatorSimulation:
             raise ValueError("La cantidad de ciclos no puede ser negativa.")
         self._run_cycles(count)
 
+    def reset(self) -> None:
+        """Reinicio eléctrico del modelo conservando su biblioteca y perfil."""
+        self._reset()
+
     def set_observation_divisor(self, cycles: int) -> None:
         """Cada cuántos ciclos virtuales se observa la salida (mínimo uno)."""
         if cycles < 1:
