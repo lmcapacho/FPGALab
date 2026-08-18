@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenuBar, QPushButton, QVBoxLayout, QWidget
 
 from .board_editor import BoardLayoutEditor
@@ -148,11 +148,11 @@ class FPGAVirtualLab(QWidget):
         self.setWindowTitle(f"FPGALab · simulación detenida: {error}")
 
     def closeEvent(self, event) -> None:
-        # El timer se detiene dentro del QThread que lo creó.
-        self.shutdown_requested.emit()
-        if self._thread.wait(3000):
-            event.accept()
-        else:
-            # Evita destruir el worker desde el hilo de la GUI.
-            self._show_failure("esperando el cierre seguro de la simulación")
-            event.ignore()
+        if self._thread.isRunning():
+            QMetaObject.invokeMethod(self._worker, "shutdown", Qt.ConnectionType.BlockingQueuedConnection)
+            self._thread.quit()
+            if not self._thread.wait(3000):
+                self._show_failure("esperando el cierre seguro de la simulación")
+                event.ignore()
+                return
+        event.accept()

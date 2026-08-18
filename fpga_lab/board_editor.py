@@ -8,7 +8,7 @@ from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import (
-    QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem,
+    QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QInputDialog, QGraphicsItem, QGraphicsRectItem,
     QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
 )
 
@@ -64,6 +64,7 @@ class BoardLayoutEditor(QDialog):
         self._canvas.setRenderHint(QPainter.RenderHint.Antialiasing)
         self._canvas.setBackgroundBrush(QColor("#0f172a"))
         self._items: dict[str, EditableItem] = {}
+        self._elements = {element.id: element for element in layout.elements}
         artwork = QGraphicsSvgItem(str(layout.svg))
         artwork.setZValue(-10)
         self._scene.addItem(artwork)
@@ -95,6 +96,18 @@ class BoardLayoutEditor(QDialog):
         form.addRow("Señal", self._signal)
         form.addRow("Posición", self._position)
         side.addLayout(form)
+        add_led = QPushButton("+ LED")
+        add_led.clicked.connect(lambda: self._add_component("led"))
+        side.addWidget(add_led)
+        add_switch = QPushButton("+ Switch")
+        add_switch.clicked.connect(lambda: self._add_component("button"))
+        side.addWidget(add_switch)
+        color = QPushButton("Cambiar color")
+        color.clicked.connect(self._change_color)
+        side.addWidget(color)
+        delete = QPushButton("Eliminar seleccionado")
+        delete.clicked.connect(self._delete_selected)
+        side.addWidget(delete)
         fit = QPushButton("Ajustar al lienzo")
         fit.clicked.connect(self.fit_to_canvas)
         side.addWidget(fit)
@@ -127,13 +140,37 @@ class BoardLayoutEditor(QDialog):
             round(origin_y + (rect.y() - self._bounds.y()) * height / self._bounds.height(), 3),
         )
 
+    def _add_component(self, kind: str) -> None:
+        prefix = "LED" if kind == "led" else "SW"
+        element_id, ok = QInputDialog.getText(self, "Nuevo componente", "Identificador", text=f"{prefix}{len(self._elements)}")
+        if not ok or not element_id or element_id in self._elements: return
+        signal, ok = QInputDialog.getText(self, "Nuevo componente", "Señal HDL", text=element_id)
+        if not ok or not signal: return
+        width, height = (4.2, 1.8) if kind == "led" else (14.0, 5.6)
+        element = BoardLayoutElement(element_id, kind, signal, self._layout.view_box[2] / 2 - width / 2, self._layout.view_box[3] / 2 - height / 2, width, height, "#b6ff00")
+        self._elements[element_id] = element
+        item = EditableItem(self._map_to_scene(element)); self._items[element_id] = item; self._scene.addItem(item); item.setSelected(True)
+
+    def _delete_selected(self) -> None:
+        selected = self._scene.selectedItems()
+        if selected:
+            item = selected[0]; self._scene.removeItem(item); self._items.pop(item.element_id, None); self._elements.pop(item.element_id, None)
+
+    def _change_color(self) -> None:
+        selected = self._scene.selectedItems()
+        if not selected: return
+        item = selected[0]; element = self._elements[item.element_id]
+        color = QColorDialog.getColor(QColor(element.color), self, "Color del componente")
+        if color.isValid():
+            self._elements[element.id] = BoardLayoutElement(element.id, element.kind, element.signal, element.x, element.y, element.width, element.height, color.name())
+
     def _show_selection(self) -> None:
         selected = self._scene.selectedItems()
         if not selected:
             self._id.setText("—"); self._kind.setText("—"); self._signal.setText("—"); self._position.setText("—")
             return
         item = selected[0]
-        source = next(element for element in self._layout.elements if element.id == item.element_id)
+        source = self._elements[item.element_id]
         x, y = self._map_to_layout(item)
         self._id.setText(source.id); self._kind.setText(source.kind); self._signal.setText(source.signal)
         self._position.setText(f"x={x}, y={y}")
@@ -151,7 +188,12 @@ class BoardLayoutEditor(QDialog):
         if selected and event.key() in arrows:
             step = 2.0 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else 0.25
             dx, dy = arrows[event.key()]
-            selected[0].moveBy(dx * step, dy * step)
+            item = selected[0]
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                rect = item.rect()
+                item.setRect(rect.x(), rect.y(), max(0.25, rect.width() + dx * step), max(0.25, rect.height() + dy * step))
+            else:
+                item.moveBy(dx * step, dy * step)
             self._show_selection()
             return True
         return False
@@ -161,10 +203,12 @@ class BoardLayoutEditor(QDialog):
 
     def save(self) -> None:
         raw = json.loads(self._layout.source.read_text(encoding="utf-8"))
-        components = {component["id"]: component for component in raw["components"]}
+        original = {component["id"]: component for component in raw["components"]}
+        raw["components"] = []
         for element_id, item in self._items.items():
-            x, y = self._map_to_layout(item)
-            components[element_id]["x"] = x
-            components[element_id]["y"] = y
+            x, y = self._map_to_layout(item); rect = item.sceneBoundingRect(); element = self._elements[element_id]
+            component = original.get(element_id, {})
+            component.update({"id": element_id, "type": element.kind, "signal": element.signal, "x": x, "y": y, "width": round(rect.width(), 3), "height": round(rect.height(), 3), "color": element.color})
+            raw["components"].append(component)
         self._layout.source.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
         self.accept()
