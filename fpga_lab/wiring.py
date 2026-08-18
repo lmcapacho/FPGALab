@@ -8,13 +8,22 @@ from pathlib import Path
 from .board import BoardDefinition
 from .constraints import PcfParser, PinConstraint
 
-_DRIVING_TERMINALS = {"button": {"signal"}, "sensor": {"signal"}}
-_TERMINAL_DIRECTIONS = {
+# Catálogo independiente de la GUI: cada tipo declara sus terminales HDL.
+PERIPHERAL_TERMINALS = {
     "led": {"anode": "output"},
+    "traffic_light": {"red": "output", "yellow": "output", "green": "output"},
     "seven_segment": {"a": "output", "b": "output", "c": "output", "d": "output", "e": "output", "f": "output", "g": "output"},
     "button": {"signal": "input"},
     "sensor": {"signal": "input"},
 }
+PERIPHERAL_LABELS = {
+    "led": "LED", "traffic_light": "Semáforo", "seven_segment": "Display 7 segmentos",
+    "button": "Pulsador", "sensor": "Sensor digital",
+}
+
+
+_DRIVING_TERMINALS = {"button": {"signal"}, "sensor": {"signal"}}
+_TERMINAL_DIRECTIONS = PERIPHERAL_TERMINALS
 
 
 @dataclass(frozen=True)
@@ -22,6 +31,7 @@ class PeripheralInstance:
     peripheral_id: str
     kind: str
     connections: dict[str, str]
+    properties: dict[str, object]
 
 
 @dataclass(frozen=True)
@@ -40,7 +50,7 @@ class VirtualLabProject:
     def load(cls, path: str | Path) -> "VirtualLabProject":
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         peripherals = tuple(
-            PeripheralInstance(item["id"], item["type"], dict(item["connections"]))
+            PeripheralInstance(item["id"], item["type"], dict(item["connections"]), dict(item.get("properties", {})))
             for item in raw.get("peripherals", [])
         )
         ids = [item.peripheral_id for item in peripherals]
@@ -55,6 +65,12 @@ class VirtualLabProject:
         drivers: set[str] = set()
         resolved: list[ResolvedWire] = []
         for peripheral in self.peripherals:
+            known_terminals = _TERMINAL_DIRECTIONS.get(peripheral.kind)
+            if known_terminals is None:
+                raise ValueError(f"Tipo de periférico desconocido: {peripheral.kind}.")
+            unknown = set(peripheral.connections) - set(known_terminals)
+            if unknown:
+                raise ValueError(f"{peripheral.peripheral_id}: terminales no válidos: {", ".join(sorted(unknown))}.")
             for terminal, endpoint in peripheral.connections.items():
                 board_pin = board.pin(endpoint)
                 expected_direction = _TERMINAL_DIRECTIONS.get(peripheral.kind, {}).get(terminal)
