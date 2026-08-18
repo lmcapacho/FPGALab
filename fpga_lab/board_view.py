@@ -29,12 +29,12 @@ class BoardLedItem(QGraphicsRectItem):
     def paint(self, painter: QPainter, _option, _widget=None) -> None:
         if self._intensity:
             rect = self.rect()
-            halo = QColor("#39ff14")
-            halo.setAlpha(round(105 * self._intensity))
+            halo = QColor(self._color)
+            halo.setAlpha(round(135 * self._intensity))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(halo)
             painter.drawRoundedRect(rect.adjusted(-1.4, -0.9, 1.4, 0.9), 1.6, 1.6)
-            core = QColor("#d9ff00")
+            core = self._color.lighter(150)
             core.setAlpha(round(255 * self._intensity))
             painter.setBrush(core)
             painter.drawRoundedRect(rect.adjusted(0.25, 0.25, -0.25, -0.25), 0.7, 0.7)
