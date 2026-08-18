@@ -163,6 +163,7 @@ class FPGAVirtualLab(QWidget):
             self._board_view.set_led_brightness(f"LED{index}", float(state))
         self._display.set_segments(segments)
         self._gpio.setText(f"GPIO OUT: {gpio_out:08b}")
+        self._peripherals.update_gpio(gpio_out)
 
     def _show_failure(self, error: str) -> None:
         self.setWindowTitle(f"FPGALab · simulación detenida: {error}")
