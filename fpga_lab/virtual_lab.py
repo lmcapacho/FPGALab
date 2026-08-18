@@ -115,14 +115,6 @@ class FPGAVirtualLab(QWidget):
         gpio_layout.addWidget(self._peripherals)
         controls.addWidget(gpio_panel)
 
-        display_panel = QFrame(objectName="panel")
-        display_layout = QVBoxLayout(display_panel)
-        display_layout.addWidget(QLabel("Display 7 segmentos · 2 dígitos"))
-        self._display = SevenSegmentDisplay()
-        display_layout.addWidget(self._display)
-        self._gpio = QLabel("GPIO OUT: 00000000", objectName="caption")
-        display_layout.addWidget(self._gpio)
-        controls.addWidget(display_panel)
         controls.addStretch()
         root.addLayout(controls, 2)
 
@@ -161,8 +153,6 @@ class FPGAVirtualLab(QWidget):
     def _paint_state(self, leds: list, segments: int, gpio_out: int) -> None:
         for index, state in enumerate(leds):
             self._board_view.set_led_brightness(f"LED{index}", float(state))
-        self._display.set_segments(segments)
-        self._gpio.setText(f"GPIO OUT: {gpio_out:08b}")
         self._peripherals.update_gpio(gpio_out)
 
     def _show_failure(self, error: str) -> None:
