@@ -57,6 +57,7 @@ class FPGAVirtualLab(QWidget):
         self._bounce_timers: list[QTimer] = []
         self._board_name = simulation.profile.board_name
         self._available_inputs = frozenset(simulation.profile.inputs)
+        self._input_widths = dict(simulation.profile.inputs)
         self._layout = BoardLayout.load(bundled_layout())
         self._build_ui()
 
@@ -111,22 +112,23 @@ class FPGAVirtualLab(QWidget):
         controls.addWidget(info_panel)
         gpio_panel = QFrame(objectName="panel")
         gpio_layout = QVBoxLayout(gpio_panel)
-        self._peripherals = PeripheralsPanel(BoardDefinition.load(Path("boards/alhambra_ii.json")), Path("examples/main.pcf"), Path("examples/lab.json"))
-        gpio_layout.addWidget(self._peripherals)
-        controls.addWidget(gpio_panel)
-
-        controls.addStretch()
+        self._peripherals = PeripheralsPanel(BoardDefinition.load(Path("boards/alhambra_ii.json")), Path("examples/main.pcf"), Path("examples/lab.json"), self._input_widths)
+        self._peripherals.input_changed.connect(self.set_input_requested)
+        gpio_layout.addWidget(self._peripherals, 1)
+        controls.addWidget(gpio_panel, 1)
         root.addLayout(controls, 2)
 
     def _play(self) -> None:
         self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
-        self._run_state.setText("Estado: ejecutando")
+        self._run_state.setText("Estado: ejecutando · edición bloqueada")
+        self._peripherals.set_editable(False)
 
     def _pause(self) -> None:
         self.pause_requested.emit()
         self._board_view.set_led_brightness("PWR", 0.0)
         self._run_state.setText("Estado: detenido")
+        self._peripherals.set_editable(True)
 
     def _open_layout_editor(self) -> None:
         editor = BoardLayoutEditor(BoardLayout.load(bundled_layout()), self)
