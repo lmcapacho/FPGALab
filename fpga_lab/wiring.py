@@ -39,7 +39,7 @@ class ResolvedWire:
     peripheral_id: str
     terminal: str
     board_endpoint: str
-    hdl_net: str
+    hdl_net: str | None
 
 
 @dataclass(frozen=True)
@@ -77,15 +77,11 @@ class VirtualLabProject:
                 if expected_direction and board_pin.direction not in {expected_direction, "inout"}:
                     raise ValueError(f"{peripheral.peripheral_id}.{terminal}: {endpoint} no admite dirección {expected_direction}.")
                 constraint = by_pin.get(board_pin.fpga_pin)
-                if constraint is None:
-                    raise ValueError(
-                        f"{peripheral.peripheral_id}.{terminal}: {endpoint} no está conectado en el PCF."
-                    )
                 if terminal in _DRIVING_TERMINALS.get(peripheral.kind, set()):
                     if endpoint in drivers:
                         raise ValueError(f"Dos periféricos intentan conducir {endpoint}.")
                     drivers.add(endpoint)
                 resolved.append(
-                    ResolvedWire(peripheral.peripheral_id, terminal, endpoint, constraint.net)
+                    ResolvedWire(peripheral.peripheral_id, terminal, endpoint, constraint.net if constraint else None)
                 )
         return tuple(resolved)

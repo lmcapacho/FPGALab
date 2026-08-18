@@ -136,7 +136,7 @@ class PeripheralsPanel(QWidget):
     changed = pyqtSignal(str)
     def __init__(self, board: BoardDefinition, pcf: Path, lab: Path, parent=None):
         super().__init__(parent); self._board, self._pcf, self._lab = board, pcf, lab
-        self._assigned_endpoints = {pin.id for pin in board.pins if pin.fpga_pin in PcfParser.index_by_pin(PcfParser.parse_file(pcf))}
+        self._assigned_endpoints = None  # La placa completa está disponible; el PCF del diseño es opcional.
         layout = QVBoxLayout(self); layout.addWidget(QLabel("Catálogo de periféricos"))
         catalog = QHBoxLayout(); self.kind = QComboBox()
         for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(label, key)
@@ -202,7 +202,7 @@ class PeripheralsPanel(QWidget):
     def update_gpio(self, gpio_out: int):
         import re
         for (_peripheral_id, terminal), (item, net) in self._workbench_bindings.items():
-            match = re.fullmatch(r"gpio_out\[(\d+)\]", net)
+            match = re.fullmatch(r"gpio_out\[(\d+)\]", net or "")
             item.set_terminal(terminal, bool(match and gpio_out & (1 << int(match.group(1)))))
 
     def _add(self):
