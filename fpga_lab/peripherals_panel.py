@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QComboBox, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QPushButton, QVBoxLayout, QWidget
 from .board import BoardDefinition
 from .constraints import PcfParser
-from .wiring import VirtualLabProject
+from .wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS, VirtualLabProject
 
 class SegmentDisplay(QFrame):
     """Representacion compacta de un display externo de siete segmentos."""
@@ -37,15 +37,24 @@ class PeripheralsPanel(QWidget):
     def __init__(self, board: BoardDefinition, pcf: Path, lab: Path, parent=None):
         super().__init__(parent); self._board, self._pcf, self._lab = board, pcf, lab
         layout = QVBoxLayout(self); layout.addWidget(QLabel("Periféricos externos"))
-        form = QFormLayout(); self.kind = QComboBox(); self.kind.addItems(["led", "button"])
-        self.identifier = QLineEdit("led_externo_1"); self.pin = QComboBox()
-        form.addRow("Tipo", self.kind); form.addRow("Id", self.identifier); form.addRow("GPIO", self.pin); layout.addLayout(form)
-        self.kind.currentTextChanged.connect(self._refresh_pins); self._refresh_pins(self.kind.currentText())
+        form = QFormLayout(); self.kind = QComboBox()
+        for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(label, key)
+        self.identifier = QLineEdit("led_externo_1"); self.common = QComboBox(); self.common.addItems(["cathode", "anode"])
+        form.addRow("Tipo", self.kind); form.addRow("Id", self.identifier); form.addRow("Común display", self.common); layout.addLayout(form)
+        self.connections_form = QFormLayout(); layout.addLayout(self.connections_form); self._connections = {}
+        self.kind.currentIndexChanged.connect(self._refresh_pins); self._refresh_pins()
         add = QPushButton("Agregar periférico"); add.clicked.connect(self._add); layout.addWidget(add)
         self.status = QLabel(""); layout.addWidget(self.status); self.items = QListWidget(); layout.addWidget(self.items); self._led_bindings = {}; self._segment_bindings = []; self._reload()
-    def _refresh_pins(self, kind: str):
-        direction = "output" if kind == "led" else "input"; self.pin.clear()
-        self.pin.addItems(pin.id for pin in self._board.available_endpoints(direction) if pin.location.startswith("header"))
+    def _refresh_pins(self):
+        while self.connections_form.rowCount(): self.connections_form.removeRow(0)
+        self._connections = {}
+        kind = self.kind.currentData()
+        for terminal, direction in PERIPHERAL_TERMINALS[kind].items():
+            picker = QComboBox(); picker.addItem("— sin conectar —", "")
+            for pin in self._board.available_endpoints(direction):
+                if pin.location.startswith("header"): picker.addItem(pin.id, pin.id)
+            self.connections_form.addRow(terminal, picker); self._connections[terminal] = picker
+        self.common.setVisible(kind == "seven_segment")
     def _reload(self):
         project = VirtualLabProject.load(self._lab); wires = project.resolve(self._board, PcfParser.parse_file(self._pcf))
         nets = {(wire.peripheral_id, wire.terminal): wire.hdl_net for wire in wires}
@@ -78,13 +87,17 @@ class PeripheralsPanel(QWidget):
             match = re.fullmatch(r"gpio_out\[(\d+)\]", net)
             visual.set_segment(terminal, bool(match and gpio_out & (1 << int(match.group(1)))))
     def _add(self):
-        item_id, kind, endpoint = self.identifier.text().strip(), self.kind.currentText(), self.pin.currentText()
-        if not item_id or not endpoint: self.status.setText("Indique id y GPIO."); return
+        item_id, kind = self.identifier.text().strip(), self.kind.currentData()
+        connections = {terminal: picker.currentData() for terminal, picker in self._connections.items() if picker.currentData()}
+        missing = set(self._connections) - set(connections)
+        if not item_id or missing:
+            self.status.setText("Asigne un GPIO a cada terminal: " + ", ".join(sorted(missing))); return
         original = self._lab.read_text(encoding="utf-8"); raw = json.loads(original)
-        raw.setdefault("peripherals", []).append({"id": item_id, "type": kind, "connections": {"anode" if kind == "led" else "signal": endpoint}})
+        properties = {"common": self.common.currentText()} if kind == "seven_segment" else {}
+        raw.setdefault("peripherals", []).append({"id": item_id, "type": kind, "connections": connections, "properties": properties})
         self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
         try:
             VirtualLabProject.load(self._lab).resolve(self._board, PcfParser.parse_file(self._pcf))
         except Exception as exc:
             self._lab.write_text(original, encoding="utf-8"); self.status.setText(str(exc)); return
-        self.status.setText(f"{item_id} conectado a {endpoint}"); self._reload(); self.changed.emit(item_id)
+        self.status.setText(f"{item_id}: {len(connections)} terminal(es) conectado(s)"); self._reload(); self.changed.emit(item_id)
