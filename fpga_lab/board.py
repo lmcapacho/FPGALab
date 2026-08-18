@@ -55,3 +55,9 @@ class BoardDefinition:
 
     def fpga_pin_for(self, endpoint: str) -> str:
         return self.pin(endpoint).fpga_pin
+
+    def available_endpoints(self, direction: str | None = None) -> tuple[BoardPin, ...]:
+        """Endpoints seleccionables; ``inout`` sirve en ambas direcciones."""
+        if direction is None:
+            return self.pins
+        return tuple(pin for pin in self.pins if pin.direction in {direction, "inout"})

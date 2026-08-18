@@ -9,6 +9,12 @@ from .board import BoardDefinition
 from .constraints import PcfParser, PinConstraint
 
 _DRIVING_TERMINALS = {"button": {"signal"}, "sensor": {"signal"}}
+_TERMINAL_DIRECTIONS = {
+    "led": {"anode": "output"},
+    "seven_segment": {"a": "output", "b": "output", "c": "output", "d": "output", "e": "output", "f": "output", "g": "output"},
+    "button": {"signal": "input"},
+    "sensor": {"signal": "input"},
+}
 
 
 @dataclass(frozen=True)
@@ -51,6 +57,9 @@ class VirtualLabProject:
         for peripheral in self.peripherals:
             for terminal, endpoint in peripheral.connections.items():
                 board_pin = board.pin(endpoint)
+                expected_direction = _TERMINAL_DIRECTIONS.get(peripheral.kind, {}).get(terminal)
+                if expected_direction and board_pin.direction not in {expected_direction, "inout"}:
+                    raise ValueError(f"{peripheral.peripheral_id}.{terminal}: {endpoint} no admite dirección {expected_direction}.")
                 constraint = by_pin.get(board_pin.fpga_pin)
                 if constraint is None:
                     raise ValueError(
