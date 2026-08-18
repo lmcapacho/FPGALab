@@ -119,7 +119,6 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         elif kind == "traffic_light":
             for y, terminal, color in ((58, "red", "#ef4444"), (102, "yellow", "#facc15"), (146, "green", "#22c55e")):
                 self._lamp(painter, 60, y, self._active.get(terminal, False), color)
-                painter.setPen(QColor("#94a3b8")); painter.drawText(82, y + 5, terminal.upper())
         elif kind == "seven_segment":
             self._draw_display(painter)
         else:
@@ -237,7 +236,9 @@ class PeripheralsPanel(QWidget):
         ids = [item["id"] for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
         if value["id"] in ids: self.status.setText("Ya existe un periférico con ese identificador."); return
         for index, item in enumerate(raw.get("peripherals", [])):
-            if item["id"] == peripheral.peripheral_id: raw["peripherals"][index] = value; break
+            if item["id"] == peripheral.peripheral_id:
+                value["properties"] = {**item.get("properties", {}), **value["properties"]}
+                raw["peripherals"][index] = value; break
         self._commit(raw, f"{value["id"]} actualizado")
 
     def _delete(self, peripheral):
