@@ -95,9 +95,16 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         position = peripheral.properties.get("position", [16, 16])
         self.setPos(float(position[0]), float(position[1]))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self._active = {}; self._pressed = False; self._sensor_value = False; self._editable = True
+        self._drag_dirty = False; self._last_position = self.pos()
+
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged and self._editable:
+            self._last_position = value; self._drag_dirty = True
+        return super().itemChange(change, value)
 
     def set_terminal(self, terminal, active):
         self._active[terminal] = active; self.update()
@@ -154,7 +161,9 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
         if self._peripheral.kind == "button": self._pressed = False; self._input_changed(self._peripheral.peripheral_id, "signal", 0); self.update()
-        self._moved(self._peripheral.peripheral_id, self.pos().x(), self.pos().y())
+        if self._editable and self._drag_dirty:
+            self._moved(self._peripheral.peripheral_id, self._last_position.x(), self._last_position.y())
+            self._drag_dirty = False
 
 
 class PeripheralsPanel(QWidget):
