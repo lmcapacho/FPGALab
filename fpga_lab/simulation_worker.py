@@ -23,6 +23,7 @@ class SimulationWorker(QObject):
         clock_hz: int = 12_000_000,
         ui_refresh_hz: int = 60,
         observation_hz: int = 1_000_000,
+        led_sources: dict[int, tuple[str, int]] | None = None,
     ):
         super().__init__()
         if clock_hz <= 0 or ui_refresh_hz <= 0 or observation_hz <= 0:
@@ -36,6 +37,7 @@ class SimulationWorker(QObject):
         self._last_frame_time = 0.0
         self._cycle_remainder = 0.0
         self._led_models = [LedModel() for _ in range(8)]
+        self._led_sources = led_sources or {index: (f"LED{index}", 0) for index in range(8)}
 
     @pyqtSlot()
     def start(self) -> None:
@@ -78,11 +80,11 @@ class SimulationWorker(QObject):
             self._simulation.ticks(cycles)
             windows = self._simulation.observed_windows(cycles)
             virtual_elapsed = cycles / self._clock_hz
-            leds = [
-                model.advance({"anode": windows[f"LED{index}[0]"]}, virtual_elapsed)
-                if f"LED{index}[0]" in windows else 0.0
-                for index, model in enumerate(self._led_models)
-            ]
+            leds = []
+            for index, model in enumerate(self._led_models):
+                port, bit = self._led_sources.get(index, (f"LED{index}", 0))
+                signal = windows.get(f"{port}[{bit}]")
+                leds.append(model.advance({"anode": signal}, virtual_elapsed) if signal else 0.0)
             segments = self._simulation.get_output("segments") if "segments" in self._simulation.profile.outputs else 0
             gpio_out = self._simulation.get_output("gpio_out") if "gpio_out" in self._simulation.profile.outputs else 0
             self.state_changed.emit(leds, segments, gpio_out)

@@ -29,6 +29,8 @@ class ProjectPinMap:
             endpoints = board.endpoints_for_fpga_pin(constraint.fpga_pin)
             # SDA/SCL and DD4/DD5 share pins: prefer the header endpoint.
             endpoint = next((pin for pin in endpoints if pin.location.startswith("header")), None)
+            if endpoint is None and endpoints:
+                endpoint = endpoints[0]
             if endpoint is not None:
                 bindings.append(ProjectPinBinding(constraint.net, constraint.fpga_pin, endpoint.id))
         return cls(tuple(bindings))

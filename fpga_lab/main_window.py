@@ -32,6 +32,11 @@ class FPGALabMainWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle("FPGALab · Laboratorio Virtual")
         self.setMinimumSize(1000, 680)
+        self.setStyleSheet("""
+            QMainWindow, QWidget { background:#0f172a; color:#e2e8f0; font-family:Inter,Arial,sans-serif; }
+            QFrame#panel { background:#172033; border:1px solid #334155; border-radius:10px; }
+            QLabel#caption { color:#94a3b8; font-size:11px; }
+        """)
         self._recent_projects = RecentProjects()
         self._active_lab: QWidget | None = None
 
@@ -65,7 +70,7 @@ class FPGALabMainWindow(QMainWindow):
         self._recent.addItem("Recientes", None)
         self._recent.currentIndexChanged.connect(self._choose_recent)
         self._refresh_recent()
-        run = QPushButton("▶ Ejecutar")
+        run = QPushButton("⟳ Cargar / actualizar diseño")
         run.clicked.connect(self._request_project)
         row.addWidget(self._path, 1)
         row.addWidget(browse)

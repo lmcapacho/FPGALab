@@ -3,19 +3,24 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QApplication, QMessageBox, QProgressDialog
+from PyQt6.QtWidgets import QApplication, QDialog, QLabel, QMessageBox, QVBoxLayout
 
+from .board import BoardDefinition
 from .build_cache import VerilatorBuildCache
 from .ice_project import IcestudioProject, IcestudioProjectError
 from .main_window import FPGALabMainWindow
 from .profile import BoardProfile
+from .project_pins import ProjectPinMap
 from .simulation import VerilatorSimulation
 from .verilog_interface import VerilogInterface
 from .virtual_lab import FPGAVirtualLab
+
+_SIGNAL_REFERENCE = re.compile(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?$")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -29,6 +34,51 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--ui-refresh-hz", type=int, default=60, help="Frecuencia máxima de pintado.")
     parser.add_argument("--observation-hz", type=int, default=1_000_000, help="Muestreo temporal para periféricos.")
     return parser.parse_args()
+
+
+def signal_reference(net: str | None, ports: dict[str, int]) -> tuple[str, int] | None:
+    """Convert a PCF net such as ``vinit[2]`` into an ABI port and bit."""
+    match = _SIGNAL_REFERENCE.fullmatch(net or "")
+    if match is None:
+        return None
+    name, raw_bit = match.groups()
+    bit = int(raw_bit) if raw_bit else 0
+    if name not in ports or bit >= ports[name]:
+        return None
+    return name, bit
+
+
+def board_sources(project: IcestudioProject, profile: BoardProfile) -> tuple[dict[int, tuple[str, int]], dict[str, tuple[str, int]]]:
+    """Resolve physical board controls to the random HDL names recorded in the PCF."""
+    if project.pcf is None:
+        return {}, {}
+    board = BoardDefinition.load(Path("boards/alhambra_ii.json"))
+    pin_map = ProjectPinMap.from_pcf(board, project.pcf)
+    led_sources = {
+        index: reference
+        for index in range(8)
+        if (reference := signal_reference(pin_map.net_for(f"LED{index}"), profile.outputs)) is not None
+    }
+    input_sources = {
+        endpoint: reference
+        for endpoint in ("SW1", "SW2")
+        if (reference := signal_reference(pin_map.net_for(endpoint), profile.inputs)) is not None
+    }
+    return led_sources, input_sources
+
+
+def loading_notice(parent) -> QDialog:
+    """Create a legible non-interactive notice for synchronous compilation work."""
+    dialog = QDialog(parent)
+    dialog.setWindowTitle("FPGALab · Cargando diseño")
+    dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+    dialog.setFixedWidth(480)
+    dialog.setStyleSheet("QDialog { background:#172033; } QLabel { color:#e2e8f0; font-size:14px; padding:16px; }")
+    layout = QVBoxLayout(dialog)
+    label = QLabel("Analizando HDL y buscando una compilación en caché…")
+    label.setWordWrap(True)
+    layout.addWidget(label)
+    return dialog
 
 
 class ApplicationController:
@@ -46,20 +96,14 @@ class ApplicationController:
             project = IcestudioProject.discover(ice_file)
             interface = VerilogInterface.discover(project.main_v)
             profile = self._manual_profile or interface.profile()
+            led_sources, input_sources = board_sources(project, profile)
         except (IcestudioProjectError, ValueError) as error:
-            QMessageBox.critical(self._window, "No se puede ejecutar", str(error))
+            QMessageBox.critical(self._window, "No se puede cargar el diseño", str(error))
             return
 
         self._window.set_status(f"Preparando {project.ice_file.name}…")
-        progress_parent = self._window if self._window.isVisible() else None
-        progress = QProgressDialog("Preparando simulación…", None, 0, 0, progress_parent)
-        progress.setWindowTitle("FPGALab · Cargando diseño")
-        progress.setLabelText("Analizando HDL y buscando una compilación en caché…")
-        progress.setCancelButton(None)
-        progress.setMinimumDuration(0)
-        progress.setMinimumWidth(460)
-        progress.setWindowModality(Qt.WindowModality.ApplicationModal)
-        progress.show()
+        notice = loading_notice(self._window if self._window.isVisible() else None)
+        notice.show()
         self._app.processEvents()
         try:
             artifact = VerilatorBuildCache(self._namespace.cache_dir).build_or_reuse(
@@ -71,7 +115,7 @@ class ApplicationController:
             self._window.set_status("La compilación no terminó.")
             return
         finally:
-            progress.close()
+            notice.close()
 
         lab = FPGAVirtualLab(
             simulation,
@@ -80,6 +124,8 @@ class ApplicationController:
             self._namespace.observation_hz,
             project_pcf=project.pcf,
             lab_file=project.ensure_lab_file(),
+            led_sources=led_sources,
+            input_sources=input_sources,
         )
         self._window.set_lab(lab)
         self._window.set_project_path(project.ice_file)
@@ -107,6 +153,7 @@ def main() -> None:
     namespace = parse_arguments()
     app = QApplication(sys.argv)
     window = FPGALabMainWindow()
+    window.set_lab(FPGAVirtualLab())
     controller = ApplicationController(app, window, namespace)
     if namespace.ice:
         window.set_project_path(namespace.ice)

@@ -51,12 +51,14 @@ class FPGAVirtualLab(QWidget):
 
     def __init__(
         self,
-        simulation: VerilatorSimulation,
+        simulation: VerilatorSimulation | None = None,
         clock_hz: int = 12_000_000,
         ui_refresh_hz: int = 60,
         observation_hz: int = 1_000_000,
         project_pcf: Path | None = None,
         lab_file: Path | None = None,
+        led_sources: dict[int, tuple[str, int]] | None = None,
+        input_sources: dict[str, tuple[str, int]] | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -64,29 +66,36 @@ class FPGAVirtualLab(QWidget):
         self.setMinimumSize(800, 520)
         self.setStyleSheet(_QSS)
         self._bounce_timers: list[QTimer] = []
-        self._board_name = simulation.profile.board_name
-        self._available_inputs = frozenset(simulation.profile.inputs)
-        self._has_clock = simulation.profile.clock_name is not None
-        self._input_widths = dict(simulation.profile.inputs)
+        self._simulation = simulation
+        self._board_name = simulation.profile.board_name if simulation else "Alhambra II"
+        self._available_inputs = frozenset(simulation.profile.inputs) if simulation else frozenset()
+        self._has_clock = simulation.profile.clock_name is not None if simulation else None
+        self._input_widths = dict(simulation.profile.inputs) if simulation else {}
+        self._led_sources = led_sources
+        self._input_sources = input_sources or {}
+        self._board_input_values: dict[str, int] = {}
         self._layout = BoardLayout.load(bundled_layout())
         self._project_pcf = project_pcf or Path("examples/main.pcf")
         self._lab_file = lab_file or Path("examples/lab.json")
         self._build_ui()
 
-        self._thread = QThread(self)
-        self._worker = SimulationWorker(simulation, clock_hz, ui_refresh_hz, observation_hz)
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.start)
-        self.set_input_requested.connect(self._worker.set_input)
-        self.shutdown_requested.connect(self._worker.shutdown)
-        self.play_requested.connect(self._worker.play)
-        self.pause_requested.connect(self._worker.power_off)
-        self.reset_requested.connect(self._worker.reset)
-        self._worker.state_changed.connect(self._paint_state)
-        self._worker.failure.connect(self._show_failure)
-        self._worker.stopped.connect(self._thread.quit)
-        self._thread.finished.connect(self._worker.deleteLater)
-        self._thread.start()
+        self._thread: QThread | None = None
+        self._worker: SimulationWorker | None = None
+        if simulation is not None:
+            self._thread = QThread(self)
+            self._worker = SimulationWorker(simulation, clock_hz, ui_refresh_hz, observation_hz, self._led_sources)
+            self._worker.moveToThread(self._thread)
+            self._thread.started.connect(self._worker.start)
+            self.set_input_requested.connect(self._worker.set_input)
+            self.shutdown_requested.connect(self._worker.shutdown)
+            self.play_requested.connect(self._worker.play)
+            self.pause_requested.connect(self._worker.power_off)
+            self.reset_requested.connect(self._worker.reset)
+            self._worker.state_changed.connect(self._paint_state)
+            self._worker.failure.connect(self._show_failure)
+            self._worker.stopped.connect(self._thread.quit)
+            self._thread.finished.connect(self._worker.deleteLater)
+            self._thread.start()
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
@@ -113,15 +122,19 @@ class FPGAVirtualLab(QWidget):
         info_layout = QVBoxLayout(info_panel)
         info_layout.addWidget(QLabel("Controles integrados"))
         info_layout.addWidget(QLabel("Presione SW1 o SW2 directamente sobre la placa.", objectName="caption"))
-        initial_state = "Estado: diseño combinacional · evaluación reactiva" if self._has_clock is False else "Estado: detenido"
+        initial_state = (
+            "Estado: cargue un diseño Icestudio" if self._has_clock is None
+            else "Estado: diseño combinacional · evaluación reactiva" if self._has_clock is False
+            else "Estado: detenido"
+        )
         self._run_state = QLabel(initial_state, objectName="caption")
         info_layout.addWidget(self._run_state)
         run_buttons = QHBoxLayout()
-        play = QPushButton("▶ Ejecutar")
+        play = QPushButton("▶ Iniciar simulación")
         play.clicked.connect(self._play)
         pause = QPushButton("■ Detener")
         pause.clicked.connect(self._pause)
-        if self._has_clock is False:
+        if self._has_clock is not True:
             play.setEnabled(False)
             pause.setEnabled(False)
         run_buttons.addWidget(play); run_buttons.addWidget(pause)
@@ -162,17 +175,24 @@ class FPGAVirtualLab(QWidget):
         if name == "RESET":
             self.reset_requested.emit()
             return
-        if name not in self._available_inputs:
-            self._show_failure(f"{name}: no existe como entrada del perfil HDL")
+        port, bit = self._input_sources.get(name, (name, 0))
+        if port not in self._available_inputs:
+            self._show_failure(f"{name}: no está conectado en el HDL actual")
             return
         values = [final_value, 1 - final_value, final_value]
         for index, value in enumerate(values):
             timer = QTimer(self)
             timer.setSingleShot(True)
-            timer.timeout.connect(lambda v=value: self.set_input_requested.emit(name, v))
+            timer.timeout.connect(lambda v=value, p=port, b=bit: self._set_board_input(p, b, v))
             timer.timeout.connect(timer.deleteLater)
             timer.start(index * 2)
             self._bounce_timers.append(timer)
+
+    def _set_board_input(self, port: str, bit: int, value: int) -> None:
+        current = self._board_input_values.get(port, 0)
+        current = current | (1 << bit) if value else current & ~(1 << bit)
+        self._board_input_values[port] = current
+        self.set_input_requested.emit(port, current)
 
     def _paint_state(self, leds: list, segments: int, gpio_out: int) -> None:
         for index, state in enumerate(leds):
@@ -183,7 +203,7 @@ class FPGAVirtualLab(QWidget):
         self.setWindowTitle(f"FPGALab · simulación detenida: {error}")
 
     def closeEvent(self, event) -> None:
-        if self._thread.isRunning():
+        if self._thread is not None and self._thread.isRunning():
             QMetaObject.invokeMethod(self._worker, "shutdown", Qt.ConnectionType.BlockingQueuedConnection)
             self._thread.quit()
             if not self._thread.wait(3000):
