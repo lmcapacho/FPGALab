@@ -70,7 +70,7 @@ class FPGALabMainWindow(QMainWindow):
         self._recent.addItem("Recientes", None)
         self._recent.currentIndexChanged.connect(self._choose_recent)
         self._refresh_recent()
-        run = QPushButton("⟳ Cargar / actualizar diseño")
+        run = QPushButton("▶ Iniciar simulación")
         run.clicked.connect(self._request_project)
         row.addWidget(self._path, 1)
         row.addWidget(browse)

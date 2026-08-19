@@ -130,7 +130,7 @@ class FPGAVirtualLab(QWidget):
         self._run_state = QLabel(initial_state, objectName="caption")
         info_layout.addWidget(self._run_state)
         run_buttons = QHBoxLayout()
-        play = QPushButton("▶ Iniciar simulación")
+        play = QPushButton("▶ Reanudar reloj")
         play.clicked.connect(self._play)
         pause = QPushButton("■ Detener")
         pause.clicked.connect(self._pause)
@@ -152,6 +152,11 @@ class FPGAVirtualLab(QWidget):
         gpio_layout.addWidget(self._peripherals, 1)
         controls.addWidget(gpio_panel, 1)
         root.addLayout(controls, 2)
+
+    def start_simulation(self) -> None:
+        """Start a clocked simulation after the project has been loaded."""
+        if self._has_clock is True:
+            self._play()
 
     def _play(self) -> None:
         self.play_requested.emit()

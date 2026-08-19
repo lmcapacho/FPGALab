@@ -72,10 +72,11 @@ def loading_notice(parent) -> QDialog:
     dialog = QDialog(parent)
     dialog.setWindowTitle("FPGALab · Cargando diseño")
     dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
-    dialog.setFixedWidth(480)
-    dialog.setStyleSheet("QDialog { background:#172033; } QLabel { color:#e2e8f0; font-size:14px; padding:16px; }")
+    dialog.setMinimumSize(520, 140)
+    dialog.setStyleSheet("QDialog { background:#172033; border:1px solid #475569; } QLabel { color:#f8fafc; font-size:15px; font-weight:600; background:#172033; }")
     layout = QVBoxLayout(dialog)
-    label = QLabel("Analizando HDL y buscando una compilación en caché…")
+    layout.setContentsMargins(24, 24, 24, 24)
+    label = QLabel("Preparando simulación…\n\nAnalizando HDL y buscando una compilación en caché.")
     label.setWordWrap(True)
     layout.addWidget(label)
     return dialog
@@ -104,6 +105,7 @@ class ApplicationController:
         self._window.set_status(f"Preparando {project.ice_file.name}…")
         notice = loading_notice(self._window if self._window.isVisible() else None)
         notice.show()
+        notice.raise_()
         self._app.processEvents()
         try:
             artifact = VerilatorBuildCache(self._namespace.cache_dir).build_or_reuse(
@@ -128,10 +130,12 @@ class ApplicationController:
             input_sources=input_sources,
         )
         self._window.set_lab(lab)
+        lab.start_simulation()
         self._window.set_project_path(project.ice_file)
         self._window.remember_project(project.ice_file)
         source = "caché" if artifact.reused else "compilación nueva"
-        self._window.set_status(f"{project.ice_file.name} listo ({source}, módulo {interface.module_name}).")
+        run_state = "simulación iniciada" if profile.clock_name is not None else "lógica combinacional lista"
+        self._window.set_status(f"{project.ice_file.name}: {run_state} ({source}, módulo {interface.module_name}).")
 
     def load_advanced_library(self, library: Path) -> None:
         profile = self._manual_profile or BoardProfile.load(Path("examples/board_profile.json"))
@@ -159,6 +163,7 @@ def main() -> None:
         window.set_project_path(namespace.ice)
         controller.execute_project(namespace.ice)
     window.showMaximized()
+    QTimer.singleShot(100, window.showMaximized)
     if namespace.library:
         QTimer.singleShot(0, lambda: controller.load_advanced_library(namespace.library))
     sys.exit(app.exec())

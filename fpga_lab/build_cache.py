@@ -13,7 +13,7 @@ from .compiler import BuildRequest, VerilatorCompiler
 from .ice_project import IcestudioProject
 from .profile import BoardProfile
 
-_CACHE_FORMAT = 1
+_CACHE_FORMAT = 2
 
 
 def default_cache_root() -> Path:
