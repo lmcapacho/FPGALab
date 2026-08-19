@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import QApplication
 
 from .compiler import shared_library_name
@@ -26,8 +26,9 @@ def main() -> None:
     app = QApplication(sys.argv)
     simulation = VerilatorSimulation(ns.library, BoardProfile.load(ns.profile))
     window = FPGAVirtualLab(simulation, ns.clock_hz, ns.ui_refresh_hz, ns.observation_hz)
+    window.setWindowState(Qt.WindowState.WindowMaximized)
     window.show()
-    QTimer.singleShot(0, window.showMaximized)
+    QTimer.singleShot(100, window.showMaximized)
     sys.exit(app.exec())
 
 
