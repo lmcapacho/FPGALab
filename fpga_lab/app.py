@@ -74,17 +74,17 @@ def main() -> None:
     namespace = parse_arguments()
     app = QApplication(sys.argv)
     profile = BoardProfile.load(namespace.profile)
-    project: IcestudioProject | None = None
-    if namespace.ice or not namespace.library:
-        project = select_project(app, namespace.ice)
-        if project is None:
-            return
+    project: IcestudioProject | None = select_project(app, namespace.ice)
+    if project is not None:
         library = build_project(app, project, profile, namespace.cache_dir)
         if library is None:
             return
         project_pcf = project.pcf
         lab_file = project.ensure_lab_file()
+    elif namespace.ice or not namespace.library:
+        return
     else:
+        # In advanced mode, Cancel keeps the precompiled library available.
         library = namespace.library
         project_pcf = Path("examples/main.pcf")
         lab_file = Path("examples/lab.json")

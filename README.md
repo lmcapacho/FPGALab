@@ -61,8 +61,9 @@ python -m fpga_lab.app --ice /ruta/al/diseño.ice \
   --profile examples/board_profile.json
 ```
 
-Sin `--ice` ni `--library`, FPGALab abre un selector de diseños `.ice` y conserva
-un historial de los últimos proyectos. Para cada diseño localiza
+Al abrir FPGALab aparece un selector de diseños `.ice` y se conserva un historial
+de los últimos proyectos. Si se inició con `--library`, puede pulsar **Cancelar**
+para usar esa biblioteca precompilada en modo avanzado. Para cada diseño localiza
 `ice-build/<nombre-del-diseño>/main.v` (o `ice-build/main.v`), compila solo si el
 contenido de `main.v`, el PCF o el perfil cambió, y guarda el resultado en la
 caché de usuario (`$XDG_CACHE_HOME/fpgalab/verilator`). Por tanto `ice-build` no
