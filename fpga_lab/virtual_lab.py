@@ -194,10 +194,10 @@ class FPGAVirtualLab(QWidget):
         self._board_input_values[port] = current
         self.set_input_requested.emit(port, current)
 
-    def _paint_state(self, leds: list, segments: int, gpio_out: int) -> None:
+    def _paint_state(self, leds: list, segments: int, gpio_out: int, outputs: dict[str, int]) -> None:
         for index, state in enumerate(leds):
             self._board_view.set_led_brightness(f"LED{index}", float(state))
-        self._peripherals.update_gpio(gpio_out)
+        self._peripherals.update_outputs(outputs)
 
     def _show_failure(self, error: str) -> None:
         self.setWindowTitle(f"FPGALab · simulación detenida: {error}")

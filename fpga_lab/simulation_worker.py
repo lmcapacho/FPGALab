@@ -13,7 +13,7 @@ from .temporal import LedModel
 class SimulationWorker(QObject):
     """Maintain the virtual clock and publish state only at visual frequency."""
 
-    state_changed = pyqtSignal(list, int, int)  # LED brightness, segments, gpio_out
+    state_changed = pyqtSignal(list, int, int, dict)  # LED brightness, segments, gpio_out, HDL outputs
     failure = pyqtSignal(str)
     stopped = pyqtSignal()
 
@@ -65,7 +65,7 @@ class SimulationWorker(QObject):
     def power_off(self) -> None:
         self.pause()
         self._simulation.reset()
-        self.state_changed.emit([0.0] * 8, 0, 0)
+        self.state_changed.emit([0.0] * 8, 0, 0, {})
 
     @pyqtSlot()
     def _run_frame(self) -> None:
@@ -85,9 +85,13 @@ class SimulationWorker(QObject):
                 port, bit = self._led_sources.get(index, (f"LED{index}", 0))
                 signal = windows.get(f"{port}[{bit}]")
                 leds.append(model.advance({"anode": signal}, virtual_elapsed) if signal else 0.0)
-            segments = self._simulation.get_output("segments") if "segments" in self._simulation.profile.outputs else 0
-            gpio_out = self._simulation.get_output("gpio_out") if "gpio_out" in self._simulation.profile.outputs else 0
-            self.state_changed.emit(leds, segments, gpio_out)
+            outputs = {
+                name: self._simulation.get_output(name)
+                for name in self._simulation.profile.outputs
+            }
+            segments = outputs.get("segments", 0)
+            gpio_out = outputs.get("gpio_out", 0)
+            self.state_changed.emit(leds, segments, gpio_out, outputs)
         except Exception as exc:
             if self._timer:
                 self._timer.stop()

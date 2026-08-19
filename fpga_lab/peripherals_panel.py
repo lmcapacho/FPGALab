@@ -289,11 +289,16 @@ class PeripheralsPanel(QWidget):
         raw["peripherals"] = [item for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
         self._commit(raw, f"{peripheral.peripheral_id} eliminado")
 
-    def update_gpio(self, gpio_out: int):
-        import re
+    def update_outputs(self, outputs: dict[str, int]) -> None:
+        """Paint output peripherals from their actual HDL net resolved by the PCF."""
         for (_peripheral_id, terminal), (item, net) in self._workbench_bindings.items():
-            match = re.fullmatch(r"gpio_out\[(\d+)\]", net or "")
-            item.set_terminal(terminal, bool(match and gpio_out & (1 << int(match.group(1)))))
+            match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?", net or "")
+            if match is None:
+                item.set_terminal(terminal, False)
+                continue
+            port, raw_bit = match.groups()
+            bit = int(raw_bit) if raw_bit else 0
+            item.set_terminal(terminal, bool(outputs.get(port, 0) & (1 << bit)))
 
     def _add(self):
         kind = self.kind.currentData()
