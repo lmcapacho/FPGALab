@@ -16,18 +16,19 @@ class BoardProfile:
     inputs: dict[str, int]
     outputs: dict[str, int]
     observed: dict[str, int] | None = None
+    clock_name: str = "clk"
 
     @classmethod
     def load(cls, path: str | Path) -> "BoardProfile":
         source = Path(path)
         raw = json.loads(source.read_text(encoding="utf-8"))
-        profile = cls(raw.get("board_name", "Alhambra II"), raw["inputs"], raw["outputs"], raw.get("observed"))
+        profile = cls(raw.get("board_name", "Alhambra II"), raw["inputs"], raw["outputs"], raw.get("observed"), raw.get("clock_name", "clk"))
         profile.validate()
         return profile
 
     def validate(self) -> None:
-        if self.inputs.get("clk") != 1:
-            raise ValueError("El perfil debe declarar una entrada escalar 'clk'.")
+        if self.inputs.get(self.clock_name) != 1:
+            raise ValueError(f"The profile must declare scalar clock input {self.clock_name!r}.")
         for direction, ports in (("inputs", self.inputs), ("outputs", self.outputs)):
             for name, width in ports.items():
                 if not _IDENTIFIER.fullmatch(name):

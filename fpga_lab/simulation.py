@@ -50,7 +50,7 @@ class VerilatorSimulation:
         self._get_clk = self._function("sim_get_clk", ctypes.c_uint8)
         self._setters = {
             name: self._function(f"sim_set_{name}", None, (ctypes.c_uint64,))
-            for name in self.profile.inputs if name != "clk"
+            for name in self.profile.inputs if name != self.profile.clock_name
         }
         self._getters = {
             name: self._function(f"sim_get_{name}", ctypes.c_uint64)
@@ -105,7 +105,7 @@ class VerilatorSimulation:
         self._eval()
 
     def set_input(self, name: str, value: int | bool) -> None:
-        if name == "clk":
+        if name == self.profile.clock_name:
             self.clk = bool(value)
             return
         try:

@@ -14,6 +14,10 @@ from .cpp_wrapper import render_cpp_wrapper
 from .profile import BoardProfile
 
 
+class VerilatorBuildError(RuntimeError):
+    """Verilator failure including its captured diagnostic output."""
+
+
 def shared_library_name(stem: str = "Vtop_shared") -> str:
     if sys.platform == "win32":
         return f"{stem}.dll"
@@ -52,14 +56,23 @@ class VerilatorCompiler:
         # target (without main()) into a ctypes-loadable library.
         args = [
             "--cc", str(verilog), "--top-module", request.top_module, "--prefix", f"V{request.top_module}",
-            "--Mdir", str(obj_dir), "-O3", "--exe", str(wrapper), "--build", "-j", "0", "-MAKEFLAGS", "OPT_FAST=-O3",
+            "--Mdir", str(obj_dir), "-O3", "-Wno-fatal", "--exe", str(wrapper), "--build", "-j", "0", "-MAKEFLAGS", "OPT_FAST=-O3",
             "-CFLAGS", "-O3 -fPIC -march=native", "-LDFLAGS", "-shared", "-o", library,
         ]
         return obj_dir / library, args
 
     def build(self, request: BuildRequest) -> Path:
         target, args = self.prepare(request)
-        subprocess.run([request.verilator, *args], check=True, cwd=request.build_dir.resolve())
+        completed = subprocess.run(
+            [request.verilator, *args],
+            cwd=request.build_dir.resolve(),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if completed.returncode:
+            output = completed.stdout.strip() or "Verilator did not provide diagnostic output."
+            raise VerilatorBuildError(output)
         if not target.exists():
             raise RuntimeError(f"Verilator terminó pero no produjo {target}")
         return target

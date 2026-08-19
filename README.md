@@ -20,9 +20,10 @@ VerilatorCompiler ──► sim_main.cpp (ABI C + run_cycles) ──► libVtop_
                                             FPGAVirtualLab
 ```
 
-El perfil de placa describe los puertos reales del módulo superior. La plantilla
-C++ se genera desde él, por lo que los nombres de señales se validan en la
-compilación de C++ y no quedan escondidos en el código Python.
+Para un diseño Icestudio, FPGALab inspecciona `main.v` y detecta el módulo
+superior y sus puertos antes de generar la plantilla C++. Un perfil manual sigue
+disponible para flujos avanzados, por lo que los nombres de señales se validan
+en la compilación de C++ y no quedan escondidos en el código Python.
 
 ## Requisitos
 
@@ -61,9 +62,9 @@ python -m fpga_lab.app --ice /ruta/al/diseño.ice \
   --profile examples/board_profile.json
 ```
 
-Al abrir FPGALab aparece un selector de diseños `.ice` y se conserva un historial
-de los últimos proyectos. Si se inició con `--library`, puede pulsar **Cancelar**
-para usar esa biblioteca precompilada en modo avanzado. Para cada diseño localiza
+Al abrir FPGALab, la barra superior integrada permite elegir la ruta `.ice`,
+buscar un archivo, reutilizar proyectos recientes y pulsar **Ejecutar**. Para cada
+diseño localiza
 `ice-build/<nombre-del-diseño>/main.v` (o `ice-build/main.v`), compila solo si el
 contenido de `main.v`, el PCF o el perfil cambió, y guarda el resultado en la
 caché de usuario (`$XDG_CACHE_HOME/fpgalab/verilator`). Por tanto `ice-build` no
@@ -90,7 +91,7 @@ el núcleo disponible; se puede bajar `--clock-hz` para un modo didáctico.
 
 ## Contrato HDL
 
-Los nombres y anchos se declaran en `board_profile.json`. El perfil de ejemplo
+Los nombres y anchos pueden declararse en `board_profile.json`. El perfil de ejemplo
 expone `clk`, `SW1`, `SW2`, `LED0`…`LED7`, un bus de entrada/salida GPIO de 8
 bits y 14 bits para dos displays de siete segmentos. Puede adaptarlo a la
 exportación de Icestudio sin editar Python:

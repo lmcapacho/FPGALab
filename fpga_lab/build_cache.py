@@ -45,6 +45,7 @@ class VerilatorBuildCache:
             "inputs": profile.inputs,
             "outputs": profile.outputs,
             "observed": profile.observed,
+            "clock_name": profile.clock_name,
         }, sort_keys=True).encode())
         for source in project.sources:
             digest.update(str(source.name).encode() + b"\0")

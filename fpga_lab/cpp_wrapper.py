@@ -17,7 +17,7 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
     setters = "\n".join(
         f"void sim_set_{name}(uint64_t value) {{ if (g_top) g_top->{name} = value; }}"
         for name in profile.inputs
-        if name != "clk"
+        if name != profile.clock_name
     )
     getters = "\n".join(
         f"uint64_t sim_get_{name}() {{ return g_top ? static_cast<uint64_t>(g_top->{name}) : 0; }}"
@@ -69,7 +69,7 @@ void init_sim() {{
     if (g_top) return;
     g_context = new VerilatedContext;
     g_top = new {model_class}{{g_context}};
-    g_top->clk = 0;
+    g_top->{profile.clock_name} = 0;
     g_top->eval();
     sample_observed(true);
 }}
@@ -94,12 +94,12 @@ void close_sim() {{
 }}
 
 void eval_sim() {{ if (g_top) g_top->eval(); }}
-void sim_set_clk(uint8_t value) {{ if (g_top) g_top->clk = value ? 1 : 0; }}
-uint8_t sim_get_clk() {{ return g_top ? static_cast<uint8_t>(g_top->clk) : 0; }}
+void sim_set_clk(uint8_t value) {{ if (g_top) g_top->{profile.clock_name} = value ? 1 : 0; }}
+uint8_t sim_get_clk() {{ return g_top ? static_cast<uint8_t>(g_top->{profile.clock_name}) : 0; }}
 void step_clock() {{
     if (!g_top) init_sim();
-    g_top->clk = 1; g_top->eval();
-    g_top->clk = 0; g_top->eval();
+    g_top->{profile.clock_name} = 1; g_top->eval();
+    g_top->{profile.clock_name} = 0; g_top->eval();
     g_context->timeInc(1);
 }}
 void run_cycles(uint64_t cycles) {{
@@ -108,8 +108,8 @@ void run_cycles(uint64_t cycles) {{
     uint64_t remaining = 0;
     for (uint64_t cycle = 0; cycle < cycles; ++cycle) {{
         const bool observe = remaining == 0;
-        g_top->clk = 1; g_top->eval(); if (observe) sample_observed(cycle == 0);
-        g_top->clk = 0; g_top->eval();
+        g_top->{profile.clock_name} = 1; g_top->eval(); if (observe) sample_observed(cycle == 0);
+        g_top->{profile.clock_name} = 0; g_top->eval();
         if (observe) {{
             sample_observed(false);
             remaining = g_observation_divisor - 1;
