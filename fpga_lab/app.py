@@ -48,6 +48,17 @@ def signal_reference(net: str | None, ports: dict[str, int]) -> tuple[str, int] 
     return name, bit
 
 
+def project_clock_port(project: IcestudioProject, interface: VerilogInterface) -> str | None:
+    """Prefer the HDL net constrained to the board's physical clock endpoint."""
+    if project.pcf is None:
+        return None
+    board = BoardDefinition.load(Path("boards/alhambra_ii.json"))
+    pin_map = ProjectPinMap.from_pcf(board, project.pcf)
+    inputs = {port.name: port.width for port in interface.ports if port.direction in {"input", "inout"}}
+    reference = signal_reference(pin_map.net_for("CLK"), inputs)
+    return reference[0] if reference is not None and reference[1] == 0 and inputs[reference[0]] == 1 else None
+
+
 def board_sources(project: IcestudioProject, profile: BoardProfile) -> tuple[dict[int, tuple[str, int]], dict[str, tuple[str, int]]]:
     """Resolve physical board controls to the random HDL names recorded in the PCF."""
     if project.pcf is None:
@@ -83,7 +94,8 @@ class ApplicationController:
         try:
             project = IcestudioProject.discover(ice_file)
             interface = VerilogInterface.discover(project.main_v)
-            profile = self._manual_profile or interface.profile()
+            clock_port = project_clock_port(project, interface)
+            profile = self._manual_profile or interface.profile(clock_port=clock_port)
             led_sources, input_sources = board_sources(project, profile)
         except (IcestudioProjectError, ValueError) as error:
             QMessageBox.critical(self._window, "No se puede cargar el diseño", str(error))
