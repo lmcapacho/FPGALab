@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from PyQt6.QtCore import QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 import re
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QVBoxLayout, QWidget
@@ -100,12 +100,10 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self._active = {}; self._pressed = False; self._sensor_value = False; self._editable = True
         self._drag_dirty = False; self._last_position = self.pos()
-        self._save_timer = QTimer(); self._save_timer.setSingleShot(True)
-        self._save_timer.timeout.connect(self._persist_position)
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged and self._editable:
-            self._last_position = value; self._drag_dirty = True; self._save_timer.start(120)
+            self._last_position = value; self._drag_dirty = True
         return super().itemChange(change, value)
 
     def _persist_position(self):
@@ -169,7 +167,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         super().mouseReleaseEvent(event)
         if self._peripheral.kind == "button": self._pressed = False; self._input_changed(self._peripheral.peripheral_id, "signal", 0); self.update()
         if self._editable:
-            self._save_timer.stop(); self._persist_position()
+            self._persist_position()
 
 
 class PeripheralsPanel(QWidget):
