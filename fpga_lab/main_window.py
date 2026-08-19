@@ -27,6 +27,7 @@ class FPGALabMainWindow(QMainWindow):
     """Persistent shell that selects and hosts one active virtual laboratory."""
 
     project_requested = pyqtSignal(Path)
+    stop_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -70,12 +71,16 @@ class FPGALabMainWindow(QMainWindow):
         self._recent.addItem("Recientes", None)
         self._recent.currentIndexChanged.connect(self._choose_recent)
         self._refresh_recent()
-        run = QPushButton("▶ Iniciar simulación")
-        run.clicked.connect(self._request_project)
+        self._execute_button = QPushButton("▶ Ejecutar")
+        self._execute_button.clicked.connect(self._request_project)
+        self._stop_button = QPushButton("■ Detener")
+        self._stop_button.setEnabled(False)
+        self._stop_button.clicked.connect(self._request_stop)
         row.addWidget(self._path, 1)
         row.addWidget(browse)
         row.addWidget(self._recent)
-        row.addWidget(run)
+        row.addWidget(self._execute_button)
+        row.addWidget(self._stop_button)
         layout.addLayout(row)
         self._status = QLabel("Seleccione un diseño para iniciar.")
         self._status.setStyleSheet("color:#fbbf24; font-size:12px; font-weight:600;")
@@ -112,6 +117,12 @@ class FPGALabMainWindow(QMainWindow):
             return
         self.project_requested.emit(path)
 
+    def _request_stop(self) -> None:
+        self.stop_requested.emit()
+
+    def set_simulation_running(self, running: bool) -> None:
+        self._stop_button.setEnabled(running)
+
     def selected_project(self) -> Path | None:
         text = self._path.text().strip()
         return Path(text) if text else None
@@ -127,6 +138,10 @@ class FPGALabMainWindow(QMainWindow):
     def remember_project(self, path: Path) -> None:
         self._recent_projects.add(path)
         self._refresh_recent()
+
+    def active_lab(self) -> QWidget | None:
+        """Return the currently hosted laboratory widget."""
+        return self._active_lab
 
     def set_lab(self, lab: QWidget) -> None:
         previous = self._active_lab

@@ -77,6 +77,7 @@ class ApplicationController:
         self._namespace = namespace
         self._manual_profile = BoardProfile.load(namespace.profile) if namespace.profile else None
         window.project_requested.connect(self.execute_project)
+        window.stop_requested.connect(self.stop_simulation)
 
     def execute_project(self, ice_file: Path) -> None:
         try:
@@ -113,11 +114,20 @@ class ApplicationController:
         )
         self._window.set_lab(lab)
         lab.start_simulation()
+        self._window.set_simulation_running(profile.clock_name is not None)
         self._window.set_project_path(project.ice_file)
         self._window.remember_project(project.ice_file)
         source = "caché" if artifact.reused else "compilación nueva"
         run_state = "simulación iniciada" if profile.clock_name is not None else "lógica combinacional lista"
         self._window.set_status(f"{project.ice_file.name}: {run_state} ({source}, módulo {interface.module_name}).")
+
+    def stop_simulation(self) -> None:
+        """Stop the active clock without unloading the selected project."""
+        active_lab = self._window.active_lab()
+        if isinstance(active_lab, FPGAVirtualLab):
+            active_lab.stop_simulation()
+        self._window.set_simulation_running(False)
+        self._window.set_status("Simulación detenida.")
 
     def load_advanced_library(self, library: Path) -> None:
         profile = self._manual_profile or BoardProfile.load(Path("examples/board_profile.json"))
@@ -132,6 +142,7 @@ class ApplicationController:
             self._namespace.ui_refresh_hz,
             self._namespace.observation_hz,
         ))
+        self._window.set_simulation_running(False)
         self._window.set_status("Biblioteca avanzada cargada. Seleccione un .ice para cambiar de diseño.")
 
 
