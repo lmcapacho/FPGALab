@@ -276,7 +276,8 @@ class PeripheralsPanel(QWidget):
         if value["id"] in ids: self.status.setText("Ya existe un periférico con ese identificador."); return
         for index, item in enumerate(raw.get("peripherals", [])):
             if item["id"] == peripheral.peripheral_id:
-                value["properties"] = {**item.get("properties", {}), **value["properties"]}
+                dialog_properties = dict(value["properties"]); dialog_properties.pop("position", None)
+                value["properties"] = {**item.get("properties", {}), **dialog_properties}
                 raw["peripherals"][index] = value; break
         self._commit(raw, f"{value["id"]} actualizado")
 
