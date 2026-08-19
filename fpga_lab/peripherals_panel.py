@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QPointF, Qt, pyqtSignal
 import re
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QVBoxLayout, QWidget
@@ -84,6 +84,21 @@ class PeripheralConfigDialog(QDialog):
         return {"id": self.identifier.text().strip(), "type": self._kind, "connections": connections, "properties": properties}
 
 
+class WorkbenchView(QGraphicsView):
+    """Lienzo sin scroll cuyo tamaño lógico sigue al espacio disponible."""
+
+    def __init__(self, scene, parent=None):
+        super().__init__(scene, parent)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setFrameShape(QGraphicsView.Shape.NoFrame)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.scene().setSceneRect(0, 0, self.viewport().width(), self.viewport().height())
+
+
+
 class WorkbenchPeripheralItem(QGraphicsRectItem):
     """Pieza arrastrable; sus coordenadas viven en properties.position."""
 
@@ -102,9 +117,17 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._drag_dirty = False; self._last_position = self.pos()
 
     def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and self.scene() is not None:
+            bounds = self.scene().sceneRect(); rect = self.rect()
+            return QPointF(max(bounds.left(), min(value.x(), bounds.right() - rect.width())), max(bounds.top(), min(value.y(), bounds.bottom() - rect.height())))
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged and self._editable:
             self._last_position = value; self._drag_dirty = True
         return super().itemChange(change, value)
+
+    def clamp_to_scene(self):
+        if self.scene() is None: return
+        bounds = self.scene().sceneRect(); rect = self.rect(); pos = self.pos()
+        self.setPos(max(bounds.left(), min(pos.x(), bounds.right() - rect.width())), max(bounds.top(), min(pos.y(), bounds.bottom() - rect.height())))
 
     def _persist_position(self):
         if self._drag_dirty:
@@ -184,8 +207,8 @@ class PeripheralsPanel(QWidget):
         catalog.addWidget(self.kind); catalog.addWidget(self._add_button); layout.addLayout(catalog)
         self.status = QLabel("Seleccione un tipo y configure la pieza al crearla."); layout.addWidget(self.status)
         layout.addWidget(QLabel("Mesa virtual · arrastre una pieza; doble clic para configurar o eliminar"))
-        self._workbench_scene = QGraphicsScene(self); self.workbench = QGraphicsView(self._workbench_scene)
-        self.workbench.setMinimumHeight(330); self.workbench.setSceneRect(0, 0, 480, 420); layout.addWidget(self.workbench, 1)
+        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 480, 420); self.workbench = WorkbenchView(self._workbench_scene)
+        self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
         self._workbench_bindings = {}; self._reload()
     def _reload(self):
         project = VirtualLabProject.load(self._lab)
@@ -197,6 +220,9 @@ class PeripheralsPanel(QWidget):
             if "position" not in peripheral.properties:
                 bench_item.setPos(16 + (index % 3) * 160, 16 + (index // 3) * 88)
             self._workbench_scene.addItem(bench_item)
+            previous_position = bench_item.pos(); bench_item.clamp_to_scene()
+            if bench_item.pos() != previous_position:
+                self._save_position(peripheral.peripheral_id, bench_item.pos().x(), bench_item.pos().y())
             for wire in wires:
                 if wire.peripheral_id == peripheral.peripheral_id:
                     self._workbench_bindings[(peripheral.peripheral_id, wire.terminal)] = (bench_item, wire.hdl_net)

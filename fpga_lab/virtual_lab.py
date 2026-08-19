@@ -86,6 +86,7 @@ class FPGAVirtualLab(QWidget):
         root = QHBoxLayout()
         outer.addLayout(root)
         board_panel = QFrame(objectName="board")
+        board_panel.setMinimumWidth(380)
         board_layout = QVBoxLayout(board_panel)
         title = QLabel(f"{self._board_name.upper()} · FPGA VIRTUAL")
         title.setStyleSheet("font-size: 20px; font-weight: 800; color:#bbf7d0;")
