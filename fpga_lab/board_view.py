@@ -1,4 +1,4 @@
-"""Vista escalable de una placa definida por SVG y JSON."""
+"""Scalable view of a board defined by SVG and JSON."""
 
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ class BoardButtonItem(QGraphicsRectItem):
 
 
 class BoardView(QGraphicsView):
-    """Renderiza el arte de la placa y superpone LEDs/botones interactivos."""
+    """Render board artwork and overlay interactive LEDs/buttons."""
 
     def __init__(self, layout: BoardLayout, input_changed: Callable[[str, int], None], parent=None):
         super().__init__(parent)

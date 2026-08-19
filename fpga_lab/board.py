@@ -1,4 +1,4 @@
-"""Definiciones de placa independientes del HDL y de la interfaz gráfica."""
+"""Board definitions independent from HDL and the graphical interface."""
 from __future__ import annotations
 
 import json
@@ -57,7 +57,7 @@ class BoardDefinition:
         return self.pin(endpoint).fpga_pin
 
     def available_endpoints(self, direction: str | None = None) -> tuple[BoardPin, ...]:
-        """Endpoints seleccionables; ``inout`` sirve en ambas direcciones."""
+        """Selectable endpoints; ``inout`` is available in both directions."""
         if direction is None:
             return self.pins
         return tuple(pin for pin in self.pins if pin.direction in {direction, "inout"})

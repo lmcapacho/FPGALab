@@ -1,4 +1,4 @@
-"""Historial pequeño y portable de diseños Icestudio abiertos."""
+"""Small, portable history of opened Icestudio designs."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Binding ctypes mínimo, tipado y sin dependencias externas para la ABI C."""
+"""Minimal, typed, dependency-free ctypes binding for the C ABI."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from .temporal import SignalWindow
 
 
 class VerilatorSimulation:
-    """Instancia de un único modelo Verilator, utilizada desde un solo hilo.
+    """One Verilator model instance, used from a single thread.
 
-    La biblioteca usa un modelo global deliberadamente: cada DLL/SO representa
-    una FPGA virtual. Si se requieren varias placas simultáneas, compile una
-    copia de la biblioteca por placa o evolucione la ABI a manejadores opacos.
+    The library deliberately uses a global model: each DLL/SO represents one
+    virtual FPGA. Multiple simultaneous boards require one library per board
+    or a future ABI based on opaque handles.
     """
 
     def __init__(self, library: str | Path, profile: BoardProfile):
@@ -58,7 +58,7 @@ class VerilatorSimulation:
         }
 
     def tick(self) -> None:
-        """Un periodo completo: flanco ascendente/evaluación y descendente/evaluación."""
+        """One full period: rising edge/evaluation followed by falling edge/evaluation."""
         self._step()
 
     def ticks(self, count: int) -> None:
@@ -67,17 +67,17 @@ class VerilatorSimulation:
         self._run_cycles(count)
 
     def reset(self) -> None:
-        """Reinicio eléctrico del modelo conservando su biblioteca y perfil."""
+        """Electrically reset the model while keeping its library and profile."""
         self._reset()
 
     def set_observation_divisor(self, cycles: int) -> None:
-        """Cada cuántos ciclos virtuales se observa la salida (mínimo uno)."""
+        """Set output observation frequency in virtual cycles (minimum one)."""
         if cycles < 1:
             raise ValueError("El divisor de observación debe ser positivo.")
         self._set_observation_divisor(cycles)
 
     def observed_windows(self, cycles: int) -> dict[str, SignalWindow]:
-        """Métricas del último ``ticks``; claves como ``gpio_out[3]``."""
+        """Metrics from the last ``ticks`` call; keys such as ``gpio_out[3]``."""
         if cycles < 0:
             raise ValueError("La cantidad de ciclos no puede ser negativa.")
         observed_bits = self.profile.observed_bits
@@ -124,7 +124,7 @@ class VerilatorSimulation:
             raise KeyError(f"Salida no declarada: {name}") from exc
 
     def read_leds(self) -> list[bool]:
-        """Convención UI: LED0 es el primer elemento de la lista."""
+        """UI convention: LED0 is the first item in the returned list."""
         return [bool(self.get_output(f"LED{index}")) if f"LED{index}" in self._getters else False
                 for index in range(8)]
 

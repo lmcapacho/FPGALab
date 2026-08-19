@@ -1,4 +1,4 @@
-"""Proyecto de laboratorio y resolución de cableado virtual hacia redes HDL."""
+"""Laboratory project and virtual wiring resolution to HDL nets."""
 from __future__ import annotations
 
 import json
@@ -8,7 +8,7 @@ from pathlib import Path
 from .board import BoardDefinition
 from .constraints import PcfParser, PinConstraint
 
-# Catálogo independiente de la GUI: cada tipo declara sus terminales HDL.
+# GUI-independent catalog: each kind declares its HDL terminals.
 PERIPHERAL_TERMINALS = {
     "led": {"anode": "output"},
     "traffic_light": {"red": "output", "yellow": "output", "green": "output"},

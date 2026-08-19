@@ -1,4 +1,4 @@
-"""Layout declarativo de una placa SVG y sus controles interactivos."""
+"""Declarative layout for an SVG board and its interactive controls."""
 
 from __future__ import annotations
 

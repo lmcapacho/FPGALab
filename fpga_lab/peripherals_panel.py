@@ -1,4 +1,4 @@
-"""Panel sin cableado visual para registrar periféricos y GPIO."""
+"""Panel for registering peripherals and GPIO without visible wiring."""
 from __future__ import annotations
 import json
 from pathlib import Path
@@ -11,7 +11,7 @@ from .constraints import PcfParser
 from .wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS, PeripheralInstance, VirtualLabProject
 
 class SegmentDisplay(QFrame):
-    """Representacion compacta de un display externo de siete segmentos."""
+    """Compact representation of an external seven-segment display."""
 
     _POSITIONS = {"a": (0, 1), "b": (1, 2), "c": (3, 2), "d": (4, 1), "e": (3, 0), "f": (1, 0), "g": (2, 1)}
 
@@ -35,7 +35,7 @@ class SegmentDisplay(QFrame):
 
 
 class PeripheralConfigDialog(QDialog):
-    """Editor modal de una instancia; no representa cables."""
+    """Modal editor for one instance; it does not render wires."""
 
     def __init__(self, peripheral, board, assigned_endpoints=None, parent=None):
         super().__init__(parent)
@@ -85,7 +85,7 @@ class PeripheralConfigDialog(QDialog):
 
 
 class WorkbenchView(QGraphicsView):
-    """Lienzo sin scroll cuyo tamaño lógico sigue al espacio disponible."""
+    """Scroll-free canvas whose logical size follows the available space."""
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -100,7 +100,7 @@ class WorkbenchView(QGraphicsView):
 
 
 class WorkbenchPeripheralItem(QGraphicsRectItem):
-    """Pieza arrastrable; sus coordenadas viven en properties.position."""
+    """Draggable item whose coordinates live in ``properties.position``."""
 
     def __init__(self, peripheral, configured, moved, input_changed):
         sizes = {"led": (120, 88), "traffic_light": (120, 180), "seven_segment": (150, 205), "button": (150, 88), "sensor": (150, 88)}
@@ -196,10 +196,10 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
 class PeripheralsPanel(QWidget):
     changed = pyqtSignal(str)
     input_changed = pyqtSignal(str, int)
-    def __init__(self, board: BoardDefinition, pcf: Path, lab: Path, input_widths: dict[str, int] | None = None, parent=None):
+    def __init__(self, board: BoardDefinition, pcf: Path | None, lab: Path, input_widths: dict[str, int] | None = None, parent=None):
         super().__init__(parent); self._board, self._pcf, self._lab = board, pcf, lab
         self._input_widths = input_widths or {}; self._input_values = {}; self._editing_enabled = True
-        self._assigned_endpoints = None  # La placa completa está disponible; el PCF del diseño es opcional.
+        self._assigned_endpoints = None  # The entire board is available; the design PCF is optional.
         layout = QVBoxLayout(self); layout.addWidget(QLabel("Catálogo de periféricos"))
         catalog = QHBoxLayout(); self.kind = QComboBox()
         for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(label, key)
@@ -210,9 +210,13 @@ class PeripheralsPanel(QWidget):
         self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 480, 420); self.workbench = WorkbenchView(self._workbench_scene)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
         self._workbench_bindings = {}; self._reload()
+    def _constraints(self):
+        """Load optional design constraints without requiring a PCF for the board UI."""
+        return PcfParser.parse_file(self._pcf) if self._pcf and self._pcf.is_file() else []
+
     def _reload(self):
         project = VirtualLabProject.load(self._lab)
-        wires = project.resolve(self._board, PcfParser.parse_file(self._pcf))
+        wires = project.resolve(self._board, self._constraints())
         self._workbench_scene.clear(); self._workbench_bindings = {}
         for index, peripheral in enumerate(project.peripherals):
             bench_item = WorkbenchPeripheralItem(peripheral, self._configure, self._save_position, self._drive_input)
@@ -255,7 +259,7 @@ class PeripheralsPanel(QWidget):
         original = self._lab.read_text(encoding="utf-8")
         self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
         try:
-            VirtualLabProject.load(self._lab).resolve(self._board, PcfParser.parse_file(self._pcf))
+            VirtualLabProject.load(self._lab).resolve(self._board, self._constraints())
         except Exception as exc:
             self._lab.write_text(original, encoding="utf-8"); self.status.setText(str(exc)); return False
         self.status.setText(message); self._reload(); self.changed.emit(message); return True

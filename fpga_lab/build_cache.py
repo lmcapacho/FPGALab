@@ -1,4 +1,4 @@
-"""Cache de bibliotecas Verilator, aislada de ice-build."""
+"""Verilator library cache, isolated from ``ice-build``."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ class CachedBuild:
 
 
 class VerilatorBuildCache:
-    """Cache direccionada por contenido; nunca escribe dentro de ``ice-build``."""
+    """Content-addressed cache that never writes inside ``ice-build``."""
 
     def __init__(self, root: str | Path | None = None):
         self.root = Path(root) if root else default_cache_root()
@@ -79,7 +79,7 @@ class VerilatorBuildCache:
             library = VerilatorCompiler().build(request)
             final = self.root / fingerprint
             if final.exists():
-                # Otra instancia pudo terminar el mismo build mientras ésta compilaba.
+                # Another instance may have completed this build while this one ran.
                 cached = self.lookup(fingerprint, top_module)
                 if cached:
                     return cached
@@ -97,7 +97,7 @@ class VerilatorBuildCache:
             staging.rename(final)
             return CachedBuild(fingerprint, final, final / library.relative_to(staging), False)
         except Exception:
-            # El staging queda disponible para diagnóstico sólo si ya fue promovido.
+            # Keep staging only until it is promoted; clean failures for future retries.
             if staging.exists():
                 import shutil
                 shutil.rmtree(staging, ignore_errors=True)

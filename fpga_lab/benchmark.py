@@ -1,4 +1,4 @@
-"""Medición reproducible de motor Verilator con capas de placa y cableado."""
+"""Reproducible Verilator-engine measurement with board and wiring layers."""
 
 from __future__ import annotations
 

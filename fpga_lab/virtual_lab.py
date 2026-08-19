@@ -1,4 +1,4 @@
-"""Panel visual moderno para interactuar con una Alhambra II emulada."""
+"""Modern visual panel for interacting with an emulated Alhambra II."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ QLabel#caption { color: #94a3b8; font-size: 11px; }
 
 
 class SevenSegmentDisplay(QLabel):
-    """Vista compacta: cada bit activo dibuja un segmento Unicode iluminado."""
+    """Compact view: each active bit draws an illuminated Unicode segment."""
     def __init__(self):
         super().__init__("— — — — — — —\n— — — — — — —")
         self.setStyleSheet("background:#020617; color:#334155; border-radius:10px; padding:10px; font: 22px monospace;")
@@ -41,7 +41,7 @@ class SevenSegmentDisplay(QLabel):
 
 
 class FPGAVirtualLab(QWidget):
-    """Ventana integrable. Sus señales se entregan al worker mediante Qt queued slots."""
+    """Embeddable window. Signals reach the worker through queued Qt slots."""
 
     set_input_requested = pyqtSignal(str, int)
     shutdown_requested = pyqtSignal()
@@ -49,7 +49,16 @@ class FPGAVirtualLab(QWidget):
     pause_requested = pyqtSignal()
     reset_requested = pyqtSignal()
 
-    def __init__(self, simulation: VerilatorSimulation, clock_hz: int = 12_000_000, ui_refresh_hz: int = 60, observation_hz: int = 1_000_000, parent=None):
+    def __init__(
+        self,
+        simulation: VerilatorSimulation,
+        clock_hz: int = 12_000_000,
+        ui_refresh_hz: int = 60,
+        observation_hz: int = 1_000_000,
+        project_pcf: Path | None = None,
+        lab_file: Path | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("FPGALab · Laboratorio Virtual")
         self.setMinimumSize(800, 520)
@@ -59,6 +68,8 @@ class FPGAVirtualLab(QWidget):
         self._available_inputs = frozenset(simulation.profile.inputs)
         self._input_widths = dict(simulation.profile.inputs)
         self._layout = BoardLayout.load(bundled_layout())
+        self._project_pcf = project_pcf or Path("examples/main.pcf")
+        self._lab_file = lab_file or Path("examples/lab.json")
         self._build_ui()
 
         self._thread = QThread(self)
@@ -113,7 +124,12 @@ class FPGAVirtualLab(QWidget):
         controls.addWidget(info_panel)
         gpio_panel = QFrame(objectName="panel")
         gpio_layout = QVBoxLayout(gpio_panel)
-        self._peripherals = PeripheralsPanel(BoardDefinition.load(Path("boards/alhambra_ii.json")), Path("examples/main.pcf"), Path("examples/lab.json"), self._input_widths)
+        self._peripherals = PeripheralsPanel(
+            BoardDefinition.load(Path("boards/alhambra_ii.json")),
+            self._project_pcf,
+            self._lab_file,
+            self._input_widths,
+        )
         self._peripherals.input_changed.connect(self.set_input_requested)
         gpio_layout.addWidget(self._peripherals, 1)
         controls.addWidget(gpio_panel, 1)
@@ -137,7 +153,7 @@ class FPGAVirtualLab(QWidget):
             self.setWindowTitle("FPGALab · layout guardado; reinicie la vista para recargarlo")
 
     def _bouncy_input(self, name: str, final_value: int) -> None:
-        """Tres cambios cortos hacen perceptible y configurable el rebote de botón."""
+        """Three quick transitions make button bounce perceptible and configurable."""
         if name == "RESET":
             self.reset_requested.emit()
             return

@@ -1,4 +1,4 @@
-"""Editor mínimo de posiciones para layouts de placas SVG."""
+"""Minimal position editor for SVG board layouts."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ class EditorCanvas(QGraphicsView):
 
 
 class BoardLayoutEditor(QDialog):
-    """Permite ubicar componentes sobre el SVG y persistir sus coordenadas."""
+    """Place components over the SVG and persist their coordinates."""
 
     def __init__(self, layout: BoardLayout, parent=None):
         super().__init__(parent)

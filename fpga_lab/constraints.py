@@ -1,4 +1,4 @@
-"""Lectura de constraints de placa, empezando por PCF para iCE40."""
+"""Board-constraint reading, starting with iCE40 PCF files."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class PinConstraint:
 
 
 class PcfParser:
-    """Parser de `set_io`; conserva las opciones para auditoría."""
+    """Parse `set_io` while retaining options for auditing."""
 
     @classmethod
     def parse_file(cls, path: str | Path) -> list[PinConstraint]:

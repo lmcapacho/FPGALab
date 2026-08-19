@@ -1,4 +1,4 @@
-"""Observación temporal y modelos físicos, independientes de Qt."""
+"""Temporal observation and physical models, independent from Qt."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class SignalWindow:
-    """Resumen exacto de un bit durante un intervalo de reloj virtual.
+    """Exact bit summary during a virtual-clock interval.
 
-    ``high_halves / half_cycles`` equivale al ciclo de trabajo observado. No
-    depende de la frecuencia a la que se pinte la interfaz.
+    ``high_halves / half_cycles`` is the observed duty cycle. It does not
+    depend on the rate at which the interface is painted.
     """
 
     start: bool
@@ -26,13 +26,13 @@ class SignalWindow:
 
 
 class PeripheralModel(Protocol):
-    """Contrato de cualquier periférico: tiempo virtual entra, estado visual sale."""
+    """Contract for any peripheral: virtual time in, visual state out."""
 
     def advance(self, signals: dict[str, SignalWindow], elapsed_seconds: float) -> object: ...
 
 
 class LedModel:
-    """LED con persistencia visual simple; PWM rápido se percibe como brillo."""
+    """LED with simple visual persistence; fast PWM is perceived as brightness."""
 
     def __init__(self, persistence_seconds: float = 0.015):
         self._persistence = persistence_seconds

@@ -52,6 +52,28 @@ python -m fpga_lab.app --library build/verilator/obj_dir/libVtop_shared.so \
 En Windows, cambie la última extensión por `.dll`; en macOS por `.dylib`.
 La misma lista de argumentos puede entregarse a `QProcess` desde una UI sin usar una shell.
 
+### Ejecutar un diseño de Icestudio
+
+La ruta habitual no requiere buscar `main.v` ni pulsar un botón de compilación:
+
+```bash
+python -m fpga_lab.app --ice /ruta/al/diseño.ice \
+  --profile examples/board_profile.json
+```
+
+Sin `--ice` ni `--library`, FPGALab abre un selector de diseños `.ice` y conserva
+un historial de los últimos proyectos. Para cada diseño localiza
+`ice-build/<nombre-del-diseño>/main.v` (o `ice-build/main.v`), compila solo si el
+contenido de `main.v`, el PCF o el perfil cambió, y guarda el resultado en la
+caché de usuario (`$XDG_CACHE_HOME/fpgalab/verilator`). Por tanto `ice-build` no
+se llena con archivos de Verilator.
+
+La configuración visual de periféricos se conserva junto al diseño en
+`.fpgalab/<nombre-del-diseño>.lab.json`, también fuera de `ice-build`. El PCF del
+diseño se entrega al laboratorio para relacionar la red HDL con el pin físico de
+la Alhambra II; los nombres HDL siguen siendo los declarados por el perfil hasta
+completar la detección automática de la interfaz Verilog.
+
 ## Reloj virtual y refresco visual
 
 El modelo avanza según el tiempo real y `--clock-hz` (12 MHz por defecto).

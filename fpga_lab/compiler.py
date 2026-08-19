@@ -1,4 +1,4 @@
-"""Compilación asíncrona y reproducible de Verilog a biblioteca compartida."""
+"""Reproducible asynchronous compilation from Verilog to a shared library."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class BuildRequest:
 
 
 class VerilatorCompiler:
-    """Construye una .so/.dll sin shell; apto para ejecutarse desde QProcess."""
+    """Build a .so/.dll without a shell; suitable for QProcess execution."""
 
     def prepare(self, request: BuildRequest) -> tuple[Path, list[str]]:
         verilog = request.verilog.resolve()
@@ -48,8 +48,8 @@ class VerilatorCompiler:
         wrapper.write_text(render_cpp_wrapper(request.profile, f"V{request.top_module}"), encoding="utf-8")
 
         library = shared_library_name(f"V{request.top_module}_shared")
-        # --exe usa el Makefile de Verilator. -shared y -fPIC convierten ese
-        # objetivo (sin main()) en una biblioteca cargable por ctypes.
+        # --exe uses Verilator's Makefile. -shared and -fPIC turn that
+        # target (without main()) into a ctypes-loadable library.
         args = [
             "--cc", str(verilog), "--top-module", request.top_module, "--prefix", f"V{request.top_module}",
             "--Mdir", str(obj_dir), "-O3", "--exe", str(wrapper), "--build", "-j", "0", "-MAKEFLAGS", "OPT_FAST=-O3",

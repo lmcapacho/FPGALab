@@ -1,4 +1,4 @@
-"""Perfil explícito de los puertos Verilog visibles en la ABI del simulador."""
+"""Explicit profile for Verilog ports visible through the simulation ABI."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ class BoardProfile:
 
     @property
     def observed_bits(self) -> tuple[tuple[str, int], ...]:
-        """Bits de salida en el orden estable usado por la sonda temporal."""
+        """Output bits in the stable order used by the temporal probe."""
         return tuple(
             (name, bit)
             for name, width in (self.observed if self.observed is not None else self.outputs).items()

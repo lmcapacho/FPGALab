@@ -1,4 +1,4 @@
-"""Traducción entre redes HDL de un PCF y endpoints de una placa."""
+"""Translation between PCF HDL nets and board endpoints."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class ProjectPinBinding:
 
 @dataclass(frozen=True)
 class ProjectPinMap:
-    """Mapa derivado del PCF del diseño contra el pinout oficial de la placa."""
+    """Map derived from a design PCF and the official board pinout."""
 
     bindings: tuple[ProjectPinBinding, ...]
 
@@ -27,7 +27,7 @@ class ProjectPinMap:
         bindings: list[ProjectPinBinding] = []
         for constraint in PcfParser.parse_file(pcf):
             endpoints = board.endpoints_for_fpga_pin(constraint.fpga_pin)
-            # SDA/SCL y DD4/DD5 comparten pin: se prefiere el endpoint del header.
+            # SDA/SCL and DD4/DD5 share pins: prefer the header endpoint.
             endpoint = next((pin for pin in endpoints if pin.location.startswith("header")), None)
             if endpoint is not None:
                 bindings.append(ProjectPinBinding(constraint.net, constraint.fpga_pin, endpoint.id))

@@ -1,4 +1,4 @@
-"""Ejecución del reloj virtual fuera del hilo de la interfaz Qt."""
+"""Virtual-clock execution outside the Qt interface thread."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ from .temporal import LedModel
 
 
 class SimulationWorker(QObject):
-    """Mantiene el reloj virtual y publica estados solo a frecuencia visual."""
+    """Maintain the virtual clock and publish state only at visual frequency."""
 
-    state_changed = pyqtSignal(list, int, int)  # brillo LEDs, segmentos, gpio_out
+    state_changed = pyqtSignal(list, int, int)  # LED brightness, segments, gpio_out
     failure = pyqtSignal(str)
     stopped = pyqtSignal()
 
@@ -67,7 +67,7 @@ class SimulationWorker(QObject):
     def _run_frame(self) -> None:
         try:
             now = perf_counter()
-            # Evita que una pausa del depurador produzca una ráfaga enorme.
+            # Prevent a debugger pause from producing an enormous burst.
             elapsed = min(now - self._last_frame_time, 0.100)
             self._last_frame_time = now
             exact_cycles = elapsed * self._clock_hz + self._cycle_remainder
