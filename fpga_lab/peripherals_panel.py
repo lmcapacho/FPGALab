@@ -220,9 +220,6 @@ class PeripheralsPanel(QWidget):
             if "position" not in peripheral.properties:
                 bench_item.setPos(16 + (index % 3) * 160, 16 + (index // 3) * 88)
             self._workbench_scene.addItem(bench_item)
-            previous_position = bench_item.pos(); bench_item.clamp_to_scene()
-            if bench_item.pos() != previous_position:
-                self._save_position(peripheral.peripheral_id, bench_item.pos().x(), bench_item.pos().y())
             for wire in wires:
                 if wire.peripheral_id == peripheral.peripheral_id:
                     self._workbench_bindings[(peripheral.peripheral_id, wire.terminal)] = (bench_item, wire.hdl_net)
