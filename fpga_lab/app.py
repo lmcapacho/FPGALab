@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import QApplication, QMessageBox, QProgressDialog
 
 from .build_cache import VerilatorBuildCache
@@ -51,10 +51,14 @@ class ApplicationController:
             return
 
         self._window.set_status(f"Preparando {project.ice_file.name}…")
-        progress = QProgressDialog("Buscando compilación compatible…", None, 0, 0, self._window)
-        progress.setWindowTitle("FPGALab")
+        progress_parent = self._window if self._window.isVisible() else None
+        progress = QProgressDialog("Preparando simulación…", None, 0, 0, progress_parent)
+        progress.setWindowTitle("FPGALab · Cargando diseño")
+        progress.setLabelText("Analizando HDL y buscando una compilación en caché…")
         progress.setCancelButton(None)
         progress.setMinimumDuration(0)
+        progress.setMinimumWidth(460)
+        progress.setWindowModality(Qt.WindowModality.ApplicationModal)
         progress.show()
         self._app.processEvents()
         try:
@@ -104,11 +108,11 @@ def main() -> None:
     app = QApplication(sys.argv)
     window = FPGALabMainWindow()
     controller = ApplicationController(app, window, namespace)
-    window.showMaximized()
     if namespace.ice:
         window.set_project_path(namespace.ice)
-        QTimer.singleShot(0, lambda: controller.execute_project(namespace.ice))
-    elif namespace.library:
+        controller.execute_project(namespace.ice)
+    window.showMaximized()
+    if namespace.library:
         QTimer.singleShot(0, lambda: controller.load_advanced_library(namespace.library))
     sys.exit(app.exec())
 

@@ -44,6 +44,8 @@ class SimulationWorker(QObject):
         self._timer.setInterval(max(1, round(1000 / self._ui_refresh_hz)))
         self._timer.timeout.connect(self._run_frame)
         self._last_frame_time = perf_counter()
+        if self._simulation.profile.clock_name is None:
+            self._run_frame()
 
     @pyqtSlot()
     def play(self) -> None:

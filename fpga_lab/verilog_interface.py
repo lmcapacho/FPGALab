@@ -30,6 +30,7 @@ class VerilogInterface:
 
     module_name: str
     ports: tuple[VerilogPort, ...]
+    detected_clock: str | None = None
 
     @classmethod
     def discover(cls, source: str | Path) -> "VerilogInterface":
@@ -51,14 +52,16 @@ class VerilogInterface:
         ports = _parse_ports(text[opening + 1:closing])
         if not ports:
             raise ValueError(f"Module {module_name} has no supported public ports.")
-        return cls(module_name, tuple(ports))
+        return cls(module_name, tuple(ports), _default_clock(
+            {port.name: port.width for port in ports if port.direction in {"input", "inout"}}, text
+        ))
 
     def profile(self, board_name: str = "Alhambra II", clock_port: str | None = None) -> BoardProfile:
         """Create a generic ABI profile for every input and output port."""
         inputs = {port.name: port.width for port in self.ports if port.direction in {"input", "inout"}}
         outputs = {port.name: port.width for port in self.ports if port.direction == "output"}
-        selected_clock = clock_port or _default_clock(inputs)
-        if selected_clock not in inputs or inputs[selected_clock] != 1:
+        selected_clock = clock_port if clock_port is not None else self.detected_clock
+        if selected_clock is not None and (selected_clock not in inputs or inputs[selected_clock] != 1):
             raise ValueError(f"Clock port {selected_clock!r} is not a scalar input of {self.module_name}.")
         profile = BoardProfile(board_name, inputs, outputs, outputs, selected_clock)
         profile.validate()
@@ -110,11 +113,13 @@ def _range_width(range_text: str | None) -> int:
     return abs(int(match.group(1)) - int(match.group(2))) + 1
 
 
-def _default_clock(inputs: dict[str, int]) -> str:
+def _default_clock(inputs: dict[str, int], verilog: str) -> str | None:
     for name in inputs:
         if name.lower() in {"clk", "clock"}:
             return name
+    if not re.search(r"\balways(?:_ff)?\s*@?\s*\([^)]*\bposedge\b", verilog):
+        return None
     for name, width in inputs.items():
         if width == 1:
             return name
-    raise ValueError("The module has no scalar input that can be used as its clock.")
+    return None

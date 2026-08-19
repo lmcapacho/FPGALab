@@ -16,7 +16,7 @@ class BoardProfile:
     inputs: dict[str, int]
     outputs: dict[str, int]
     observed: dict[str, int] | None = None
-    clock_name: str = "clk"
+    clock_name: str | None = "clk"
 
     @classmethod
     def load(cls, path: str | Path) -> "BoardProfile":
@@ -27,7 +27,7 @@ class BoardProfile:
         return profile
 
     def validate(self) -> None:
-        if self.inputs.get(self.clock_name) != 1:
+        if self.clock_name is not None and self.inputs.get(self.clock_name) != 1:
             raise ValueError(f"The profile must declare scalar clock input {self.clock_name!r}.")
         for direction, ports in (("inputs", self.inputs), ("outputs", self.outputs)):
             for name, width in ports.items():

@@ -66,6 +66,7 @@ class FPGAVirtualLab(QWidget):
         self._bounce_timers: list[QTimer] = []
         self._board_name = simulation.profile.board_name
         self._available_inputs = frozenset(simulation.profile.inputs)
+        self._has_clock = simulation.profile.clock_name is not None
         self._input_widths = dict(simulation.profile.inputs)
         self._layout = BoardLayout.load(bundled_layout())
         self._project_pcf = project_pcf or Path("examples/main.pcf")
@@ -112,13 +113,17 @@ class FPGAVirtualLab(QWidget):
         info_layout = QVBoxLayout(info_panel)
         info_layout.addWidget(QLabel("Controles integrados"))
         info_layout.addWidget(QLabel("Presione SW1 o SW2 directamente sobre la placa.", objectName="caption"))
-        self._run_state = QLabel("Estado: detenido", objectName="caption")
+        initial_state = "Estado: diseño combinacional · evaluación reactiva" if self._has_clock is False else "Estado: detenido"
+        self._run_state = QLabel(initial_state, objectName="caption")
         info_layout.addWidget(self._run_state)
         run_buttons = QHBoxLayout()
         play = QPushButton("▶ Ejecutar")
         play.clicked.connect(self._play)
         pause = QPushButton("■ Detener")
         pause.clicked.connect(self._pause)
+        if self._has_clock is False:
+            play.setEnabled(False)
+            pause.setEnabled(False)
         run_buttons.addWidget(play); run_buttons.addWidget(pause)
         info_layout.addLayout(run_buttons)
         controls.addWidget(info_panel)
