@@ -78,7 +78,7 @@ class FPGALabMainWindow(QMainWindow):
         row.addWidget(run)
         layout.addLayout(row)
         self._status = QLabel("Seleccione un diseño para iniciar.")
-        self._status.setObjectName("caption")
+        self._status.setStyleSheet("color:#fbbf24; font-size:12px; font-weight:600;")
         layout.addWidget(self._status)
         return frame
 

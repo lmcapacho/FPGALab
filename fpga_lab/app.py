@@ -7,8 +7,8 @@ import re
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QApplication, QDialog, QLabel, QMessageBox, QVBoxLayout
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from .board import BoardDefinition
 from .build_cache import VerilatorBuildCache
@@ -67,20 +67,6 @@ def board_sources(project: IcestudioProject, profile: BoardProfile) -> tuple[dic
     return led_sources, input_sources
 
 
-def loading_notice(parent) -> QDialog:
-    """Create a legible non-interactive notice for synchronous compilation work."""
-    dialog = QDialog(parent)
-    dialog.setWindowTitle("FPGALab · Cargando diseño")
-    dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
-    dialog.setMinimumSize(520, 140)
-    dialog.setStyleSheet("QDialog { background:#172033; border:1px solid #475569; } QLabel { color:#f8fafc; font-size:15px; font-weight:600; background:#172033; }")
-    layout = QVBoxLayout(dialog)
-    layout.setContentsMargins(24, 24, 24, 24)
-    label = QLabel("Preparando simulación…\n\nAnalizando HDL y buscando una compilación en caché.")
-    label.setWordWrap(True)
-    layout.addWidget(label)
-    return dialog
-
 
 class ApplicationController:
     """Compile selected designs and replace the hosted virtual laboratory."""
@@ -102,10 +88,9 @@ class ApplicationController:
             QMessageBox.critical(self._window, "No se puede cargar el diseño", str(error))
             return
 
-        self._window.set_status(f"Preparando {project.ice_file.name}…")
-        notice = loading_notice(self._window if self._window.isVisible() else None)
-        notice.show()
-        notice.raise_()
+        self._window.set_status(
+            f"Preparando {project.ice_file.name}: analizando HDL y buscando compilación en caché…"
+        )
         self._app.processEvents()
         try:
             artifact = VerilatorBuildCache(self._namespace.cache_dir).build_or_reuse(
@@ -116,9 +101,6 @@ class ApplicationController:
             QMessageBox.critical(self._window, "Error de compilación", str(error))
             self._window.set_status("La compilación no terminó.")
             return
-        finally:
-            notice.close()
-
         lab = FPGAVirtualLab(
             simulation,
             self._namespace.clock_hz,
@@ -161,10 +143,11 @@ def main() -> None:
     controller = ApplicationController(app, window, namespace)
     if namespace.ice:
         window.set_project_path(namespace.ice)
-        controller.execute_project(namespace.ice)
     window.showMaximized()
     QTimer.singleShot(100, window.showMaximized)
-    if namespace.library:
+    if namespace.ice:
+        QTimer.singleShot(0, lambda: controller.execute_project(namespace.ice))
+    elif namespace.library:
         QTimer.singleShot(0, lambda: controller.load_advanced_library(namespace.library))
     sys.exit(app.exec())
 
