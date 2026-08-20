@@ -48,6 +48,7 @@ class FPGAVirtualLab(QWidget):
     play_requested = pyqtSignal()
     pause_requested = pyqtSignal()
     reset_requested = pyqtSignal()
+    status_changed = pyqtSignal(str)
 
     def __init__(
         self,
@@ -107,7 +108,7 @@ class FPGAVirtualLab(QWidget):
         root = QHBoxLayout()
         outer.addLayout(root)
         board_panel = QFrame(objectName="board")
-        board_panel.setMinimumWidth(380)
+        board_panel.setMinimumWidth(300)
         board_layout = QVBoxLayout(board_panel)
         title = QLabel(f"{self._board_name.upper()} · FPGA VIRTUAL")
         title.setStyleSheet("font-size: 20px; font-weight: 800; color:#bbf7d0;")
@@ -115,21 +116,9 @@ class FPGAVirtualLab(QWidget):
         board_layout.addWidget(QLabel("SVG + layout de placa · controles interactivos", objectName="caption"))
         self._board_view = BoardView(self._layout, self._bouncy_input)
         board_layout.addWidget(self._board_view, 1)
-        root.addWidget(board_panel, 3)
+        root.addWidget(board_panel, 2)
 
         controls = QVBoxLayout()
-        info_panel = QFrame(objectName="panel")
-        info_layout = QVBoxLayout(info_panel)
-        info_layout.addWidget(QLabel("Controles integrados"))
-        info_layout.addWidget(QLabel("Presione SW1 o SW2 directamente sobre la placa.", objectName="caption"))
-        initial_state = (
-            "Estado: cargue un diseño Icestudio" if self._has_clock is None
-            else "Estado: diseño combinacional · evaluación reactiva" if self._has_clock is False
-            else "Estado: detenido"
-        )
-        self._run_state = QLabel(initial_state, objectName="caption")
-        info_layout.addWidget(self._run_state)
-        controls.addWidget(info_panel)
         gpio_panel = QFrame(objectName="panel")
         gpio_layout = QVBoxLayout(gpio_panel)
         self._peripherals = PeripheralsPanel(
@@ -141,7 +130,7 @@ class FPGAVirtualLab(QWidget):
         self._peripherals.input_changed.connect(self.set_input_requested)
         gpio_layout.addWidget(self._peripherals, 1)
         controls.addWidget(gpio_panel, 1)
-        root.addLayout(controls, 2)
+        root.addLayout(controls, 3)
 
     def stop_simulation(self) -> None:
         """Stop a clocked simulation from the main project toolbar."""
@@ -156,13 +145,13 @@ class FPGAVirtualLab(QWidget):
     def _play(self) -> None:
         self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
-        self._run_state.setText("Estado: ejecutando · edición bloqueada")
+        self.status_changed.emit("Simulación ejecutando.")
         self._peripherals.set_editable(False)
 
     def _pause(self) -> None:
         self.pause_requested.emit()
         self._board_view.set_led_brightness("PWR", 0.0)
-        self._run_state.setText("Estado: detenido")
+        self.status_changed.emit("Simulación detenida.")
         self._peripherals.set_editable(True)
 
     def _open_layout_editor(self) -> None:
@@ -201,6 +190,7 @@ class FPGAVirtualLab(QWidget):
 
     def _show_failure(self, error: str) -> None:
         self.setWindowTitle(f"FPGALab · simulación detenida: {error}")
+        self.status_changed.emit(f"Error de simulación: {error}")
 
     def closeEvent(self, event) -> None:
         if self._thread is not None and self._thread.isRunning():

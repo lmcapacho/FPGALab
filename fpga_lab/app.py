@@ -125,6 +125,7 @@ class ApplicationController:
             input_sources=input_sources,
         )
         self._window.set_lab(lab)
+        lab.status_changed.connect(self._window.set_status)
         lab.start_simulation()
         self._window.set_simulation_running(profile.clock_name is not None)
         self._window.set_project_path(project.ice_file)

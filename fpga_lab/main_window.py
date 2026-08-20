@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QStackedWidget,
+    QStatusBar,
     QVBoxLayout,
     QWidget,
 )
@@ -37,9 +38,13 @@ class FPGALabMainWindow(QMainWindow):
             QMainWindow, QWidget { background:#0f172a; color:#e2e8f0; font-family:Inter,Arial,sans-serif; }
             QFrame#panel { background:#172033; border:1px solid #334155; border-radius:10px; }
             QLabel#caption { color:#94a3b8; font-size:11px; }
+            QStatusBar { background:#172033; color:#fbbf24; border-top:1px solid #334155; font-weight:600; }
         """)
         self._recent_projects = RecentProjects()
         self._active_lab: QWidget | None = None
+        self._status_bar = QStatusBar(self)
+        self.setStatusBar(self._status_bar)
+        self._status_bar.showMessage("Seleccione un diseño para iniciar.")
 
         root = QWidget(self)
         layout = QVBoxLayout(root)
@@ -82,9 +87,6 @@ class FPGALabMainWindow(QMainWindow):
         row.addWidget(self._execute_button)
         row.addWidget(self._stop_button)
         layout.addLayout(row)
-        self._status = QLabel("Seleccione un diseño para iniciar.")
-        self._status.setStyleSheet("color:#fbbf24; font-size:12px; font-weight:600;")
-        layout.addWidget(self._status)
         return frame
 
     def _refresh_recent(self) -> None:
@@ -130,10 +132,10 @@ class FPGALabMainWindow(QMainWindow):
     def set_project_path(self, path: str | Path) -> None:
         resolved = Path(path).expanduser().resolve()
         self._path.setText(str(resolved))
-        self._status.setText("Listo para ejecutar. Se reutilizará la caché si el diseño no cambió.")
+        self.set_status("Listo para ejecutar. Se reutilizará la caché si el diseño no cambió.")
 
     def set_status(self, message: str) -> None:
-        self._status.setText(message)
+        self._status_bar.showMessage(message)
 
     def remember_project(self, path: Path) -> None:
         self._recent_projects.add(path)
