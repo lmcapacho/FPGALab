@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fpga-lab"
 version = "0.1.0"
-description = "Laboratorio virtual interactivo para diseños y placas FPGA"
+description = "Interactive virtual laboratory for Verilog designs and FPGA boards"
 requires-python = ">=3.10"
 dependencies = ["PyQt6>=6.5"]
 

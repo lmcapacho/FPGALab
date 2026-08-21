@@ -1,136 +1,146 @@
 # FPGALab
 
-Laboratorio virtual interactivo para diseños Verilog y perfiles de placas FPGA.
-El diseño se compila con Verilator a una biblioteca compartida y la GUI PyQt6
-interactúa con ella por medio de una ABI C y `ctypes`; no se generan ni se
-consumen archivos VCD durante la simulación interactiva.
+FPGALab is an interactive virtual FPGA laboratory for Verilog designs. It turns an Icestudio export into a native Verilator model and connects that model to a PyQt6 desktop interface, so learners can interact with a virtual board and peripherals without requiring physical hardware.
 
-## Arquitectura
+The first supported board is **Alhambra II**. The architecture is board-profile driven, allowing additional boards and visual peripherals to be added over time.
+
+## What it does
+
+- Opens an Icestudio `.ice` design and finds its generated `main.v` and PCF file in `ice-build`.
+- Builds the design with Verilator only when the HDL, PCF, profile, or build settings have changed.
+- Runs the compiled model through a native C ABI and Python `ctypes`, without VCD-based interaction.
+- Emulates a configurable virtual clock (12 MHz by default) while refreshing the GUI at a human-friendly rate.
+- Maps Alhambra II LEDs, switches, reset, and GPIO endpoints through the design PCF.
+- Provides a reusable laboratory workspace for external LEDs, push buttons, digital sensors, traffic lights, and seven-segment displays.
+- Keeps physical board artwork and interactive element placement in SVG and JSON assets.
+- Offers an English interface by default, with Spanish available from the `EN / ES` language selector.
+
+## Architecture
 
 ```text
-main.v + board_profile.json
+Icestudio design (.ice)
+        │
+        ├── ice-build/<design>/main.v
+        └── ice-build/<design>/main.pcf
         │
         ▼
-VerilatorCompiler ──► sim_main.cpp (ABI C + run_cycles) ──► libVtop_shared.{so,dylib,dll}
-                                                     │ ctypes
-                                                     ▼
-                                            VerilatorSimulation
-                                                     │ QThread + QTimer
-                                                     ▼
-                                            FPGAVirtualLab
+Project discovery + Verilog interface + PCF mapping
+        │
+        ▼
+Verilator build cache ──► C++ simulation wrapper ──► shared library
+                                                          │
+                                                       ctypes
+                                                          │
+                                                          ▼
+                                                VerilatorSimulation
+                                                          │
+                                                 QThread + QTimer
+                                                          │
+                                                          ▼
+                                      Virtual board and peripheral workbench
 ```
 
-Para un diseño Icestudio, FPGALab inspecciona `main.v` y detecta el módulo
-superior y sus puertos antes de generar la plantilla C++. Un perfil manual sigue
-disponible para flujos avanzados, por lo que los nombres de señales se validan
-en la compilación de C++ y no quedan escondidos en el código Python.
+The C++ wrapper exposes native getters, setters, clock stepping, and batched cycle execution. Python sends inputs to the model and receives sampled outputs; the GUI never has to refresh at the FPGA clock rate.
 
-## Requisitos
+## Requirements
 
-* Python 3.10+ y PyQt6.
-* Verilator 5.x, GNU Make y un compilador C++17 (GCC/Clang o MSVC+make
-  compatible). En Windows es recomendable usar MSYS2/MinGW64 para la primera
-  iteración.
+- Python 3.10 or newer
+- [Verilator](https://www.veripool.org/verilator/) 5.x or newer
+- A C++17 compiler and GNU Make-compatible build tools
+  - Linux: GCC or Clang with `make`
+  - Windows: MSYS2/MinGW64 is recommended
+- PyQt6 (installed automatically with the Python package)
+
+## Installation
 
 ```bash
+git clone <your-repository-url>
+cd FPGALab
+
 python -m venv .venv
-source .venv/bin/activate              # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate       # Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -e .
+
 verilator --version
 ```
 
-## Inicio rápido
+## Run FPGALab
 
-El ejemplo incluido usa los puertos declarados en `examples/main.v`.
-
-```bash
-python -m fpga_lab.compiler examples/main.v \
-  --profile examples/board_profile.json --top top
-python -m fpga_lab.app --library build/verilator/obj_dir/libVtop_shared.so \
-  --profile examples/board_profile.json --clock-hz 12000000 --ui-refresh-hz 60 --observation-hz 1000000
-```
-
-En Windows, cambie la última extensión por `.dll`; en macOS por `.dylib`.
-La misma lista de argumentos puede entregarse a `QProcess` desde una UI sin usar una shell.
-
-### Ejecutar un diseño de Icestudio
-
-La ruta habitual no requiere buscar `main.v` ni pulsar un botón de compilación:
+Start the desktop application:
 
 ```bash
-python -m fpga_lab.app --ice /ruta/al/diseño.ice \
-  --profile examples/board_profile.json
+fpga-lab
 ```
 
-Al abrir FPGALab, la barra superior integrada permite elegir la ruta `.ice`,
-buscar un archivo, reutilizar proyectos recientes y pulsar **Ejecutar**. Para cada
-diseño localiza
-`ice-build/<nombre-del-diseño>/main.v` (o `ice-build/main.v`), compila solo si el
-contenido de `main.v`, el PCF o el perfil cambió, y guarda el resultado en la
-caché de usuario (`$XDG_CACHE_HOME/fpgalab/verilator`). Por tanto `ice-build` no
-se llena con archivos de Verilator.
-
-Los montajes visuales se conservan en un workspace global reutilizable, no dentro
-de `ice-build` ni junto al diseño Icestudio. La barra de FPGALab permite seleccionar
-o crear un laboratorio. La ruta predeterminada es `~/FPGALab/labs` en Linux y
-`Documentos/FPGALab/labs` en Windows; puede cambiarse mediante la variable de
-entorno `FPGALAB_WORKSPACE`. FPGALab no crea ni modifica carpetas auxiliares
-junto a los proyectos de Icestudio.
-
-El PCF del diseño se entrega al laboratorio para relacionar la red HDL con el pin
-físico de la Alhambra II; los nombres HDL siguen siendo los declarados por el
-perfil hasta completar la detección automática de la interfaz Verilog.
-
-## Reloj virtual y refresco visual
-
-El modelo avanza según el tiempo real y `--clock-hz` (12 MHz por defecto).
-Cada frame llama una sola vez a `run_cycles()` dentro de C++, evitando miles
-de cruces `ctypes`. La interfaz se pinta a `--ui-refresh-hz` (60 Hz por defecto). La sonda temporal
-trabaja por separado a `--observation-hz` (1 MHz por defecto): entrega ciclo de
-trabajo, transiciones y estado final, de modo que PWM y señales rápidas se
-presentan como brillo sin depender de la fase del temporizador de Qt. Cada
-periférico podrá declarar sus señales y resolución de observación.
-
-Si un diseño no alcanza 12 MHz en el anfitrión, mantener tiempo real requiere
-el núcleo disponible; se puede bajar `--clock-hz` para un modo didáctico.
-
-## Contrato HDL
-
-Los nombres y anchos pueden declararse en `board_profile.json`. El perfil de ejemplo
-expone `clk`, `SW1`, `SW2`, `LED0`…`LED7`, un bus de entrada/salida GPIO de 8
-bits y 14 bits para dos displays de siete segmentos. Puede adaptarlo a la
-exportación de Icestudio sin editar Python:
-
-```json
-{
-  "inputs": {"clk": 1, "SW1": 1, "SW2": 1, "gpio_in": 8},
-  "outputs": {"LED0": 1, "LED1": 1, "segments": 14, "gpio_out": 8}
-}
-```
-
-`clk` debe ser una entrada escalar. Los puertos son nombres Verilog válidos y
-deben existir como puertos públicos de `--top-module`.
-
-## Git
+Or open an Icestudio design directly:
 
 ```bash
-git init
-git add .
-git commit -m "feat: base del laboratorio virtual FPGA"
+fpga-lab --ice /path/to/design.ice
 ```
 
-Los directorios de construcción y las bibliotecas producidas se ignoran. No
-versione artefactos generados: versiona HDL, perfiles y código fuente.
+Use the top bar to select a design, select or create a laboratory, and start the simulation. The Run and Stop controls are located at the bottom-right of the application window.
 
+### Icestudio workflow
 
-## Layout visual de placa
+1. Create or open a design in Icestudio.
+2. Generate the Verilog output so that Icestudio produces `ice-build/<design>/main.v` and its PCF file.
+3. Open the `.ice` file in FPGALab.
+4. Press Run. FPGALab automatically determines whether the cached native model can be reused or needs rebuilding.
+5. Interact with the board and peripherals while the model is running.
 
-La apariencia y los controles integrados viven fuera de Python:
+FPGALab does not write Verilator artifacts into `ice-build`. Compiled models are stored in the user cache.
 
-- `fpga_lab/assets/boards/alhambra_ii.svg`: arte vectorial escalable.
-- `fpga_lab/assets/board_layouts/alhambra_ii.json`: posición, tamaño, señal y tipo de cada elemento.
+## Virtual time and visual refresh
 
-Un componente `led` se enlaza a una salida HDL y un `button` a una entrada. Por
-ello se pueden ajustar posiciones, añadir controles o crear un perfil para otra
-placa sin tocar el motor Verilator. Los periféricos externos se añadirán como
-layouts separados conectados por el esquema de cableado virtual.
+The virtual FPGA advances according to elapsed host time and `--clock-hz` (12 MHz by default). The native wrapper batches many FPGA cycles in C++ for each visual frame, avoiding a Python-to-C boundary crossing per cycle.
+
+The interface is refreshed at `--ui-refresh-hz` (60 Hz by default). Fast signals are sampled independently at `--observation-hz` (1 MHz by default), allowing LEDs and other visual peripherals to represent duty cycle, transitions, and final state without depending on Qt timer phase.
+
+If the host cannot sustain the requested virtual frequency, use a lower `--clock-hz` value for a slower instructional mode.
+
+## Board mapping and GPIO
+
+For Icestudio projects, the PCF is used to relate generated HDL net names to physical Alhambra II endpoints. This allows board LEDs and switches to work even when Icestudio-generated signal names differ from labels such as `LED0` or `SW1`.
+
+External peripherals are configured from the virtual workbench. Their terminals are assigned to board GPIO endpoints, and FPGALab resolves those endpoints through the PCF when the HDL connects them. A peripheral may remain physically connected even if the current HDL does not use that pin.
+
+## Laboratories
+
+Laboratories are reusable configurations independent from Icestudio project folders. They store the external peripherals, their settings, pin assignments, and positions on the virtual workbench.
+
+Default locations are:
+
+- Linux: `~/FPGALab/labs`
+- Windows: `Documents/FPGALab/labs`
+
+Set `FPGALAB_WORKSPACE` to use a different workspace root.
+
+## Board assets and extensibility
+
+A board is described by reusable assets:
+
+- `fpga_lab/assets/boards/alhambra_ii.svg` — scalable board artwork
+- `fpga_lab/assets/board_layouts/alhambra_ii.json` — interactive controls, geometry, colours, and HDL signals
+- `boards/alhambra_ii.json` — physical endpoints and board capabilities
+
+This separation makes it possible to calibrate controls visually, add new integrated controls, or introduce another FPGA board without changing the simulation engine.
+
+## Command-line options
+
+```text
+--ice PATH                 Icestudio design to open
+--library PATH             Prebuilt simulation library (advanced mode)
+--profile PATH             Manual board profile (advanced mode)
+--cache-dir PATH           Override the Verilator build cache
+--clock-hz INTEGER         Target virtual clock frequency
+--ui-refresh-hz INTEGER    Maximum GUI refresh frequency
+--observation-hz INTEGER   Signal sampling frequency
+```
+
+## Project status
+
+FPGALab is under active development. The Alhambra II workflow and the initial external peripheral set are the current focus.
+
+## License
+
+A license has not yet been selected. Please contact the project owner before redistributing the project or incorporating it into another product.
