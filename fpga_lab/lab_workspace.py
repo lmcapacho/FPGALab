@@ -38,7 +38,7 @@ class LabWorkspace:
         self.labs_dir.mkdir(parents=True, exist_ok=True)
         default = self.labs_dir / "mi-primer-laboratorio.lab.json"
         if not default.exists():
-            self._write_lab(default, "Mi primer laboratorio")
+            self._write_lab(default, "My first lab")
         return default
 
     def labs(self) -> list[LabDescriptor]:
@@ -51,7 +51,7 @@ class LabWorkspace:
     def create(self, name: str) -> LabDescriptor:
         """Create a named empty lab without overwriting existing configurations."""
         self.ensure_default()
-        cleaned_name = name.strip() or "Nuevo laboratorio"
+        cleaned_name = name.strip() or "New lab"
         stem = re.sub(r"[^a-z0-9]+", "-", cleaned_name.lower()).strip("-") or "laboratorio"
         candidate = self.labs_dir / f"{stem}.lab.json"
         suffix = 2

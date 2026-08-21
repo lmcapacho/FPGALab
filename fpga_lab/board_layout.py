@@ -57,7 +57,7 @@ class BoardLayout:
             if element.kind not in {"led", "button"}:
                 raise ValueError(f"Tipo de componente no soportado: {element.kind}")
             if element.width <= 0 or element.height <= 0:
-                raise ValueError(f"Tamaño inválido para {element.id}")
+                raise ValueError(f"Invalid size for {element.id}")
 
 
 def bundled_layout(board_id: str = "alhambra_ii") -> Path:

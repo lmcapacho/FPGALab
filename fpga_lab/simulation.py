@@ -73,7 +73,7 @@ class VerilatorSimulation:
     def set_observation_divisor(self, cycles: int) -> None:
         """Set output observation frequency in virtual cycles (minimum one)."""
         if cycles < 1:
-            raise ValueError("El divisor de observación debe ser positivo.")
+            raise ValueError("Observation divisor must be positive.")
         self._set_observation_divisor(cycles)
 
     def observed_windows(self, cycles: int) -> dict[str, SignalWindow]:

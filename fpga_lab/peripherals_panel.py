@@ -8,7 +8,8 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QVBoxLayout, QWidget
 from .board import BoardDefinition
 from .constraints import PcfParser
-from .wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS, PeripheralInstance, VirtualLabProject
+from .i18n import language_manager, t
+from .wiring import PERIPHERAL_LABELS, PERIPHERAL_LABELS_ES, PERIPHERAL_TERMINALS, PeripheralInstance, VirtualLabProject
 
 class SegmentDisplay(QFrame):
     """Compact representation of an external seven-segment display."""
@@ -39,7 +40,7 @@ class PeripheralConfigDialog(QDialog):
 
     def __init__(self, peripheral, board, assigned_endpoints=None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Configurar · {peripheral.peripheral_id}")
+        self.setWindowTitle(t("Configure · {identifier}", "Configurar · {identifier}", identifier=peripheral.peripheral_id))
         self._board = board; self._assigned_endpoints = assigned_endpoints
         self._kind = peripheral.kind
         self._pickers = {}
@@ -48,9 +49,9 @@ class PeripheralConfigDialog(QDialog):
         layout = QVBoxLayout(self)
         form = QFormLayout()
         self.identifier = QLineEdit(peripheral.peripheral_id)
-        form.addRow("Identificador", self.identifier)
+        form.addRow(t("Identifier", "Identificador"), self.identifier)
         for terminal, direction in PERIPHERAL_TERMINALS[peripheral.kind].items():
-            picker = QComboBox(); picker.addItem("— sin conectar —", "")
+            picker = QComboBox(); picker.addItem(t("— not connected —", "— sin conectar —"), "")
             for pin in board.available_endpoints(direction):
                 if pin.location.startswith("header") and (self._assigned_endpoints is None or pin.id in self._assigned_endpoints):
                     picker.addItem(pin.id, pin.id)
@@ -59,13 +60,15 @@ class PeripheralConfigDialog(QDialog):
             form.addRow(terminal, picker); self._pickers[terminal] = picker
         self.common = QComboBox(); self.common.addItems(["cathode", "anode"])
         self.common.setCurrentText(str(peripheral.properties.get("common", "cathode")))
-        if peripheral.kind == "seven_segment": form.addRow("Común", self.common)
+        if peripheral.kind == "seven_segment": form.addRow(t("Common", "Común"), self.common)
         self.color = QPushButton(self._color)
         self.color.clicked.connect(self._choose_color)
         if peripheral.kind in {"led", "traffic_light"}: form.addRow("Color", self.color)
         layout.addLayout(form)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save)
-        delete = buttons.addButton("Eliminar", QDialogButtonBox.ButtonRole.DestructiveRole)
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText(t("Save", "Guardar"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel", "Cancelar"))
+        delete = buttons.addButton(t("Delete", "Eliminar"), QDialogButtonBox.ButtonRole.DestructiveRole)
         delete.clicked.connect(self._request_delete)
         buttons.accepted.connect(self.accept); buttons.rejected.connect(self.reject); layout.addWidget(buttons)
 
@@ -179,7 +182,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         else:
             state = self._pressed if kind == "button" else self._sensor_value
             painter.setPen(QColor("#f8fafc") if state else QColor("#94a3b8"))
-            label = ("Pulsador: 1" if state else "Pulsador: 0") if kind == "button" else ("Sensor: 1" if state else "Sensor: 0")
+            label = (t("Button: 1", "Pulsador: 1") if state else t("Button: 0", "Pulsador: 0")) if kind == "button" else (t("Sensor: 1", "Sensor: 1") if state else t("Sensor: 0", "Sensor: 0"))
             painter.drawText(self.rect().adjusted(10, 29, -8, -8), Qt.AlignmentFlag.AlignCenter, label)
 
     def _draw_display(self, painter):
@@ -220,16 +223,29 @@ class PeripheralsPanel(QWidget):
         super().__init__(parent); self._board, self._pcf, self._lab = board, pcf, lab
         self._input_widths = input_widths or {}; self._input_values = {}; self._editing_enabled = True
         self._assigned_endpoints = None  # The entire board is available; the design PCF is optional.
-        layout = QVBoxLayout(self); layout.addWidget(QLabel("Catálogo de periféricos"))
+        layout = QVBoxLayout(self); self._catalog_title = QLabel(); layout.addWidget(self._catalog_title)
         catalog = QHBoxLayout(); self.kind = QComboBox()
-        for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(label, key)
-        self._add_button = QPushButton("＋ Agregar"); self._add_button.clicked.connect(self._add)
+        for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(t(label, PERIPHERAL_LABELS_ES[key]), key)
+        self._add_button = QPushButton(); self._add_button.clicked.connect(self._add)
         catalog.addWidget(self.kind); catalog.addWidget(self._add_button); layout.addLayout(catalog)
-        self.status = QLabel("Seleccione un tipo y configure la pieza al crearla."); layout.addWidget(self.status)
-        layout.addWidget(QLabel("Mesa virtual · arrastre una pieza; doble clic para configurar o eliminar"))
+        self.status = QLabel(); layout.addWidget(self.status)
+        self._workbench_hint = QLabel(); layout.addWidget(self._workbench_hint)
         self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 480, 420); self.workbench = WorkbenchView(self._workbench_scene, self._delete)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
         self._workbench_bindings = {}; self._reload()
+        language_manager.language_changed.connect(self._retranslate_ui)
+        self._retranslate_ui()
+    def _retranslate_ui(self) -> None:
+        self._catalog_title.setText(t("Peripheral catalog", "Catálogo de periféricos"))
+        for index in range(self.kind.count()):
+            key = self.kind.itemData(index)
+            self.kind.setItemText(index, t(PERIPHERAL_LABELS[key], PERIPHERAL_LABELS_ES[key]))
+        self._add_button.setText(t("＋ Add", "＋ Agregar"))
+        self.status.setText(t("Select a type and configure the part when creating it.", "Seleccione un tipo y configure la pieza al crearla."))
+        self._workbench_hint.setText(t("Virtual workbench · drag a part; double-click to configure or delete", "Mesa virtual · arrastre una pieza; doble clic para configurar o eliminar"))
+        for item in self._workbench_scene.items():
+            item.update()
+
     def _constraints(self):
         """Load optional design constraints without requiring a PCF for the board UI."""
         return PcfParser.parse_file(self._pcf) if self._pcf and self._pcf.is_file() else []
@@ -259,7 +275,7 @@ class PeripheralsPanel(QWidget):
         net = binding[1] if binding else None
         match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]", net or "")
         if not match or match.group(1) not in self._input_widths:
-            self.status.setText(f"{peripheral_id}: conectado físicamente; el HDL actual no lee este pin.")
+            self.status.setText(t("{identifier}: physically connected; the current HDL does not read this pin.", "{identifier}: conectado físicamente; el HDL actual no lee este pin.", identifier=peripheral_id))
             return
         port, bit = match.group(1), int(match.group(2))
         if bit >= self._input_widths[port]: return
@@ -291,23 +307,23 @@ class PeripheralsPanel(QWidget):
         if result != QDialog.DialogCode.Accepted: return
         value = dialog.value()
         if not value["id"] or len(value["connections"]) != len(PERIPHERAL_TERMINALS[peripheral.kind]):
-            self.status.setText("Complete el identificador y todos los terminales."); return
+            self.status.setText(t("Complete the identifier and every terminal.", "Complete el identificador y todos los terminales.")); return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         ids = [item["id"] for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
-        if value["id"] in ids: self.status.setText("Ya existe un periférico con ese identificador."); return
+        if value["id"] in ids: self.status.setText(t("A peripheral with that identifier already exists.", "Ya existe un periférico con ese identificador.")); return
         for index, item in enumerate(raw.get("peripherals", [])):
             if item["id"] == peripheral.peripheral_id:
                 dialog_properties = dict(value["properties"]); dialog_properties.pop("position", None)
                 value["properties"] = {**item.get("properties", {}), **dialog_properties}
                 raw["peripherals"][index] = value; break
-        self._commit(raw, f"{value["id"]} actualizado")
+        self._commit(raw, t("{identifier} updated", "{identifier} actualizado", identifier=value["id"]))
 
     def _delete(self, peripheral):
-        answer = QMessageBox.question(self, "Eliminar periférico", f"¿Eliminar {peripheral.peripheral_id}?")
+        answer = QMessageBox.question(self, t("Delete peripheral", "Eliminar periférico"), t("Delete {identifier}?", "¿Eliminar {identifier}?", identifier=peripheral.peripheral_id))
         if answer != QMessageBox.StandardButton.Yes: return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         raw["peripherals"] = [item for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
-        self._commit(raw, f"{peripheral.peripheral_id} eliminado")
+        self._commit(raw, t("{identifier} deleted", "{identifier} eliminado", identifier=peripheral.peripheral_id))
 
     def update_outputs(self, outputs: dict[str, int]) -> None:
         """Paint output peripherals from their actual HDL net resolved by the PCF."""
@@ -331,8 +347,8 @@ class PeripheralsPanel(QWidget):
         if dialog.exec() != QDialog.DialogCode.Accepted: return
         value = dialog.value()
         if not value["id"] or len(value["connections"]) != len(PERIPHERAL_TERMINALS[kind]):
-            self.status.setText("Complete el identificador y todos los terminales."); return
+            self.status.setText(t("Complete the identifier and every terminal.", "Complete el identificador y todos los terminales.")); return
         if value["id"] in existing:
-            self.status.setText("Ya existe un periférico con ese identificador."); return
+            self.status.setText(t("A peripheral with that identifier already exists.", "Ya existe un periférico con ese identificador.")); return
         raw.setdefault("peripherals", []).append(value)
-        self._commit(raw, f"{value["id"]} agregado")
+        self._commit(raw, t("{identifier} added", "{identifier} agregado", identifier=value["id"]))

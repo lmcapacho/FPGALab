@@ -17,7 +17,11 @@ PERIPHERAL_TERMINALS = {
     "sensor": {"signal": "input"},
 }
 PERIPHERAL_LABELS = {
-    "led": "LED", "traffic_light": "Semáforo", "seven_segment": "Display 7 segmentos",
+    "led": "LED", "traffic_light": "Traffic light", "seven_segment": "Seven-segment display",
+    "button": "Push button", "sensor": "Digital sensor",
+}
+PERIPHERAL_LABELS_ES = {
+    "led": "LED", "traffic_light": "Semáforo", "seven_segment": "Display de 7 segmentos",
     "button": "Pulsador", "sensor": "Sensor digital",
 }
 
@@ -55,7 +59,7 @@ class VirtualLabProject:
         )
         ids = [item.peripheral_id for item in peripherals]
         if len(ids) != len(set(ids)):
-            raise ValueError("Hay periféricos con el mismo id.")
+            raise ValueError("Multiple peripherals use the same id.")
         return cls(peripherals)
 
     def resolve(
@@ -67,19 +71,19 @@ class VirtualLabProject:
         for peripheral in self.peripherals:
             known_terminals = _TERMINAL_DIRECTIONS.get(peripheral.kind)
             if known_terminals is None:
-                raise ValueError(f"Tipo de periférico desconocido: {peripheral.kind}.")
+                raise ValueError(f"Unknown peripheral type: {peripheral.kind}.")
             unknown = set(peripheral.connections) - set(known_terminals)
             if unknown:
-                raise ValueError(f"{peripheral.peripheral_id}: terminales no válidos: {", ".join(sorted(unknown))}.")
+                raise ValueError(f"{peripheral.peripheral_id}: invalid terminals: {", ".join(sorted(unknown))}.")
             for terminal, endpoint in peripheral.connections.items():
                 board_pin = board.pin(endpoint)
                 expected_direction = _TERMINAL_DIRECTIONS.get(peripheral.kind, {}).get(terminal)
                 if expected_direction and board_pin.direction not in {expected_direction, "inout"}:
-                    raise ValueError(f"{peripheral.peripheral_id}.{terminal}: {endpoint} no admite dirección {expected_direction}.")
+                    raise ValueError(f"{peripheral.peripheral_id}.{terminal}: {endpoint} does not support {expected_direction} direction.")
                 constraint = by_pin.get(board_pin.fpga_pin)
                 if terminal in _DRIVING_TERMINALS.get(peripheral.kind, set()):
                     if endpoint in drivers:
-                        raise ValueError(f"Dos periféricos intentan conducir {endpoint}.")
+                        raise ValueError(f"Two peripherals attempt to drive {endpoint}.")
                     drivers.add(endpoint)
                 resolved.append(
                     ResolvedWire(peripheral.peripheral_id, terminal, endpoint, constraint.net if constraint else None)

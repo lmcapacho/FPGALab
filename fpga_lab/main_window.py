@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from .i18n import language_manager, t
 from .lab_workspace import LabWorkspace
 from .recent_projects import RecentProjects
 
@@ -34,16 +35,14 @@ class FPGALabMainWindow(QMainWindow):
 
     def __init__(self, workspace: LabWorkspace, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("FPGALab · Laboratorio Virtual")
         self.setMinimumSize(1000, 680)
         self.setStyleSheet("""
             QMainWindow, QWidget { background:#0f172a; color:#e2e8f0; font-family:Inter,Arial,sans-serif; }
             QFrame#panel { background:#172033; border:1px solid #334155; border-radius:10px; }
-            QLabel#caption { color:#94a3b8; font-size:11px; }
             QStatusBar { background:#172033; color:#fbbf24; border-top:1px solid #334155; font-weight:600; }
-            QPushButton#runButton { background:#166534; border:1px solid #22c55e; color:#f0fdf4; font-weight:600; }
+            QPushButton#runButton { background:#166534; border:1px solid #22c55e; color:#f0fdf4; font-weight:700; border-radius:5px; }
             QPushButton#runButton:hover { background:#15803d; }
-            QPushButton#stopButton { background:#991b1b; border:1px solid #f87171; color:#fef2f2; font-weight:600; }
+            QPushButton#stopButton { background:#991b1b; border:1px solid #f87171; color:#fef2f2; font-weight:700; border-radius:5px; }
             QPushButton#stopButton:hover { background:#b91c1c; }
             QPushButton#runButton:disabled, QPushButton#stopButton:disabled { background:#1e293b; border-color:#334155; color:#64748b; }
         """)
@@ -53,7 +52,6 @@ class FPGALabMainWindow(QMainWindow):
         self._active_lab: QWidget | None = None
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
-        self._status_bar.showMessage("Seleccione un diseño para iniciar.")
 
         root = QWidget(self)
         layout = QVBoxLayout(root)
@@ -61,79 +59,120 @@ class FPGALabMainWindow(QMainWindow):
         layout.setSpacing(8)
         layout.addWidget(self._project_bar())
         self._content = QStackedWidget()
-        placeholder = QLabel("Seleccione un diseño Icestudio (.ice) y pulse Ejecutar.")
-        placeholder.setStyleSheet("color:#94a3b8; font-size:16px; padding:32px;")
-        placeholder.setWordWrap(True)
-        self._content.addWidget(placeholder)
+        self._placeholder = QLabel()
+        self._placeholder.setStyleSheet("color:#94a3b8; font-size:16px; padding:32px;")
+        self._placeholder.setWordWrap(True)
+        self._content.addWidget(self._placeholder)
         layout.addWidget(self._content, 1)
         self.setCentralWidget(root)
+
+        self._run_button = QPushButton("▶")
+        self._run_button.setObjectName("runButton")
+        self._run_button.setFixedSize(34, 24)
+        self._run_button.clicked.connect(self._request_project)
+        self._stop_button = QPushButton("■")
+        self._stop_button.setObjectName("stopButton")
+        self._stop_button.setFixedSize(34, 24)
+        self._stop_button.setEnabled(False)
+        self._stop_button.clicked.connect(self._request_stop)
+        self._status_bar.addPermanentWidget(self._run_button)
+        self._status_bar.addPermanentWidget(self._stop_button)
+        language_manager.language_changed.connect(self._retranslate_ui)
+        self._retranslate_ui()
 
     def _project_bar(self) -> QWidget:
         frame = QFrame()
         frame.setObjectName("panel")
-        layout = QVBoxLayout(frame)
+        layout = QHBoxLayout(frame)
         layout.setContentsMargins(10, 8, 10, 8)
-        layout.addWidget(QLabel("Proyecto Icestudio"))
-        row = QHBoxLayout()
+        layout.setSpacing(6)
+        self._project_label = QLabel()
         self._path = QLineEdit()
         self._path.setReadOnly(True)
-        self._path.setPlaceholderText("Seleccione un archivo .ice")
-        browse = QPushButton("Buscar…")
-        browse.clicked.connect(self._browse)
+        self._browse_button = QPushButton()
+        self._browse_button.clicked.connect(self._browse)
         self._recent = QComboBox()
-        self._recent.setMinimumWidth(200)
-        self._recent.addItem("Recientes", None)
+        self._recent.setMinimumWidth(155)
         self._recent.currentIndexChanged.connect(self._choose_recent)
         self._refresh_recent()
-        self._execute_button = QPushButton("▶ Ejecutar")
-        self._execute_button.setObjectName("runButton")
-        self._execute_button.clicked.connect(self._request_project)
-        self._stop_button = QPushButton("■ Detener")
-        self._stop_button.setObjectName("stopButton")
-        self._stop_button.setEnabled(False)
-        self._stop_button.clicked.connect(self._request_stop)
-        row.addWidget(self._path, 1)
-        row.addWidget(browse)
-        row.addWidget(self._recent)
-        row.addWidget(self._execute_button)
-        row.addWidget(self._stop_button)
-        layout.addLayout(row)
-        lab_row = QHBoxLayout()
-        lab_row.addWidget(QLabel("Laboratorio"))
+        self._lab_label = QLabel()
         self._labs = QComboBox()
+        self._labs.setMinimumWidth(190)
         self._labs.currentIndexChanged.connect(self._choose_lab)
         self._refresh_labs()
-        create_lab = QPushButton("Nuevo laboratorio…")
-        create_lab.clicked.connect(self._create_lab)
-        lab_row.addWidget(self._labs, 1)
-        lab_row.addWidget(create_lab)
-        layout.addLayout(lab_row)
+        self._new_lab_button = QPushButton("＋")
+        self._new_lab_button.setFixedWidth(30)
+        self._new_lab_button.clicked.connect(self._create_lab)
+        self._language = QComboBox()
+        self._language.addItem("EN", "en")
+        self._language.addItem("ES", "es")
+        self._language.setCurrentIndex(self._language.findData(language_manager.language))
+        self._language.currentIndexChanged.connect(self._choose_language)
+        self._language.setFixedWidth(58)
+        layout.addWidget(self._project_label)
+        layout.addWidget(self._path, 3)
+        layout.addWidget(self._browse_button)
+        layout.addWidget(self._recent)
+        layout.addSpacing(8)
+        layout.addWidget(self._lab_label)
+        layout.addWidget(self._labs, 2)
+        layout.addWidget(self._new_lab_button)
+        layout.addWidget(self._language)
         return frame
+
+    def _retranslate_ui(self) -> None:
+        self.setWindowTitle(t("FPGALab · Virtual FPGA Lab", "FPGALab · Laboratorio Virtual"))
+        self._project_label.setText(t("Project", "Proyecto"))
+        self._path.setPlaceholderText(t("Select an .ice file", "Seleccione un archivo .ice"))
+        self._browse_button.setText(t("Browse…", "Buscar…"))
+        self._browse_button.setToolTip(t("Browse for an Icestudio design", "Buscar un diseño de Icestudio"))
+        self._lab_label.setText(t("Lab", "Laboratorio"))
+        self._new_lab_button.setToolTip(t("Create a new lab", "Crear un laboratorio nuevo"))
+        self._language.setToolTip(t("Interface language", "Idioma de la interfaz"))
+        self._run_button.setToolTip(t("Run selected project", "Ejecutar proyecto seleccionado"))
+        self._stop_button.setToolTip(t("Stop simulation", "Detener simulación"))
+        self._placeholder.setText(t("Select an Icestudio design (.ice) to start.", "Seleccione un diseño Icestudio (.ice) para iniciar."))
+        if not self._status_bar.currentMessage():
+            self._status_bar.showMessage(t("Select a design to start.", "Seleccione un diseño para iniciar."))
+        self._refresh_recent()
+
+    def _choose_language(self, index: int) -> None:
+        language = self._language.itemData(index)
+        if language:
+            language_manager.set_language(language)
 
     def _refresh_labs(self) -> None:
         current = self._selected_lab
         self._labs.blockSignals(True)
         self._labs.clear()
         for descriptor in self._workspace.labs():
-            self._labs.addItem(descriptor.name, descriptor.path)
+            display_name = descriptor.name
+            if descriptor.path.name == "mi-primer-laboratorio.lab.json" and descriptor.name in {"Mi primer laboratorio", "My first lab"}:
+                display_name = t("My first lab", "Mi primer laboratorio")
+            self._labs.addItem(display_name, descriptor.path)
         index = self._labs.findData(current)
         self._labs.setCurrentIndex(max(0, index))
         self._labs.blockSignals(False)
+        self._update_lab_tooltip()
+
+    def _update_lab_tooltip(self) -> None:
+        self._labs.setToolTip(str(self._selected_lab))
 
     def _choose_lab(self, index: int) -> None:
         path = self._labs.itemData(index)
         if path:
             self._selected_lab = Path(path)
-            self.set_status(f"Laboratorio seleccionado: {self._labs.currentText()}")
+            self._update_lab_tooltip()
+            self.set_status(t("Selected lab: {name}", "Laboratorio seleccionado: {name}", name=self._labs.currentText()))
 
     def _create_lab(self) -> None:
-        name, accepted = QInputDialog.getText(self, "Nuevo laboratorio", "Nombre del laboratorio:")
+        name, accepted = QInputDialog.getText(self, t("New lab", "Nuevo laboratorio"), t("Lab name:", "Nombre del laboratorio:"))
         if not accepted:
             return
         descriptor = self._workspace.create(name)
         self._selected_lab = descriptor.path
         self._refresh_labs()
-        self.set_status(f"Laboratorio creado: {descriptor.name}")
+        self.set_status(t("Lab created: {name}", "Laboratorio creado: {name}", name=descriptor.name))
 
     def selected_lab(self) -> Path:
         return self._selected_lab
@@ -146,7 +185,7 @@ class FPGALabMainWindow(QMainWindow):
         selected = self.selected_project()
         self._recent.blockSignals(True)
         self._recent.clear()
-        self._recent.addItem("Recientes", None)
+        self._recent.addItem(t("Recent projects", "Proyectos recientes"), None)
         for path in self._recent_projects.paths():
             self._recent.addItem(path.name, path)
         self._recent.blockSignals(False)
@@ -155,7 +194,7 @@ class FPGALabMainWindow(QMainWindow):
 
     def _browse(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(
-            self, "Seleccionar diseño Icestudio", "", "Diseños Icestudio (*.ice)"
+            self, t("Select Icestudio design", "Seleccionar diseño Icestudio"), "", t("Icestudio designs (*.ice)", "Diseños Icestudio (*.ice)")
         )
         if filename:
             self.set_project_path(Path(filename))
@@ -168,7 +207,7 @@ class FPGALabMainWindow(QMainWindow):
     def _request_project(self) -> None:
         path = self.selected_project()
         if path is None:
-            QMessageBox.information(self, "Proyecto Icestudio", "Seleccione un archivo .ice primero.")
+            QMessageBox.information(self, t("Icestudio project", "Proyecto Icestudio"), t("Select an .ice file first.", "Seleccione un archivo .ice primero."))
             return
         self.project_requested.emit(path)
 
@@ -177,7 +216,7 @@ class FPGALabMainWindow(QMainWindow):
 
     def set_simulation_running(self, running: bool) -> None:
         """Keep the run controls mutually exclusive and visually unambiguous."""
-        self._execute_button.setEnabled(not running)
+        self._run_button.setEnabled(not running)
         self._stop_button.setEnabled(running)
 
     def selected_project(self) -> Path | None:
@@ -187,7 +226,7 @@ class FPGALabMainWindow(QMainWindow):
     def set_project_path(self, path: str | Path) -> None:
         resolved = Path(path).expanduser().resolve()
         self._path.setText(str(resolved))
-        self.set_status("Listo para ejecutar. Se reutilizará la caché si el diseño no cambió.")
+        self.set_status(t("Ready to run. The cache will be reused if the design is unchanged.", "Listo para ejecutar. Se reutilizará la caché si el diseño no cambió."))
 
     def set_status(self, message: str) -> None:
         self._status_bar.showMessage(message)

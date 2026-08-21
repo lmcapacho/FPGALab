@@ -43,7 +43,7 @@ class VerilatorCompiler:
         if not verilog.is_file():
             raise FileNotFoundError(verilog)
         if not shutil.which(request.verilator) and not Path(request.verilator).is_file():
-            raise FileNotFoundError(f"No se encontró Verilator: {request.verilator}")
+            raise FileNotFoundError(f"Verilator was not found: {request.verilator}")
 
         build_dir = request.build_dir.resolve()
         obj_dir = build_dir / "obj_dir"
@@ -74,12 +74,12 @@ class VerilatorCompiler:
             output = completed.stdout.strip() or "Verilator did not provide diagnostic output."
             raise VerilatorBuildError(output)
         if not target.exists():
-            raise RuntimeError(f"Verilator terminó pero no produjo {target}")
+            raise RuntimeError(f"Verilator completed but did not produce {target}")
         return target
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compila un diseño Verilog para FPGALab.")
+    parser = argparse.ArgumentParser(description="Compile a Verilog design for FPGALab.")
     parser.add_argument("verilog", type=Path)
     parser.add_argument("--profile", required=True, type=Path)
     parser.add_argument("--top", default="top")

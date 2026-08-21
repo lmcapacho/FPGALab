@@ -38,7 +38,7 @@ class PcfParser:
             while tokens and tokens[0].startswith("-"):
                 options.append(tokens.pop(0))
             if len(tokens) != 2:
-                raise ValueError(f"PCF línea {line_number}: set_io inválido.")
+                raise ValueError(f"PCF line {line_number}: invalid set_io.")
             net, fpga_pin = tokens
             constraint = PinConstraint(net, fpga_pin, tuple(options), line_number)
             previous = by_net.get(net)

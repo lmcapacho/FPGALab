@@ -23,7 +23,7 @@ class IcestudioProject:
     def discover(cls, ice_file: str | Path) -> "IcestudioProject":
         source = Path(ice_file).expanduser().resolve()
         if not source.is_file() or source.suffix.lower() != ".ice":
-            raise IcestudioProjectError("Seleccione un archivo de diseño Icestudio (.ice).")
+            raise IcestudioProjectError("Select an Icestudio design file (.ice).")
 
         root = source.parent / "ice-build"
         preferred = root / source.stem
@@ -36,7 +36,7 @@ class IcestudioProject:
 
         expected = preferred / "main.v"
         raise IcestudioProjectError(
-            f"No existe {expected}. Genere el Verilog desde Icestudio antes de ejecutar."
+            f"{expected} does not exist. Generate Verilog from Icestudio before running."
         )
 
     @staticmethod

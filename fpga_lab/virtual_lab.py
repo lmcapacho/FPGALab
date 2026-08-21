@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenuBar, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from .board import BoardDefinition
+from .i18n import language_manager, t
 from .board_editor import BoardLayoutEditor
 from .peripherals_panel import PeripheralsPanel
 from .board_layout import BoardLayout, bundled_layout
@@ -63,7 +64,7 @@ class FPGAVirtualLab(QWidget):
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("FPGALab · Laboratorio Virtual")
+        self.setWindowTitle(t("FPGALab · Virtual FPGA Lab", "FPGALab · Laboratorio Virtual"))
         self.setMinimumSize(800, 520)
         self.setStyleSheet(_QSS)
         self._bounce_timers: list[QTimer] = []
@@ -100,20 +101,23 @@ class FPGAVirtualLab(QWidget):
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
-        menu_bar = QMenuBar(self)
-        board_menu = menu_bar.addMenu("Placa")
-        edit_layout = board_menu.addAction("Editar layout…")
-        edit_layout.triggered.connect(self._open_layout_editor)
-        outer.addWidget(menu_bar)
+        outer.setContentsMargins(0, 0, 0, 0)
         root = QHBoxLayout()
+        root.setContentsMargins(0, 0, 0, 0)
         outer.addLayout(root)
         board_panel = QFrame(objectName="board")
         board_panel.setMinimumWidth(300)
         board_layout = QVBoxLayout(board_panel)
-        title = QLabel(f"{self._board_name.upper()} · FPGA VIRTUAL")
-        title.setStyleSheet("font-size: 20px; font-weight: 800; color:#bbf7d0;")
-        board_layout.addWidget(title)
-        board_layout.addWidget(QLabel("SVG + layout de placa · controles interactivos", objectName="caption"))
+        board_header = QHBoxLayout()
+        self._board_title = QLabel()
+        self._board_title.setStyleSheet("font-size: 20px; font-weight: 800; color:#bbf7d0;")
+        self._edit_layout_button = QPushButton("⚙")
+        self._edit_layout_button.setFixedSize(30, 28)
+        self._edit_layout_button.clicked.connect(self._open_layout_editor)
+        board_header.addWidget(self._board_title)
+        board_header.addStretch()
+        board_header.addWidget(self._edit_layout_button)
+        board_layout.addLayout(board_header)
         self._board_view = BoardView(self._layout, self._bouncy_input)
         board_layout.addWidget(self._board_view, 1)
         root.addWidget(board_panel, 2)
@@ -131,6 +135,13 @@ class FPGAVirtualLab(QWidget):
         gpio_layout.addWidget(self._peripherals, 1)
         controls.addWidget(gpio_panel, 1)
         root.addLayout(controls, 3)
+        language_manager.language_changed.connect(self._retranslate_ui)
+        self._retranslate_ui()
+
+    def _retranslate_ui(self) -> None:
+        self.setWindowTitle(t("FPGALab · Virtual FPGA Lab", "FPGALab · Laboratorio Virtual"))
+        self._board_title.setText(f"{self._board_name.upper()} · {t('VIRTUAL FPGA', 'FPGA VIRTUAL')}")
+        self._edit_layout_button.setToolTip(t("Edit board layout", "Editar layout de la placa"))
 
     def stop_simulation(self) -> None:
         """Stop a clocked simulation from the main project toolbar."""
@@ -145,19 +156,19 @@ class FPGAVirtualLab(QWidget):
     def _play(self) -> None:
         self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
-        self.status_changed.emit("Simulación ejecutando.")
+        self.status_changed.emit(t("Simulation running.", "Simulación ejecutando."))
         self._peripherals.set_editable(False)
 
     def _pause(self) -> None:
         self.pause_requested.emit()
         self._board_view.set_led_brightness("PWR", 0.0)
-        self.status_changed.emit("Simulación detenida.")
+        self.status_changed.emit(t("Simulation stopped.", "Simulación detenida."))
         self._peripherals.set_editable(True)
 
     def _open_layout_editor(self) -> None:
         editor = BoardLayoutEditor(BoardLayout.load(bundled_layout()), self)
         if editor.exec():
-            self.setWindowTitle("FPGALab · layout guardado; reinicie la vista para recargarlo")
+            self.setWindowTitle(t("FPGALab · layout saved; restart the view to reload it", "FPGALab · layout guardado; reinicie la vista para recargarlo"))
 
     def _bouncy_input(self, name: str, final_value: int) -> None:
         """Three quick transitions make button bounce perceptible and configurable."""
@@ -166,7 +177,7 @@ class FPGAVirtualLab(QWidget):
             return
         port, bit = self._input_sources.get(name, (name, 0))
         if port not in self._available_inputs:
-            self._show_failure(f"{name}: no está conectado en el HDL actual")
+            self._show_failure(t("{name}: not connected by the current HDL", "{name}: no está conectado en el HDL actual", name=name))
             return
         values = [final_value, 1 - final_value, final_value]
         for index, value in enumerate(values):
@@ -189,15 +200,15 @@ class FPGAVirtualLab(QWidget):
         self._peripherals.update_outputs(outputs)
 
     def _show_failure(self, error: str) -> None:
-        self.setWindowTitle(f"FPGALab · simulación detenida: {error}")
-        self.status_changed.emit(f"Error de simulación: {error}")
+        self.setWindowTitle(t("FPGALab · simulation stopped: {error}", "FPGALab · simulación detenida: {error}", error=error))
+        self.status_changed.emit(t("Simulation error: {error}", "Error de simulación: {error}", error=error))
 
     def closeEvent(self, event) -> None:
         if self._thread is not None and self._thread.isRunning():
             QMetaObject.invokeMethod(self._worker, "shutdown", Qt.ConnectionType.BlockingQueuedConnection)
             self._thread.quit()
             if not self._thread.wait(3000):
-                self._show_failure("esperando el cierre seguro de la simulación")
+                self._show_failure(t("waiting for safe simulation shutdown", "esperando el cierre seguro de la simulación"))
                 event.ignore()
                 return
         event.accept()

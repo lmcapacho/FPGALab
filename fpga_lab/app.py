@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from .board import BoardDefinition
 from .build_cache import VerilatorBuildCache
 from .ice_project import IcestudioProject, IcestudioProjectError
+from .i18n import t
 from .lab_workspace import LabWorkspace
 from .main_window import FPGALabMainWindow
 from .profile import BoardProfile
@@ -26,14 +27,14 @@ _SIGNAL_REFERENCE = re.compile(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?$")
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line options while keeping the normal path GUI-first."""
-    parser = argparse.ArgumentParser(description="Abre el laboratorio virtual FPGA.")
-    parser.add_argument("--library", type=Path, help="Biblioteca ya compilada (modo avanzado).")
-    parser.add_argument("--ice", type=Path, help="Archivo .ice que se abrirá al iniciar.")
-    parser.add_argument("--cache-dir", type=Path, help="Ubicación opcional de cache Verilator.")
-    parser.add_argument("--profile", type=Path, help="Perfil manual (opcional para diseños Icestudio).")
-    parser.add_argument("--clock-hz", type=int, default=12_000_000, help="Frecuencia virtual objetivo.")
-    parser.add_argument("--ui-refresh-hz", type=int, default=60, help="Frecuencia máxima de pintado.")
-    parser.add_argument("--observation-hz", type=int, default=1_000_000, help="Muestreo temporal para periféricos.")
+    parser = argparse.ArgumentParser(description="Open the virtual FPGA lab.")
+    parser.add_argument("--library", type=Path, help="Prebuilt library (advanced mode).")
+    parser.add_argument("--ice", type=Path, help="Icestudio .ice file to open at startup.")
+    parser.add_argument("--cache-dir", type=Path, help="Optional Verilator cache location.")
+    parser.add_argument("--profile", type=Path, help="Manual profile (optional for Icestudio designs).")
+    parser.add_argument("--clock-hz", type=int, default=12_000_000, help="Target virtual clock frequency.")
+    parser.add_argument("--ui-refresh-hz", type=int, default=60, help="Maximum UI refresh frequency.")
+    parser.add_argument("--observation-hz", type=int, default=1_000_000, help="Peripheral temporal sampling rate.")
     return parser.parse_args()
 
 
@@ -83,10 +84,9 @@ def board_sources(project: IcestudioProject, profile: BoardProfile) -> tuple[dic
 class ApplicationController:
     """Compile selected designs and replace the hosted virtual laboratory."""
 
-    def __init__(self, app: QApplication, window: FPGALabMainWindow, workspace: LabWorkspace, namespace: argparse.Namespace):
+    def __init__(self, app: QApplication, window: FPGALabMainWindow, namespace: argparse.Namespace):
         self._app = app
         self._window = window
-        self._workspace = workspace
         self._namespace = namespace
         self._manual_profile = BoardProfile.load(namespace.profile) if namespace.profile else None
         window.project_requested.connect(self.execute_project)
@@ -101,11 +101,11 @@ class ApplicationController:
             led_sources, input_sources = board_sources(project, profile)
             lab_file = self._window.selected_lab()
         except (IcestudioProjectError, ValueError, OSError) as error:
-            QMessageBox.critical(self._window, "No se puede cargar el diseño", str(error))
+            QMessageBox.critical(self._window, t("Cannot load design", "No se puede cargar el diseño"), str(error))
             return
 
         self._window.set_status(
-            f"Preparando {project.ice_file.name}: analizando HDL y buscando compilación en caché…"
+            t("Preparing {name}: analyzing HDL and looking for a cached build…", "Preparando {name}: analizando HDL y buscando compilación en caché…", name=project.ice_file.name)
         )
         self._app.processEvents()
         try:
@@ -114,8 +114,8 @@ class ApplicationController:
             )
             simulation = VerilatorSimulation(artifact.library, profile)
         except Exception as error:
-            QMessageBox.critical(self._window, "Error de compilación", str(error))
-            self._window.set_status("La compilación no terminó.")
+            QMessageBox.critical(self._window, t("Build error", "Error de compilación"), str(error))
+            self._window.set_status(t("Build did not complete.", "La compilación no terminó."))
             return
         lab = FPGAVirtualLab(
             simulation,
@@ -133,9 +133,9 @@ class ApplicationController:
         self._window.set_simulation_running(profile.clock_name is not None)
         self._window.set_project_path(project.ice_file)
         self._window.remember_project(project.ice_file)
-        source = "caché" if artifact.reused else "compilación nueva"
-        run_state = "simulación iniciada" if profile.clock_name is not None else "lógica combinacional lista"
-        self._window.set_status(f"{project.ice_file.name}: {run_state} ({source}, módulo {interface.module_name}).")
+        source = t("cache", "caché") if artifact.reused else t("new build", "compilación nueva")
+        run_state = t("simulation started", "simulación iniciada") if profile.clock_name is not None else t("combinational logic ready", "lógica combinacional lista")
+        self._window.set_status(t("{name}: {state} ({source}, module {module}).", "{name}: {state} ({source}, módulo {module}).", name=project.ice_file.name, state=run_state, source=source, module=interface.module_name))
 
     def stop_simulation(self) -> None:
         """Stop the active clock without unloading the selected project."""
@@ -143,14 +143,14 @@ class ApplicationController:
         if isinstance(active_lab, FPGAVirtualLab):
             active_lab.stop_simulation()
         self._window.set_simulation_running(False)
-        self._window.set_status("Simulación detenida.")
+        self._window.set_status(t("Simulation stopped.", "Simulación detenida."))
 
     def load_advanced_library(self, library: Path) -> None:
         profile = self._manual_profile or BoardProfile.load(Path("examples/board_profile.json"))
         try:
             simulation = VerilatorSimulation(library, profile)
         except Exception as error:
-            QMessageBox.critical(self._window, "No se puede abrir la biblioteca", str(error))
+            QMessageBox.critical(self._window, t("Cannot open library", "No se puede abrir la biblioteca"), str(error))
             return
         self._window.set_lab(FPGAVirtualLab(
             simulation,
@@ -159,7 +159,7 @@ class ApplicationController:
             self._namespace.observation_hz,
         ))
         self._window.set_simulation_running(False)
-        self._window.set_status("Biblioteca avanzada cargada. Seleccione un .ice para cambiar de diseño.")
+        self._window.set_status(t("Advanced library loaded. Select an .ice file to change design.", "Biblioteca avanzada cargada. Seleccione un .ice para cambiar de diseño."))
 
 
 def main() -> None:
@@ -168,7 +168,7 @@ def main() -> None:
     workspace = LabWorkspace()
     window = FPGALabMainWindow(workspace)
     window.set_lab(FPGAVirtualLab(lab_file=window.selected_lab()))
-    controller = ApplicationController(app, window, workspace, namespace)
+    controller = ApplicationController(app, window, namespace)
     if namespace.ice:
         window.set_project_path(namespace.ice)
     window.showMaximized()
