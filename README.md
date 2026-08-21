@@ -143,4 +143,4 @@ FPGALab is under active development. The Alhambra II workflow and the initial ex
 
 ## License
 
-A license has not yet been selected. Please contact the project owner before redistributing the project or incorporating it into another product.
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
