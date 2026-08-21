@@ -41,11 +41,15 @@ class FPGALabMainWindow(QMainWindow):
             QFrame#panel { background:#172033; border:1px solid #334155; border-radius:10px; }
             QLabel#caption { color:#94a3b8; font-size:11px; }
             QStatusBar { background:#172033; color:#fbbf24; border-top:1px solid #334155; font-weight:600; }
+            QPushButton#runButton { background:#166534; border:1px solid #22c55e; color:#f0fdf4; font-weight:600; }
+            QPushButton#runButton:hover { background:#15803d; }
+            QPushButton#stopButton { background:#991b1b; border:1px solid #f87171; color:#fef2f2; font-weight:600; }
+            QPushButton#stopButton:hover { background:#b91c1c; }
+            QPushButton#runButton:disabled, QPushButton#stopButton:disabled { background:#1e293b; border-color:#334155; color:#64748b; }
         """)
         self._recent_projects = RecentProjects()
         self._workspace = workspace
         self._selected_lab = self._workspace.ensure_default()
-        self._lab_explicitly_selected = False
         self._active_lab: QWidget | None = None
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
@@ -82,8 +86,10 @@ class FPGALabMainWindow(QMainWindow):
         self._recent.currentIndexChanged.connect(self._choose_recent)
         self._refresh_recent()
         self._execute_button = QPushButton("▶ Ejecutar")
+        self._execute_button.setObjectName("runButton")
         self._execute_button.clicked.connect(self._request_project)
         self._stop_button = QPushButton("■ Detener")
+        self._stop_button.setObjectName("stopButton")
         self._stop_button.setEnabled(False)
         self._stop_button.clicked.connect(self._request_stop)
         row.addWidget(self._path, 1)
@@ -118,7 +124,6 @@ class FPGALabMainWindow(QMainWindow):
         path = self._labs.itemData(index)
         if path:
             self._selected_lab = Path(path)
-            self._lab_explicitly_selected = True
             self.set_status(f"Laboratorio seleccionado: {self._labs.currentText()}")
 
     def _create_lab(self) -> None:
@@ -127,15 +132,11 @@ class FPGALabMainWindow(QMainWindow):
             return
         descriptor = self._workspace.create(name)
         self._selected_lab = descriptor.path
-        self._lab_explicitly_selected = True
         self._refresh_labs()
         self.set_status(f"Laboratorio creado: {descriptor.name}")
 
     def selected_lab(self) -> Path:
         return self._selected_lab
-
-    def uses_default_lab(self) -> bool:
-        return not self._lab_explicitly_selected
 
     def select_lab(self, path: Path) -> None:
         self._selected_lab = path
@@ -175,6 +176,8 @@ class FPGALabMainWindow(QMainWindow):
         self.stop_requested.emit()
 
     def set_simulation_running(self, running: bool) -> None:
+        """Keep the run controls mutually exclusive and visually unambiguous."""
+        self._execute_button.setEnabled(not running)
         self._stop_button.setEnabled(running)
 
     def selected_project(self) -> Path | None:

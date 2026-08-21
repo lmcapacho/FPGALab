@@ -74,9 +74,8 @@ Los montajes visuales se conservan en un workspace global reutilizable, no dentr
 de `ice-build` ni junto al diseño Icestudio. La barra de FPGALab permite seleccionar
 o crear un laboratorio. La ruta predeterminada es `~/FPGALab/labs` en Linux y
 `Documentos/FPGALab/labs` en Windows; puede cambiarse mediante la variable de
-entorno `FPGALAB_WORKSPACE`. Al abrir por primera vez un proyecto con un antiguo
-`.fpgalab/<nombre>.lab.json`, FPGALab lo copia al catálogo global sin borrar el
-archivo original.
+entorno `FPGALAB_WORKSPACE`. FPGALab no crea ni modifica carpetas auxiliares
+junto a los proyectos de Icestudio.
 
 El PCF del diseño se entrega al laboratorio para relacionar la red HDL con el pin
 físico de la Alhambra II; los nombres HDL siguen siendo los declarados por el

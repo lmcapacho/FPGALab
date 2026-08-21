@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -61,20 +60,6 @@ class LabWorkspace:
             suffix += 1
         self._write_lab(candidate, cleaned_name)
         return LabDescriptor(cleaned_name, candidate)
-
-    def migrate_legacy(self, legacy_file: Path, suggested_name: str) -> LabDescriptor | None:
-        """Copy a former per-project lab once; the original is never modified or removed."""
-        if not legacy_file.is_file():
-            return None
-        self.ensure_default()
-        target = self.labs_dir / f"{re.sub(r'[^a-z0-9]+', '-', suggested_name.lower()).strip('-') or 'laboratorio'}.lab.json"
-        if not target.exists():
-            shutil.copy2(legacy_file, target)
-            raw = json.loads(target.read_text(encoding="utf-8"))
-            raw.setdefault("metadata", {})["name"] = suggested_name
-            raw["metadata"]["migrated_from"] = str(legacy_file)
-            target.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
-        return LabDescriptor(self._display_name(target), target)
 
     @staticmethod
     def _display_name(path: Path) -> str:

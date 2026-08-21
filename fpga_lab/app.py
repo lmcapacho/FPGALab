@@ -99,9 +99,6 @@ class ApplicationController:
             clock_port = project_clock_port(project, interface)
             profile = self._manual_profile or interface.profile(clock_port=clock_port)
             led_sources, input_sources = board_sources(project, profile)
-            migrated = self._workspace.migrate_legacy(project.lab_file, f"{project.ice_file.stem} (migrado)")
-            if migrated is not None and self._window.uses_default_lab():
-                self._window.select_lab(migrated.path)
             lab_file = self._window.selected_lab()
         except (IcestudioProjectError, ValueError, OSError) as error:
             QMessageBox.critical(self._window, "No se puede cargar el diseño", str(error))

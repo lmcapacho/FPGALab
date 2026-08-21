@@ -87,15 +87,30 @@ class PeripheralConfigDialog(QDialog):
 class WorkbenchView(QGraphicsView):
     """Scroll-free canvas whose logical size follows the available space."""
 
-    def __init__(self, scene, parent=None):
+    def __init__(self, scene, delete_selected, parent=None):
         super().__init__(scene, parent)
+        self._delete_selected = delete_selected
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.scene().setSceneRect(0, 0, self.viewport().width(), self.viewport().height())
+
+    def mousePressEvent(self, event):
+        self.setFocus()
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() in {Qt.Key.Key_Delete, Qt.Key.Key_Backspace}:
+            selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
+            if selected:
+                self._delete_selected(selected[0].peripheral)
+                event.accept()
+                return
+        super().keyPressEvent(event)
 
 
 
@@ -115,6 +130,11 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self._active = {}; self._pressed = False; self._sensor_value = False; self._editable = True
         self._drag_dirty = False; self._last_position = self.pos()
+
+    @property
+    def peripheral(self):
+        """Expose the selected model instance to the workbench keyboard handler."""
+        return self._peripheral
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and self.scene() is not None:
@@ -207,7 +227,7 @@ class PeripheralsPanel(QWidget):
         catalog.addWidget(self.kind); catalog.addWidget(self._add_button); layout.addLayout(catalog)
         self.status = QLabel("Seleccione un tipo y configure la pieza al crearla."); layout.addWidget(self.status)
         layout.addWidget(QLabel("Mesa virtual · arrastre una pieza; doble clic para configurar o eliminar"))
-        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 480, 420); self.workbench = WorkbenchView(self._workbench_scene)
+        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 480, 420); self.workbench = WorkbenchView(self._workbench_scene, self._delete)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
         self._workbench_bindings = {}; self._reload()
     def _constraints(self):
