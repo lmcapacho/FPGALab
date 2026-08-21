@@ -1,12 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_data_files
 
 
 datas = collect_data_files("fpga_lab")
 
 a = Analysis(
-    ["packaging/pyinstaller/launcher.py"],
+    [str(Path(SPECPATH) / "launcher.py")],
     pathex=["."],
     binaries=[],
     datas=datas,

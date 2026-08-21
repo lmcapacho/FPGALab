@@ -74,7 +74,7 @@ class VirtualLabProject:
                 raise ValueError(f"Unknown peripheral type: {peripheral.kind}.")
             unknown = set(peripheral.connections) - set(known_terminals)
             if unknown:
-                raise ValueError(f"{peripheral.peripheral_id}: invalid terminals: {", ".join(sorted(unknown))}.")
+                raise ValueError(f"{peripheral.peripheral_id}: invalid terminals: {', '.join(sorted(unknown))}.")
             for terminal, endpoint in peripheral.connections.items():
                 board_pin = board.pin(endpoint)
                 expected_direction = _TERMINAL_DIRECTIONS.get(peripheral.kind, {}).get(terminal)
