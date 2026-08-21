@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+
+from .i18n import t
 from pathlib import Path
 
 _SET_IO = re.compile(r"^\s*set_io\s+(?P<body>.+?)\s*$")
@@ -43,7 +45,7 @@ class PcfParser:
             constraint = PinConstraint(net, fpga_pin, tuple(options), line_number)
             previous = by_net.get(net)
             if previous and previous.fpga_pin != fpga_pin:
-                raise ValueError(f"PCF: {net!r} tiene dos pines asignados.")
+                raise ValueError(t("PCF: {net!r} has two assigned pins.", "PCF: {net!r} tiene dos pines asignados.", net=net))
             by_net[net] = constraint
         return list(by_net.values())
 
@@ -53,6 +55,6 @@ class PcfParser:
         for constraint in constraints:
             previous = result.get(constraint.fpga_pin)
             if previous and previous.net != constraint.net:
-                raise ValueError(f"PCF: pin {constraint.fpga_pin} tiene dos redes.")
+                raise ValueError(t("PCF: pin {pin} has two nets.", "PCF: pin {pin} tiene dos redes.", pin=constraint.fpga_pin))
             result[constraint.fpga_pin] = constraint
         return result

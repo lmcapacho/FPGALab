@@ -5,6 +5,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from .i18n import t
+
 
 @dataclass(frozen=True)
 class BoardPin:
@@ -40,15 +42,15 @@ class BoardDefinition:
     def validate(self) -> None:
         ids = [pin.id for pin in self.pins]
         if len(ids) != len(set(ids)):
-            raise ValueError(f"La placa {self.board_id} tiene identificadores de pin duplicados.")
+            raise ValueError(t("Board {board_id} has duplicate pin identifiers.", "La placa {board_id} tiene identificadores de pin duplicados.", board_id=self.board_id))
         if self.clock_hz <= 0:
-            raise ValueError("clock_hz debe ser positivo.")
+            raise ValueError(t("clock_hz must be positive.", "clock_hz debe ser positivo."))
 
     def pin(self, endpoint: str) -> BoardPin:
         for pin in self.pins:
             if pin.id == endpoint:
                 return pin
-        raise KeyError(f"La placa {self.board_id} no tiene el pin {endpoint!r}.")
+        raise KeyError(t("Board {board_id} does not have pin {endpoint!r}.", "La placa {board_id} no tiene el pin {endpoint!r}.", board_id=self.board_id, endpoint=endpoint))
 
     def endpoints_for_fpga_pin(self, fpga_pin: str) -> tuple[BoardPin, ...]:
         return tuple(pin for pin in self.pins if pin.fpga_pin == str(fpga_pin))

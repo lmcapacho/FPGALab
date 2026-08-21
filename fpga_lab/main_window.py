@@ -147,7 +147,7 @@ class FPGALabMainWindow(QMainWindow):
         self._labs.clear()
         for descriptor in self._workspace.labs():
             display_name = descriptor.name
-            if descriptor.path.name == "mi-primer-laboratorio.lab.json" and descriptor.name in {"Mi primer laboratorio", "My first lab"}:
+            if descriptor.path.name == "my-first-lab.lab.json":
                 display_name = t("My first lab", "Mi primer laboratorio")
             self._labs.addItem(display_name, descriptor.path)
         index = self._labs.findData(current)

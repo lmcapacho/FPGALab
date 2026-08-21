@@ -6,6 +6,7 @@ from time import perf_counter
 
 from PyQt6.QtCore import QObject, QTimer, Qt, pyqtSignal, pyqtSlot
 
+from .i18n import t
 from .simulation import VerilatorSimulation
 from .temporal import LedModel
 
@@ -27,7 +28,7 @@ class SimulationWorker(QObject):
     ):
         super().__init__()
         if clock_hz <= 0 or ui_refresh_hz <= 0 or observation_hz <= 0:
-            raise ValueError("clock_hz, ui_refresh_hz y observation_hz deben ser positivos.")
+            raise ValueError(t("clock_hz, ui_refresh_hz, and observation_hz must be positive.", "clock_hz, ui_refresh_hz y observation_hz deben ser positivos."))
         self._simulation = simulation
         self._clock_hz = clock_hz
         self._ui_refresh_hz = ui_refresh_hz
@@ -56,12 +57,12 @@ class SimulationWorker(QObject):
             self._cycle_remainder = 0.0
             self._timer.start()
 
-    ()
+    @pyqtSlot()
     def pause(self) -> None:
         if self._timer:
             self._timer.stop()
 
-    ()
+    @pyqtSlot()
     def power_off(self) -> None:
         self.pause()
         self._simulation.reset()

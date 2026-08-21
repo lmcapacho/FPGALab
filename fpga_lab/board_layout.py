@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from .i18n import t
+
 
 @dataclass(frozen=True)
 class BoardLayoutElement:
@@ -42,7 +44,7 @@ class BoardLayout:
         )
         view_box = tuple(float(value) for value in raw["viewBox"])
         if len(view_box) != 4:
-            raise ValueError("viewBox debe tener cuatro valores.")
+            raise ValueError(t("viewBox must have four values.", "viewBox debe tener cuatro valores."))
         layout = cls(raw["board_id"], source, source.parent / raw["svg"], view_box, elements)
         layout.validate()
         return layout
@@ -52,10 +54,10 @@ class BoardLayout:
             raise FileNotFoundError(self.svg)
         ids = [element.id for element in self.elements]
         if len(ids) != len(set(ids)):
-            raise ValueError("Hay identificadores repetidos en el layout de placa.")
+            raise ValueError(t("Board layout contains duplicate identifiers.", "Hay identificadores repetidos en el layout de placa."))
         for element in self.elements:
             if element.kind not in {"led", "button"}:
-                raise ValueError(f"Tipo de componente no soportado: {element.kind}")
+                raise ValueError(t("Unsupported component type: {kind}", "Tipo de componente no soportado: {kind}", kind=element.kind))
             if element.width <= 0 or element.height <= 0:
                 raise ValueError(f"Invalid size for {element.id}")
 

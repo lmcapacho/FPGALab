@@ -36,7 +36,7 @@ class LabWorkspace:
     def ensure_default(self) -> Path:
         """Ensure the visible workspace and a starter lab exist."""
         self.labs_dir.mkdir(parents=True, exist_ok=True)
-        default = self.labs_dir / "mi-primer-laboratorio.lab.json"
+        default = self.labs_dir / "my-first-lab.lab.json"
         if not default.exists():
             self._write_lab(default, "My first lab")
         return default
@@ -52,7 +52,7 @@ class LabWorkspace:
         """Create a named empty lab without overwriting existing configurations."""
         self.ensure_default()
         cleaned_name = name.strip() or "New lab"
-        stem = re.sub(r"[^a-z0-9]+", "-", cleaned_name.lower()).strip("-") or "laboratorio"
+        stem = re.sub(r"[^a-z0-9]+", "-", cleaned_name.lower()).strip("-") or "lab"
         candidate = self.labs_dir / f"{stem}.lab.json"
         suffix = 2
         while candidate.exists():

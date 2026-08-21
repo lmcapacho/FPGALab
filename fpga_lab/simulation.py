@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 from pathlib import Path
 
+from .i18n import t
 from .profile import BoardProfile
 from .temporal import SignalWindow
 
@@ -63,7 +64,7 @@ class VerilatorSimulation:
 
     def ticks(self, count: int) -> None:
         if count < 0:
-            raise ValueError("La cantidad de ciclos no puede ser negativa.")
+            raise ValueError(t("Cycle count cannot be negative.", "La cantidad de ciclos no puede ser negativa."))
         self._run_cycles(count)
 
     def reset(self) -> None:
@@ -79,10 +80,10 @@ class VerilatorSimulation:
     def observed_windows(self, cycles: int) -> dict[str, SignalWindow]:
         """Metrics from the last ``ticks`` call; keys such as ``gpio_out[3]``."""
         if cycles < 0:
-            raise ValueError("La cantidad de ciclos no puede ser negativa.")
+            raise ValueError(t("Cycle count cannot be negative.", "La cantidad de ciclos no puede ser negativa."))
         observed_bits = self.profile.observed_bits
         if self._observed_count() != len(observed_bits):
-            raise RuntimeError("El perfil no coincide con la biblioteca Verilator compilada.")
+            raise RuntimeError(t("The profile does not match the compiled Verilator library.", "El perfil no coincide con la biblioteca Verilator compilada."))
         half_cycles = int(self._observed_samples())
         return {
             f"{name}[{bit}]": SignalWindow(
@@ -111,9 +112,9 @@ class VerilatorSimulation:
         try:
             width = self.profile.inputs[name]
         except KeyError as exc:
-            raise KeyError(f"Entrada no declarada: {name}") from exc
+            raise KeyError(t("Undeclared input: {name}", "Entrada no declarada: {name}", name=name)) from exc
         if not 0 <= int(value) < (1 << width):
-            raise ValueError(f"{name} admite un valor de {width} bits.")
+            raise ValueError(t("{name} accepts a {width}-bit value.", "{name} admite un valor de {width} bits.", name=name, width=width))
         self._setters[name](int(value))
         self._eval()
 
@@ -121,7 +122,7 @@ class VerilatorSimulation:
         try:
             return int(self._getters[name]())
         except KeyError as exc:
-            raise KeyError(f"Salida no declarada: {name}") from exc
+            raise KeyError(t("Undeclared output: {name}", "Salida no declarada: {name}", name=name)) from exc
 
     def read_leds(self) -> list[bool]:
         """UI convention: LED0 is the first item in the returned list."""

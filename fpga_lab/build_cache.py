@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .compiler import BuildRequest, VerilatorCompiler
 from .ice_project import IcestudioProject
+from .i18n import t
 from .profile import BoardProfile
 
 _CACHE_FORMAT = 2
@@ -84,7 +85,7 @@ class VerilatorBuildCache:
                 cached = self.lookup(fingerprint, top_module)
                 if cached:
                     return cached
-                raise RuntimeError(f"Cache incompleta: {final}")
+                raise RuntimeError(t("Incomplete cache: {path}", "Caché incompleta: {path}", path=final))
             manifest = {
                 "format": _CACHE_FORMAT,
                 "fingerprint": fingerprint,
