@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QInputDialog,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -21,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from .lab_workspace import LabWorkspace
 from .recent_projects import RecentProjects
 
 
@@ -30,7 +32,7 @@ class FPGALabMainWindow(QMainWindow):
     project_requested = pyqtSignal(Path)
     stop_requested = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, workspace: LabWorkspace, parent=None):
         super().__init__(parent)
         self.setWindowTitle("FPGALab · Laboratorio Virtual")
         self.setMinimumSize(1000, 680)
@@ -41,6 +43,9 @@ class FPGALabMainWindow(QMainWindow):
             QStatusBar { background:#172033; color:#fbbf24; border-top:1px solid #334155; font-weight:600; }
         """)
         self._recent_projects = RecentProjects()
+        self._workspace = workspace
+        self._selected_lab = self._workspace.ensure_default()
+        self._lab_explicitly_selected = False
         self._active_lab: QWidget | None = None
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
@@ -87,7 +92,54 @@ class FPGALabMainWindow(QMainWindow):
         row.addWidget(self._execute_button)
         row.addWidget(self._stop_button)
         layout.addLayout(row)
+        lab_row = QHBoxLayout()
+        lab_row.addWidget(QLabel("Laboratorio"))
+        self._labs = QComboBox()
+        self._labs.currentIndexChanged.connect(self._choose_lab)
+        self._refresh_labs()
+        create_lab = QPushButton("Nuevo laboratorio…")
+        create_lab.clicked.connect(self._create_lab)
+        lab_row.addWidget(self._labs, 1)
+        lab_row.addWidget(create_lab)
+        layout.addLayout(lab_row)
         return frame
+
+    def _refresh_labs(self) -> None:
+        current = self._selected_lab
+        self._labs.blockSignals(True)
+        self._labs.clear()
+        for descriptor in self._workspace.labs():
+            self._labs.addItem(descriptor.name, descriptor.path)
+        index = self._labs.findData(current)
+        self._labs.setCurrentIndex(max(0, index))
+        self._labs.blockSignals(False)
+
+    def _choose_lab(self, index: int) -> None:
+        path = self._labs.itemData(index)
+        if path:
+            self._selected_lab = Path(path)
+            self._lab_explicitly_selected = True
+            self.set_status(f"Laboratorio seleccionado: {self._labs.currentText()}")
+
+    def _create_lab(self) -> None:
+        name, accepted = QInputDialog.getText(self, "Nuevo laboratorio", "Nombre del laboratorio:")
+        if not accepted:
+            return
+        descriptor = self._workspace.create(name)
+        self._selected_lab = descriptor.path
+        self._lab_explicitly_selected = True
+        self._refresh_labs()
+        self.set_status(f"Laboratorio creado: {descriptor.name}")
+
+    def selected_lab(self) -> Path:
+        return self._selected_lab
+
+    def uses_default_lab(self) -> bool:
+        return not self._lab_explicitly_selected
+
+    def select_lab(self, path: Path) -> None:
+        self._selected_lab = path
+        self._refresh_labs()
 
     def _refresh_recent(self) -> None:
         selected = self.selected_project()

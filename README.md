@@ -70,11 +70,17 @@ contenido de `main.v`, el PCF o el perfil cambió, y guarda el resultado en la
 caché de usuario (`$XDG_CACHE_HOME/fpgalab/verilator`). Por tanto `ice-build` no
 se llena con archivos de Verilator.
 
-La configuración visual de periféricos se conserva junto al diseño en
-`.fpgalab/<nombre-del-diseño>.lab.json`, también fuera de `ice-build`. El PCF del
-diseño se entrega al laboratorio para relacionar la red HDL con el pin físico de
-la Alhambra II; los nombres HDL siguen siendo los declarados por el perfil hasta
-completar la detección automática de la interfaz Verilog.
+Los montajes visuales se conservan en un workspace global reutilizable, no dentro
+de `ice-build` ni junto al diseño Icestudio. La barra de FPGALab permite seleccionar
+o crear un laboratorio. La ruta predeterminada es `~/FPGALab/labs` en Linux y
+`Documentos/FPGALab/labs` en Windows; puede cambiarse mediante la variable de
+entorno `FPGALAB_WORKSPACE`. Al abrir por primera vez un proyecto con un antiguo
+`.fpgalab/<nombre>.lab.json`, FPGALab lo copia al catálogo global sin borrar el
+archivo original.
+
+El PCF del diseño se entrega al laboratorio para relacionar la red HDL con el pin
+físico de la Alhambra II; los nombres HDL siguen siendo los declarados por el
+perfil hasta completar la detección automática de la interfaz Verilog.
 
 ## Reloj virtual y refresco visual
 

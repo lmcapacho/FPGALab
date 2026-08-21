@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from .board import BoardDefinition
 from .build_cache import VerilatorBuildCache
 from .ice_project import IcestudioProject, IcestudioProjectError
+from .lab_workspace import LabWorkspace
 from .main_window import FPGALabMainWindow
 from .profile import BoardProfile
 from .project_pins import ProjectPinMap
@@ -82,9 +83,10 @@ def board_sources(project: IcestudioProject, profile: BoardProfile) -> tuple[dic
 class ApplicationController:
     """Compile selected designs and replace the hosted virtual laboratory."""
 
-    def __init__(self, app: QApplication, window: FPGALabMainWindow, namespace: argparse.Namespace):
+    def __init__(self, app: QApplication, window: FPGALabMainWindow, workspace: LabWorkspace, namespace: argparse.Namespace):
         self._app = app
         self._window = window
+        self._workspace = workspace
         self._namespace = namespace
         self._manual_profile = BoardProfile.load(namespace.profile) if namespace.profile else None
         window.project_requested.connect(self.execute_project)
@@ -97,7 +99,11 @@ class ApplicationController:
             clock_port = project_clock_port(project, interface)
             profile = self._manual_profile or interface.profile(clock_port=clock_port)
             led_sources, input_sources = board_sources(project, profile)
-        except (IcestudioProjectError, ValueError) as error:
+            migrated = self._workspace.migrate_legacy(project.lab_file, f"{project.ice_file.stem} (migrado)")
+            if migrated is not None and self._window.uses_default_lab():
+                self._window.select_lab(migrated.path)
+            lab_file = self._window.selected_lab()
+        except (IcestudioProjectError, ValueError, OSError) as error:
             QMessageBox.critical(self._window, "No se puede cargar el diseño", str(error))
             return
 
@@ -120,7 +126,7 @@ class ApplicationController:
             self._namespace.ui_refresh_hz,
             self._namespace.observation_hz,
             project_pcf=project.pcf,
-            lab_file=project.ensure_lab_file(),
+            lab_file=lab_file,
             led_sources=led_sources,
             input_sources=input_sources,
         )
@@ -162,9 +168,10 @@ class ApplicationController:
 def main() -> None:
     namespace = parse_arguments()
     app = QApplication(sys.argv)
-    window = FPGALabMainWindow()
-    window.set_lab(FPGAVirtualLab())
-    controller = ApplicationController(app, window, namespace)
+    workspace = LabWorkspace()
+    window = FPGALabMainWindow(workspace)
+    window.set_lab(FPGAVirtualLab(lab_file=window.selected_lab()))
+    controller = ApplicationController(app, window, workspace, namespace)
     if namespace.ice:
         window.set_project_path(namespace.ice)
     window.showMaximized()
