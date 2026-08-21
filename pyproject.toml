@@ -4,8 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fpga-lab"
-version = "0.1.0"
+version = "0.1.0rc1"
 description = "Interactive virtual laboratory for Verilog designs and FPGA boards"
+license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.10"
 dependencies = ["PyQt6>=6.5"]
 
@@ -16,4 +17,4 @@ fpga-lab = "fpga_lab.app:main"
 include = ["fpga_lab*"]
 
 [tool.setuptools.package-data]
-fpga_lab = ["assets/boards/*.svg", "assets/board_layouts/*.json"]
+fpga_lab = ["assets/boards/*.svg", "assets/board_layouts/*.json", "assets/board_definitions/*.json"]

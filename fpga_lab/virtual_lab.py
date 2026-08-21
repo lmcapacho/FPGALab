@@ -7,7 +7,7 @@ from pathlib import Path
 from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from .board import BoardDefinition
+from .board import BoardDefinition, bundled_board_definition
 from .i18n import language_manager, t
 from .board_editor import BoardLayoutEditor
 from .peripherals_panel import PeripheralsPanel
@@ -126,7 +126,7 @@ class FPGAVirtualLab(QWidget):
         gpio_panel = QFrame(objectName="panel")
         gpio_layout = QVBoxLayout(gpio_panel)
         self._peripherals = PeripheralsPanel(
-            BoardDefinition.load(Path("boards/alhambra_ii.json")),
+            BoardDefinition.load(bundled_board_definition()),
             self._project_pcf,
             self._lab_file,
             self._input_widths,

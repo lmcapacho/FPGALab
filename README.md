@@ -125,6 +125,12 @@ A board is described by reusable assets:
 
 This separation makes it possible to calibrate controls visually, add new integrated controls, or introduce another FPGA board without changing the simulation engine.
 
+## Updates
+
+FPGALab checks GitHub Releases shortly after startup without interrupting the workflow. The `↻` button in the status bar runs a manual check. When a newer compatible release is available, FPGALab offers to open its GitHub release page, where the platform package can be downloaded.
+
+Release candidates are considered while running a release candidate build. Stable builds only check stable releases.
+
 ## Command-line options
 
 ```text

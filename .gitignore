@@ -4,13 +4,13 @@ __pycache__/
 .idea/
 .vscode/
 
-# Artefactos generados por Verilator
+# Verilator-generated artifacts
 build/
 obj_dir/
 *.so
 *.dll
 *.dylib
 
-# Empaquetado
+# Packaging artifacts
 dist/
 *.egg-info/

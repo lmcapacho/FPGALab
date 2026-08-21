@@ -10,7 +10,7 @@ from pathlib import Path
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from .board import BoardDefinition
+from .board import BoardDefinition, bundled_board_definition
 from .build_cache import VerilatorBuildCache
 from .ice_project import IcestudioProject, IcestudioProjectError
 from .i18n import t
@@ -20,6 +20,7 @@ from .profile import BoardProfile
 from .project_pins import ProjectPinMap
 from .simulation import VerilatorSimulation
 from .verilog_interface import VerilogInterface
+from .update_controller import UpdateController
 from .virtual_lab import FPGAVirtualLab
 
 _SIGNAL_REFERENCE = re.compile(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?$")
@@ -54,7 +55,7 @@ def project_clock_port(project: IcestudioProject, interface: VerilogInterface) -
     """Prefer the HDL net constrained to the board's physical clock endpoint."""
     if project.pcf is None:
         return None
-    board = BoardDefinition.load(Path("boards/alhambra_ii.json"))
+    board = BoardDefinition.load(bundled_board_definition())
     pin_map = ProjectPinMap.from_pcf(board, project.pcf)
     inputs = {port.name: port.width for port in interface.ports if port.direction in {"input", "inout"}}
     reference = signal_reference(pin_map.net_for("CLK"), inputs)
@@ -65,7 +66,7 @@ def board_sources(project: IcestudioProject, profile: BoardProfile) -> tuple[dic
     """Resolve physical board controls to the random HDL names recorded in the PCF."""
     if project.pcf is None:
         return {}, {}
-    board = BoardDefinition.load(Path("boards/alhambra_ii.json"))
+    board = BoardDefinition.load(bundled_board_definition())
     pin_map = ProjectPinMap.from_pcf(board, project.pcf)
     led_sources = {
         index: reference
@@ -169,6 +170,9 @@ def main() -> None:
     window = FPGALabMainWindow(workspace)
     window.set_lab(FPGAVirtualLab(lab_file=window.selected_lab()))
     controller = ApplicationController(app, window, namespace)
+    update_controller = UpdateController(window)
+    window.update_requested.connect(update_controller.check_manually)
+    QTimer.singleShot(1200, update_controller.check_on_startup)
     if namespace.ice:
         window.set_project_path(namespace.ice)
     window.showMaximized()

@@ -63,3 +63,8 @@ class BoardDefinition:
         if direction is None:
             return self.pins
         return tuple(pin for pin in self.pins if pin.direction in {direction, "inout"})
+
+
+def bundled_board_definition(board_id: str = "alhambra_ii") -> Path:
+    """Return the packaged board definition used by the desktop application."""
+    return Path(__file__).parent / "assets" / "board_definitions" / f"{board_id}.json"

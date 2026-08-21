@@ -1,0 +1,194 @@
+{
+  "id": "alhambra-ii",
+  "label": "Alhambra II",
+  "clock_hz": 12000000,
+  "pins": [
+    {
+      "id": "LED0",
+      "fpga_pin": "45",
+      "direction": "output",
+      "location": "board.led.0"
+    },
+    {
+      "id": "LED1",
+      "fpga_pin": "44",
+      "direction": "output",
+      "location": "board.led.1"
+    },
+    {
+      "id": "LED2",
+      "fpga_pin": "43",
+      "direction": "output",
+      "location": "board.led.2"
+    },
+    {
+      "id": "LED3",
+      "fpga_pin": "42",
+      "direction": "output",
+      "location": "board.led.3"
+    },
+    {
+      "id": "LED4",
+      "fpga_pin": "41",
+      "direction": "output",
+      "location": "board.led.4"
+    },
+    {
+      "id": "LED5",
+      "fpga_pin": "39",
+      "direction": "output",
+      "location": "board.led.5"
+    },
+    {
+      "id": "LED6",
+      "fpga_pin": "38",
+      "direction": "output",
+      "location": "board.led.6"
+    },
+    {
+      "id": "LED7",
+      "fpga_pin": "37",
+      "direction": "output",
+      "location": "board.led.7"
+    },
+    {
+      "id": "SW1",
+      "fpga_pin": "34",
+      "direction": "input",
+      "location": "board.button.1"
+    },
+    {
+      "id": "SW2",
+      "fpga_pin": "33",
+      "direction": "input",
+      "location": "board.button.2"
+    },
+    {
+      "id": "CLK",
+      "fpga_pin": "49",
+      "direction": "input",
+      "location": "board.clock"
+    },
+    {
+      "id": "D13",
+      "fpga_pin": "64",
+      "direction": "inout",
+      "location": "header.top.D13"
+    },
+    {
+      "id": "D12",
+      "fpga_pin": "63",
+      "direction": "inout",
+      "location": "header.top.D12"
+    },
+    {
+      "id": "D11",
+      "fpga_pin": "21",
+      "direction": "inout",
+      "location": "header.top.D11"
+    },
+    {
+      "id": "D10",
+      "fpga_pin": "22",
+      "direction": "inout",
+      "location": "header.top.D10"
+    },
+    {
+      "id": "D9",
+      "fpga_pin": "19",
+      "direction": "inout",
+      "location": "header.top.D9"
+    },
+    {
+      "id": "D8",
+      "fpga_pin": "20",
+      "direction": "inout",
+      "location": "header.top.D8"
+    },
+    {
+      "id": "D7",
+      "fpga_pin": "9",
+      "direction": "inout",
+      "location": "header.top.D7"
+    },
+    {
+      "id": "D6",
+      "fpga_pin": "10",
+      "direction": "inout",
+      "location": "header.top.D6"
+    },
+    {
+      "id": "D5",
+      "fpga_pin": "7",
+      "direction": "inout",
+      "location": "header.top.D5"
+    },
+    {
+      "id": "D4",
+      "fpga_pin": "8",
+      "direction": "inout",
+      "location": "header.top.D4"
+    },
+    {
+      "id": "D3",
+      "fpga_pin": "3",
+      "direction": "inout",
+      "location": "header.top.D3"
+    },
+    {
+      "id": "D2",
+      "fpga_pin": "4",
+      "direction": "inout",
+      "location": "header.top.D2"
+    },
+    {
+      "id": "D1",
+      "fpga_pin": "1",
+      "direction": "inout",
+      "location": "header.top.D1"
+    },
+    {
+      "id": "D0",
+      "fpga_pin": "2",
+      "direction": "inout",
+      "location": "header.top.D0"
+    },
+    {
+      "id": "DD0",
+      "fpga_pin": "114",
+      "direction": "inout",
+      "location": "header.bottom.DD0"
+    },
+    {
+      "id": "DD1",
+      "fpga_pin": "115",
+      "direction": "inout",
+      "location": "header.bottom.DD1"
+    },
+    {
+      "id": "DD2",
+      "fpga_pin": "116",
+      "direction": "inout",
+      "location": "header.bottom.DD2"
+    },
+    {
+      "id": "DD3",
+      "fpga_pin": "117",
+      "direction": "inout",
+      "location": "header.bottom.DD3"
+    },
+    {
+      "id": "DD4",
+      "fpga_pin": "118",
+      "direction": "inout",
+      "location": "header.bottom.DD4"
+    },
+    {
+      "id": "DD5",
+      "fpga_pin": "119",
+      "direction": "inout",
+      "location": "header.bottom.DD5"
+    }
+  ],
+  "pinout_pcf": "alhambra_ii.pcf"
+}
