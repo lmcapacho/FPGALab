@@ -54,7 +54,7 @@ The C++ wrapper exposes native getters, setters, clock stepping, and batched cyc
 ## Installation
 
 ```bash
-git clone <your-repository-url>
+git clone git@github.com:lmcapacho/FPGALab.git
 cd FPGALab
 
 python -m venv .venv
