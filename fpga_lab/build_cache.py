@@ -13,6 +13,7 @@ from .compiler import BuildRequest, VerilatorCompiler
 from .ice_project import IcestudioProject
 from .i18n import t
 from .profile import BoardProfile
+from .toolchain import resolve_verilator
 
 _CACHE_FORMAT = 2
 
@@ -68,16 +69,17 @@ class VerilatorBuildCache:
         return CachedBuild(fingerprint, directory, library, True)
 
     def build_or_reuse(
-        self, project: IcestudioProject, profile: BoardProfile, *, top_module: str = "top", verilator: str = "verilator"
+        self, project: IcestudioProject, profile: BoardProfile, *, top_module: str = "top", verilator: str | None = None
     ) -> CachedBuild:
-        fingerprint = self.fingerprint(project, profile, top_module, verilator)
+        toolchain = resolve_verilator(verilator)
+        fingerprint = self.fingerprint(project, profile, top_module, str(toolchain.executable))
         if cached := self.lookup(fingerprint, top_module):
             return cached
 
         self.root.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=f"{fingerprint[:12]}-", dir=self.root))
         try:
-            request = BuildRequest(project.main_v, profile, top_module, staging, verilator)
+            request = BuildRequest(project.main_v, profile, top_module, staging, str(toolchain.executable), toolchain.environment())
             library = VerilatorCompiler().build(request)
             final = self.root / fingerprint
             if final.exists():

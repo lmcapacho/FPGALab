@@ -33,6 +33,7 @@ class BuildRequest:
     top_module: str = "top"
     build_dir: Path = Path("build/verilator")
     verilator: str = "verilator"
+    environment: dict[str, str] | None = None
 
 
 class VerilatorCompiler:
@@ -69,6 +70,7 @@ class VerilatorCompiler:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=request.environment,
         )
         if completed.returncode:
             output = completed.stdout.strip() or "Verilator did not provide diagnostic output."
