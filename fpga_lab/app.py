@@ -16,7 +16,7 @@ from .ice_project import IcestudioProject, IcestudioProjectError
 from .i18n import t
 from .lab_workspace import LabWorkspace
 from .main_window import FPGALabMainWindow
-from .profile import BoardProfile
+from .profile import BoardProfile, bundled_profile
 from .project_pins import ProjectPinMap
 from .simulation import VerilatorSimulation
 from .verilog_interface import VerilogInterface
@@ -147,7 +147,7 @@ class ApplicationController:
         self._window.set_status(t("Simulation stopped.", "Simulación detenida."))
 
     def load_advanced_library(self, library: Path) -> None:
-        profile = self._manual_profile or BoardProfile.load(Path("examples/board_profile.json"))
+        profile = self._manual_profile or BoardProfile.load(bundled_profile())
         try:
             simulation = VerilatorSimulation(library, profile)
         except Exception as error:

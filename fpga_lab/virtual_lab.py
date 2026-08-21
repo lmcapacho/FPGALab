@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayou
 
 from .board import BoardDefinition, bundled_board_definition
 from .i18n import language_manager, t
+from .lab_workspace import LabWorkspace
 from .board_editor import BoardLayoutEditor
 from .peripherals_panel import PeripheralsPanel
 from .board_layout import BoardLayout, bundled_layout
@@ -77,8 +78,8 @@ class FPGAVirtualLab(QWidget):
         self._input_sources = input_sources or {}
         self._board_input_values: dict[str, int] = {}
         self._layout = BoardLayout.load(bundled_layout())
-        self._project_pcf = project_pcf or Path("examples/main.pcf")
-        self._lab_file = lab_file or Path("examples/lab.json")
+        self._project_pcf = project_pcf
+        self._lab_file = lab_file or LabWorkspace().ensure_default()
         self._build_ui()
 
         self._thread: QThread | None = None

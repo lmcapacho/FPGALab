@@ -1,17 +1,132 @@
 {
   "board_id": "alhambra_ii",
   "svg": "../boards/alhambra_ii.svg",
-  "viewBox": [0, 0, 262.1037, 203.64104],
+  "viewBox": [
+    0,
+    0,
+    262.1037,
+    203.64104
+  ],
   "components": [
-    {"id":"LED0", "type":"led", "signal":"LED0", "x":19.2, "y":66.9, "width":4.2, "height":1.8, "color":"#b6ff00"},
-    {"id":"LED1", "type":"led", "signal":"LED1", "x":19.2, "y":61.9, "width":4.2, "height":1.8, "color":"#b6ff00"},
-    {"id":"LED2", "type":"led", "signal":"LED2", "x":19.2, "y":56.9, "width":4.2, "height":1.8, "color":"#b6ff00"},
-    {"id":"LED3", "type":"led", "signal":"LED3", "x":19.2, "y":51.9, "width":4.2, "height":1.8, "color":"#b6ff00"},
-    {"id":"LED4", "type":"led", "signal":"LED4", "x":19.2, "y":46.9, "width":4.2, "height":1.8, "color":"#b6ff00"},
-    {"id":"LED5", "type":"led", "signal":"LED5", "x":19.2, "y":41.9, "width":4.2, "height":1.8, "color":"#b6ff00"},
-    {"id":"LED6", "type":"led", "signal":"LED6", "x":19.2, "y":36.9, "width":4.2, "height":1.8, "color":"#b6ff00"},
-    {"id":"LED7", "type":"led", "signal":"LED7", "x":19.2, "y":31.9, "width":4.2, "height":1.8, "color":"#b6ff00"},
-    {"id":"SW1", "type":"button", "signal":"SW1", "x":32.33, "y":26.91, "width":14.05, "height":5.60},
-    {"id":"SW2", "type":"button", "signal":"SW2", "x":46.39, "y":26.91, "width":14.05, "height":5.60}
+    {
+      "id": "LED0",
+      "type": "led",
+      "signal": "LED0",
+      "x": 17.733,
+      "y": 66.044,
+      "width": 7.194,
+      "height": 4.773,
+      "color": "#b6ff00"
+    },
+    {
+      "id": "LED1",
+      "type": "led",
+      "signal": "LED1",
+      "x": 17.45,
+      "y": 60.896,
+      "width": 7.194,
+      "height": 4.773,
+      "color": "#b6ff00"
+    },
+    {
+      "id": "LED2",
+      "type": "led",
+      "signal": "LED2",
+      "x": 17.45,
+      "y": 55.394,
+      "width": 7.194,
+      "height": 4.773,
+      "color": "#b6ff00"
+    },
+    {
+      "id": "LED3",
+      "type": "led",
+      "signal": "LED3",
+      "x": 17.395,
+      "y": 50.143,
+      "width": 7.194,
+      "height": 4.773,
+      "color": "#b6ff00"
+    },
+    {
+      "id": "LED4",
+      "type": "led",
+      "signal": "LED4",
+      "x": 17.409,
+      "y": 44.688,
+      "width": 7.194,
+      "height": 4.773,
+      "color": "#b6ff00"
+    },
+    {
+      "id": "LED5",
+      "type": "led",
+      "signal": "LED5",
+      "x": 17.423,
+      "y": 39.451,
+      "width": 7.194,
+      "height": 4.773,
+      "color": "#b6ff00"
+    },
+    {
+      "id": "LED6",
+      "type": "led",
+      "signal": "LED6",
+      "x": 17.423,
+      "y": 34.043,
+      "width": 7.194,
+      "height": 4.773,
+      "color": "#b6ff00"
+    },
+    {
+      "id": "LED7",
+      "type": "led",
+      "signal": "LED7",
+      "x": 17.436,
+      "y": 28.792,
+      "width": 7.194,
+      "height": 4.773,
+      "color": "#b6ff00"
+    },
+    {
+      "id": "SW1",
+      "type": "button",
+      "signal": "SW1",
+      "x": 16.574,
+      "y": 6.093,
+      "width": 17.032,
+      "height": 8.537,
+      "color": "#22c55e"
+    },
+    {
+      "id": "SW2",
+      "type": "button",
+      "signal": "SW2",
+      "x": 39.138,
+      "y": 5.655,
+      "width": 17.032,
+      "height": 8.537,
+      "color": "#22c55e"
+    },
+    {
+      "id": "PWR",
+      "type": "led",
+      "signal": "PWR",
+      "x": 22.765,
+      "y": 116.951,
+      "width": 7.194,
+      "height": 4.484,
+      "color": "#e01b24"
+    },
+    {
+      "id": "RESET",
+      "type": "button",
+      "signal": "RESET",
+      "x": 238.952,
+      "y": 140.503,
+      "width": 16.982,
+      "height": 8.537,
+      "color": "#b6ff00"
+    }
   ]
 }

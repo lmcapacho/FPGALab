@@ -17,4 +17,4 @@ fpga-lab = "fpga_lab.app:main"
 include = ["fpga_lab*"]
 
 [tool.setuptools.package-data]
-fpga_lab = ["assets/boards/*.svg", "assets/board_layouts/*.json", "assets/board_definitions/*.json"]
+fpga_lab = ["assets/boards/*.svg", "assets/board_layouts/*.json", "assets/board_definitions/*.json", "assets/profiles/*.json"]

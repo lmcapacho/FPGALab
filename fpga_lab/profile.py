@@ -53,3 +53,7 @@ class BoardProfile:
             for name, width in (self.observed if self.observed is not None else self.outputs).items()
             for bit in range(width)
         )
+
+def bundled_profile(board_id: str = "alhambra_ii") -> Path:
+    """Return the packaged default profile for advanced library mode."""
+    return Path(__file__).parent / "assets" / "profiles" / f"{board_id}.json"
