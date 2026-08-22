@@ -8,7 +8,7 @@ from collections.abc import Callable
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsItemGroup, QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
 from .board_layout import BoardLayout, BoardLayoutElement
 
@@ -88,22 +88,34 @@ class BoardView(QGraphicsView):
         self._leds: dict[str, BoardLedItem] = {}
         self._led_items: dict[str, BoardLedItem] = {}
         self._calibration_mode = False
+        self._board_group = QGraphicsItemGroup()
+        self._scene.addItem(self._board_group)
         artwork_bounds = self._add_svg()
         for element in layout.elements:
             element = self._map_element(element, artwork_bounds)
             if element.kind == "led":
                 self._leds[element.signal] = BoardLedItem(element)
                 self._led_items[element.id] = self._leds[element.signal]
-                self._scene.addItem(self._leds[element.signal])
+                self._board_group.addToGroup(self._leds[element.signal])
             elif element.kind == "button":
-                self._scene.addItem(BoardButtonItem(element, input_changed))
-        self._scene.setSceneRect(artwork_bounds)
+                self._board_group.addToGroup(BoardButtonItem(element, input_changed))
+        self._apply_orientation()
 
     def _add_svg(self):
         artwork = QGraphicsSvgItem(str(self._layout.svg))
         artwork.setZValue(-10)
-        self._scene.addItem(artwork)
+        self._board_group.addToGroup(artwork)
         return artwork.boundingRect()
+
+    def _apply_orientation(self) -> None:
+        """Rotate board artwork and its controls as one declarative layout unit."""
+        if self._layout.orientation == "vertical":
+            bounds = self._board_group.boundingRect()
+            self._board_group.setTransformOriginPoint(bounds.center())
+            self._board_group.setRotation(90)
+            rotated = self._board_group.sceneBoundingRect()
+            self._board_group.setPos(-rotated.x(), -rotated.y())
+        self._scene.setSceneRect(self._board_group.sceneBoundingRect())
 
     def _map_element(self, element: BoardLayoutElement, artwork_bounds):
         origin_x, origin_y, layout_width, layout_height = self._layout.view_box

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QProgressDialog,
     QStackedWidget,
     QStatusBar,
     QVBoxLayout,
@@ -51,6 +52,7 @@ class FPGALabMainWindow(QMainWindow):
         self._workspace = workspace
         self._selected_lab = self._workspace.ensure_default()
         self._active_lab: QWidget | None = None
+        self._busy_dialog: QProgressDialog | None = None
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
 
@@ -235,6 +237,24 @@ class FPGALabMainWindow(QMainWindow):
 
     def set_status(self, message: str) -> None:
         self._status_bar.showMessage(message)
+
+    def show_busy(self, message: str) -> None:
+        """Show an explicit, non-cancellable operation notice over the lab."""
+        self.set_status(message)
+        if self._busy_dialog is None:
+            self._busy_dialog = QProgressDialog(self)
+            self._busy_dialog.setWindowTitle("FPGALab")
+            self._busy_dialog.setCancelButton(None)
+            self._busy_dialog.setRange(0, 0)
+            self._busy_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+            self._busy_dialog.setMinimumDuration(0)
+        self._busy_dialog.setLabelText(message)
+        self._busy_dialog.show()
+
+    def dismiss_busy(self) -> None:
+        """Close the current operation notice without changing the status text."""
+        if self._busy_dialog is not None:
+            self._busy_dialog.close()
 
     def remember_project(self, path: Path) -> None:
         self.set_project_path(path)

@@ -66,7 +66,13 @@ class UpdateController:
             return
         if not result.get("update_available"):
             if manual:
-                self._parent.set_status(t("FPGALab is up to date ({version}).", "FPGALab está actualizado ({version}).", version=result["current_version"]))
+                message = t(
+                    "FPGALab is up to date ({version}).",
+                    "FPGALab está actualizado ({version}).",
+                    version=result["current_version"],
+                )
+                self._parent.set_status(message)
+                QMessageBox.information(self._parent, t("No update available", "No hay actualización disponible"), message)
             return
         answer = QMessageBox.question(
             self._parent,

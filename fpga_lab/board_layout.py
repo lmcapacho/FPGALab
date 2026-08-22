@@ -27,6 +27,7 @@ class BoardLayout:
     source: Path
     svg: Path
     view_box: tuple[float, float, float, float]
+    orientation: str
     elements: tuple[BoardLayoutElement, ...]
 
     @classmethod
@@ -45,13 +46,22 @@ class BoardLayout:
         view_box = tuple(float(value) for value in raw["viewBox"])
         if len(view_box) != 4:
             raise ValueError(t("viewBox must have four values.", "viewBox debe tener cuatro valores."))
-        layout = cls(raw["board_id"], source, source.parent / raw["svg"], view_box, elements)
+        layout = cls(
+            raw["board_id"],
+            source,
+            source.parent / raw["svg"],
+            view_box,
+            raw.get("orientation", "horizontal"),
+            elements,
+        )
         layout.validate()
         return layout
 
     def validate(self) -> None:
         if not self.svg.is_file():
             raise FileNotFoundError(self.svg)
+        if self.orientation not in {"horizontal", "vertical"}:
+            raise ValueError(t("Board orientation must be horizontal or vertical.", "La orientación de la placa debe ser horizontal o vertical."))
         ids = [element.id for element in self.elements]
         if len(ids) != len(set(ids)):
             raise ValueError(t("Board layout contains duplicate identifiers.", "Hay identificadores repetidos en el layout de placa."))

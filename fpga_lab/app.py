@@ -108,6 +108,11 @@ class ApplicationController:
         self._window.set_status(
             t("Preparing {name}: analyzing HDL and looking for a cached build…", "Preparando {name}: analizando HDL y buscando compilación en caché…", name=project.ice_file.name)
         )
+        self._window.show_busy(t(
+            "Preparing {name}. FPGALab is checking the cache and may compile the HDL model.",
+            "Preparando {name}. FPGALab está revisando la caché y puede compilar el modelo HDL.",
+            name=project.ice_file.name,
+        ))
         self._app.processEvents()
         try:
             artifact = VerilatorBuildCache(self._namespace.cache_dir).build_or_reuse(
@@ -115,9 +120,11 @@ class ApplicationController:
             )
             simulation = VerilatorSimulation(artifact.library, profile)
         except Exception as error:
+            self._window.dismiss_busy()
             QMessageBox.critical(self._window, t("Build error", "Error de compilación"), str(error))
             self._window.set_status(t("Build did not complete.", "La compilación no terminó."))
             return
+        self._window.dismiss_busy()
         lab = FPGAVirtualLab(
             simulation,
             self._namespace.clock_hz,

@@ -11,6 +11,9 @@ from .constraints import PcfParser
 from .i18n import language_manager, t
 from .wiring import PERIPHERAL_LABELS, PERIPHERAL_LABELS_ES, PERIPHERAL_TERMINALS, PeripheralInstance, VirtualLabProject
 
+
+TRAFFIC_LIGHT_DEFAULT_COLORS = {"red": "#ef4444", "yellow": "#facc15", "green": "#22c55e"}
+
 class SegmentDisplay(QFrame):
     """Compact representation of an external seven-segment display."""
 
@@ -45,7 +48,13 @@ class PeripheralConfigDialog(QDialog):
         self._kind = peripheral.kind
         self._pickers = {}
         self._properties = dict(peripheral.properties)
-        self._color = str(peripheral.properties.get("color", "#b6ff00")); self._delete_requested = False
+        self._color = str(peripheral.properties.get("color", "#b6ff00"))
+        self._traffic_colors = {
+            **TRAFFIC_LIGHT_DEFAULT_COLORS,
+            **dict(peripheral.properties.get("colors", {})),
+        }
+        self._traffic_color_buttons: dict[str, QPushButton] = {}
+        self._delete_requested = False
         layout = QVBoxLayout(self)
         form = QFormLayout()
         self.identifier = QLineEdit(peripheral.peripheral_id)
@@ -63,7 +72,14 @@ class PeripheralConfigDialog(QDialog):
         if peripheral.kind == "seven_segment": form.addRow(t("Common", "Común"), self.common)
         self.color = QPushButton(self._color)
         self.color.clicked.connect(self._choose_color)
-        if peripheral.kind in {"led", "traffic_light"}: form.addRow("Color", self.color)
+        if peripheral.kind == "led":
+            form.addRow(t("Color", "Color"), self.color)
+        elif peripheral.kind == "traffic_light":
+            for terminal in ("red", "yellow", "green"):
+                button = QPushButton(self._traffic_colors[terminal])
+                button.clicked.connect(lambda _checked=False, name=terminal: self._choose_color(name))
+                self._traffic_color_buttons[terminal] = button
+                form.addRow(terminal.capitalize(), button)
         layout.addLayout(form)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText(t("Save", "Guardar"))
@@ -75,15 +91,26 @@ class PeripheralConfigDialog(QDialog):
     def _request_delete(self):
         self._delete_requested = True; self.done(2)
 
-    def _choose_color(self):
-        color = QColorDialog.getColor(parent=self)
-        if color.isValid(): self._color = color.name(); self.color.setText(self._color)
+    def _choose_color(self, terminal: str | None = None):
+        current = self._traffic_colors[terminal] if terminal else self._color
+        color = QColorDialog.getColor(QColor(current), self)
+        if not color.isValid():
+            return
+        if terminal:
+            self._traffic_colors[terminal] = color.name()
+            self._traffic_color_buttons[terminal].setText(color.name())
+            return
+        self._color = color.name()
+        self.color.setText(self._color)
 
     def value(self):
         connections = {name: picker.currentData() for name, picker in self._pickers.items() if picker.currentData()}
         properties = dict(self._properties)
         if self._kind == "seven_segment": properties["common"] = self.common.currentText()
-        if self._kind in {"led", "traffic_light"}: properties["color"] = self._color
+        if self._kind == "led":
+            properties["color"] = self._color
+        if self._kind == "traffic_light":
+            properties["colors"] = self._traffic_colors
         return {"id": self.identifier.text().strip(), "type": self._kind, "connections": connections, "properties": properties}
 
 
@@ -175,8 +202,9 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         if kind == "led":
             self._lamp(painter, 77, 47, self._active.get("anode", False), self._peripheral.properties.get("color", "#b6ff00"))
         elif kind == "traffic_light":
-            for y, terminal, color in ((58, "red", "#ef4444"), (102, "yellow", "#facc15"), (146, "green", "#22c55e")):
-                self._lamp(painter, 60, y, self._active.get(terminal, False), color)
+            colors = {**TRAFFIC_LIGHT_DEFAULT_COLORS, **dict(self._peripheral.properties.get("colors", {}))}
+            for y, terminal in ((58, "red"), (102, "yellow"), (146, "green")):
+                self._lamp(painter, 60, y, self._active.get(terminal, False), colors[terminal])
         elif kind == "seven_segment":
             self._draw_display(painter)
         else:
@@ -297,8 +325,15 @@ class PeripheralsPanel(QWidget):
         try:
             VirtualLabProject.load(self._lab).resolve(self._board, self._constraints())
         except Exception as exc:
-            self._lab.write_text(original, encoding="utf-8"); self.status.setText(str(exc)); return False
+            self._lab.write_text(original, encoding="utf-8")
+            self._show_configuration_error(str(exc))
+            return False
         self.status.setText(message); self._reload(); self.changed.emit(message); return True
+
+    def _show_configuration_error(self, message: str) -> None:
+        """Keep validation failures visible instead of hiding them below the catalog."""
+        self.status.setText(message)
+        QMessageBox.warning(self, t("Peripheral configuration", "Configuración del periférico"), message)
 
     def _configure(self, peripheral):
         dialog = PeripheralConfigDialog(peripheral, self._board, self._assigned_endpoints, self)
@@ -307,10 +342,13 @@ class PeripheralsPanel(QWidget):
         if result != QDialog.DialogCode.Accepted: return
         value = dialog.value()
         if not value["id"] or len(value["connections"]) != len(PERIPHERAL_TERMINALS[peripheral.kind]):
-            self.status.setText(t("Complete the identifier and every terminal.", "Complete el identificador y todos los terminales.")); return
+            self._show_configuration_error(t("Complete the identifier and every terminal.", "Complete el identificador y todos los terminales."))
+            return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         ids = [item["id"] for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
-        if value["id"] in ids: self.status.setText(t("A peripheral with that identifier already exists.", "Ya existe un periférico con ese identificador.")); return
+        if value["id"] in ids:
+            self._show_configuration_error(t("A peripheral with that identifier already exists.", "Ya existe un periférico con ese identificador."))
+            return
         for index, item in enumerate(raw.get("peripherals", [])):
             if item["id"] == peripheral.peripheral_id:
                 dialog_properties = dict(value["properties"]); dialog_properties.pop("position", None)
@@ -347,8 +385,10 @@ class PeripheralsPanel(QWidget):
         if dialog.exec() != QDialog.DialogCode.Accepted: return
         value = dialog.value()
         if not value["id"] or len(value["connections"]) != len(PERIPHERAL_TERMINALS[kind]):
-            self.status.setText(t("Complete the identifier and every terminal.", "Complete el identificador y todos los terminales.")); return
+            self._show_configuration_error(t("Complete the identifier and every terminal.", "Complete el identificador y todos los terminales."))
+            return
         if value["id"] in existing:
-            self.status.setText(t("A peripheral with that identifier already exists.", "Ya existe un periférico con ese identificador.")); return
+            self._show_configuration_error(t("A peripheral with that identifier already exists.", "Ya existe un periférico con ese identificador."))
+            return
         raw.setdefault("peripherals", []).append(value)
         self._commit(raw, t("{identifier} added", "{identifier} agregado", identifier=value["id"]))
