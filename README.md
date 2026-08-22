@@ -55,7 +55,11 @@ The C++ wrapper exposes native getters, setters, clock stepping, and batched cyc
 
 FPGALab resolves Verilator in this order: the toolchain installed by Apio/Icestudio, a standalone OSS CAD Suite configured with `FPGALAB_OSS_CAD_SUITE`, and finally `verilator` on the system `PATH`. Icestudio's Windows installation stores the package at `%USERPROFILE%\.icestudio\apio\packages\oss-cad-suite`; standalone Apio commonly uses `~/.apio/packages/oss-cad-suite`. The historical `tools-oss-cad-suite` package name is also supported. An explicit `FPGALAB_VERILATOR` setting overrides automatic discovery.
 
-OSS CAD Suite is recommended for a portable toolchain installation, but generated Verilator models still require GNU Make-compatible build tools and a C++17 compiler. On Windows, install a compatible MSYS2/MinGW environment in addition to the suite.
+OSS CAD Suite is recommended for a portable toolchain installation, but generated Verilator models still require GNU Make-compatible build tools and a C++17 compiler. On Windows, install MSYS2 and run the following command in an MSYS2 UCRT64 terminal; FPGALab detects the standard `C:\msys64` installation automatically.
+
+```bash
+pacman -S --needed make mingw-w64-ucrt-x86_64-gcc
+```
 
 ```bash
 # Linux/macOS example

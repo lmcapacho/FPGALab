@@ -15,6 +15,13 @@ class ToolchainNotFoundError(FileNotFoundError):
     """Raised when FPGALab cannot find a usable Verilator executable."""
 
 
+class ToolchainPrerequisiteError(RuntimeError):
+    """Raised when Verilator is present but cannot build a native model."""
+
+
+_DLL_DIRECTORIES: list[object] = []
+
+
 @dataclass(frozen=True)
 class VerilatorToolchain:
     """One resolved Verilator executable and the environment it needs."""
@@ -31,6 +38,7 @@ class VerilatorToolchain:
         binary_directories = (
             self.suite_root / "bin",
             self.suite_root / "share" / "verilator" / "bin",
+            *_msys2_binary_directories(),
         )
         available_directories = [str(directory) for directory in binary_directories if directory.is_dir()]
         if available_directories:
@@ -40,6 +48,32 @@ class VerilatorToolchain:
             environment.setdefault("VERILATOR_ROOT", str(verilator_root))
         environment.setdefault("YOSYSHQ_ROOT", str(self.suite_root))
         return environment
+
+    def validate_build_prerequisites(self) -> None:
+        """Ensure the native build tools required by Verilator are available."""
+        environment = self.environment()
+        missing = [command for command in ("make", "g++") if not _command_exists(command, environment)]
+        if not missing:
+            return
+        if sys.platform == "win32":
+            raise ToolchainPrerequisiteError(t(
+                "Verilator was found, but Windows needs MSYS2 build tools: {tools}. Install MSYS2, then install make and a MinGW-w64 C++ compiler.",
+                "Se encontró Verilator, pero Windows necesita las herramientas de compilación de MSYS2: {tools}. Instale MSYS2 y luego make y un compilador C++ MinGW-w64.",
+                tools=", ".join(missing),
+            ))
+        raise ToolchainPrerequisiteError(t(
+            "Verilator was found, but the required build tools are missing: {tools}.",
+            "Se encontró Verilator, pero faltan las herramientas de compilación requeridas: {tools}.",
+            tools=", ".join(missing),
+        ))
+
+    def activate_runtime(self) -> None:
+        """Expose MinGW runtime DLL directories to the current Windows process."""
+        if sys.platform != "win32" or not hasattr(os, "add_dll_directory"):
+            return
+        for directory in _msys2_binary_directories():
+            if directory.is_dir():
+                _DLL_DIRECTORIES.append(os.add_dll_directory(str(directory)))
 
 
 def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
@@ -66,6 +100,21 @@ def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
         "Verilator was not found. Install Icestudio/Apio, configure FPGALAB_OSS_CAD_SUITE, or install Verilator on PATH.",
         "No se encontró Verilator. Instale Icestudio/Apio, configure FPGALAB_OSS_CAD_SUITE o instale Verilator en PATH.",
     ))
+
+
+def _msys2_binary_directories() -> tuple[Path, ...]:
+    """Return standard MSYS2 directories when FPGALab runs on Windows."""
+    if sys.platform != "win32":
+        return ()
+    root = Path(os.environ.get("MSYS2_ROOT", os.environ.get("SystemDrive", "C:") + "\\msys64"))
+    return (root / "usr" / "bin", root / "ucrt64" / "bin", root / "mingw64" / "bin")
+
+
+def _command_exists(command: str, environment: dict[str, str]) -> bool:
+    """Check commands using the target platform's executable naming convention."""
+    names = (f"{command}.exe", command) if sys.platform == "win32" else (command,)
+    directories = [Path(item) for item in environment.get("PATH", "").split(os.pathsep) if item]
+    return any((directory / name).is_file() for directory in directories for name in names)
 
 
 def _apio_suite_roots() -> tuple[Path, ...]:

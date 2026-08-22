@@ -72,9 +72,11 @@ class VerilatorBuildCache:
         self, project: IcestudioProject, profile: BoardProfile, *, top_module: str = "top", verilator: str | None = None
     ) -> CachedBuild:
         toolchain = resolve_verilator(verilator)
+        toolchain.activate_runtime()
         fingerprint = self.fingerprint(project, profile, top_module, str(toolchain.executable))
         if cached := self.lookup(fingerprint, top_module):
             return cached
+        toolchain.validate_build_prerequisites()
 
         self.root.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=f"{fingerprint[:12]}-", dir=self.root))
