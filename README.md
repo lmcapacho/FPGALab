@@ -58,7 +58,7 @@ FPGALab resolves Verilator in this order: the toolchain installed by Apio/Icestu
 OSS CAD Suite is recommended for a portable toolchain installation, but generated Verilator models still require GNU Make-compatible build tools and a C++17 compiler. On Windows, install MSYS2 and run the following command in an MSYS2 UCRT64 terminal; FPGALab detects the standard `C:\msys64` installation automatically.
 
 ```bash
-pacman -S --needed make mingw-w64-ucrt-x86_64-gcc
+pacman -S --needed make python mingw-w64-ucrt-x86_64-gcc
 ```
 
 ```bash

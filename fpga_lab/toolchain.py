@@ -53,12 +53,14 @@ class VerilatorToolchain:
         """Ensure the native build tools required by Verilator are available."""
         environment = self.environment()
         missing = [command for command in ("make", "g++") if not _command_exists(command, environment)]
+        if sys.platform == "win32" and not _msys2_python_exists():
+            missing.append("python")
         if not missing:
             return
         if sys.platform == "win32":
             raise ToolchainPrerequisiteError(t(
-                "Verilator was found, but Windows needs MSYS2 build tools: {tools}. Install MSYS2, then install make and a MinGW-w64 C++ compiler.",
-                "Se encontró Verilator, pero Windows necesita las herramientas de compilación de MSYS2: {tools}. Instale MSYS2 y luego make y un compilador C++ MinGW-w64.",
+                "Verilator was found, but Windows needs MSYS2 build tools: {tools}. Install MSYS2, then install make, Python, and a MinGW-w64 C++ compiler.",
+                "Se encontró Verilator, pero Windows necesita las herramientas de compilación de MSYS2: {tools}. Instale MSYS2 y luego make, Python y un compilador C++ MinGW-w64.",
                 tools=", ".join(missing),
             ))
         raise ToolchainPrerequisiteError(t(
@@ -108,6 +110,11 @@ def _msys2_binary_directories() -> tuple[Path, ...]:
         return ()
     root = Path(os.environ.get("MSYS2_ROOT", os.environ.get("SystemDrive", "C:") + "\\msys64"))
     return (root / "usr" / "bin", root / "ucrt64" / "bin", root / "mingw64" / "bin")
+
+
+def _msys2_python_exists() -> bool:
+    """Avoid the Windows Store alias; Verilator needs a real MSYS2 Python."""
+    return any((directory / "python.exe").is_file() for directory in _msys2_binary_directories())
 
 
 def _command_exists(command: str, environment: dict[str, str]) -> bool:
