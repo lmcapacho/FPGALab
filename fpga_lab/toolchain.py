@@ -45,8 +45,8 @@ class VerilatorToolchain:
             environment["PATH"] = os.pathsep.join(available_directories + [environment.get("PATH", "")])
         verilator_root = self.suite_root / "share" / "verilator"
         if verilator_root.is_dir():
-            environment.setdefault("VERILATOR_ROOT", str(verilator_root))
-        environment.setdefault("YOSYSHQ_ROOT", str(self.suite_root))
+            environment["VERILATOR_ROOT"] = _build_path(verilator_root)
+        environment["YOSYSHQ_ROOT"] = _build_path(self.suite_root)
         return environment
 
     def validate_build_prerequisites(self) -> None:
@@ -102,6 +102,11 @@ def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
         "Verilator was not found. Install Icestudio/Apio, configure FPGALAB_OSS_CAD_SUITE, or install Verilator on PATH.",
         "No se encontró Verilator. Instale Icestudio/Apio, configure FPGALAB_OSS_CAD_SUITE o instale Verilator en PATH.",
     ))
+
+
+def _build_path(path: Path) -> str:
+    """Format paths for Make and MSYS2 while preserving native Windows semantics."""
+    return str(path).replace("\\", "/") if sys.platform == "win32" else str(path)
 
 
 def _msys2_binary_directories() -> tuple[Path, ...]:
