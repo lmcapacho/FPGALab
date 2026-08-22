@@ -59,7 +59,9 @@ class VerilatorCompiler:
         args = [
             "--cc", str(verilog), "--top-module", request.top_module, "--prefix", f"V{request.top_module}",
             "--Mdir", str(obj_dir), "-O3", "-Wno-fatal", "--exe", str(wrapper),
-            "-CFLAGS", "-O3 -fPIC -march=native", "-LDFLAGS", "-shared", "-o", library,
+            # The wrapper owns a VerilatedContext.  VL_TIME_CONTEXT prevents
+            # MinGW from requiring the legacy sc_time_stamp() callback.
+            "-CFLAGS", "-O3 -fPIC -march=native -DVL_TIME_CONTEXT", "-LDFLAGS", "-shared", "-o", library,
         ]
         return obj_dir / library, args
 
