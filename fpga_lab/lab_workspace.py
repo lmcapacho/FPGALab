@@ -23,7 +23,7 @@ def default_workspace_root() -> Path:
     configured = os.environ.get("FPGALAB_WORKSPACE")
     if configured:
         return Path(configured).expanduser()
-    return Path.home() / ("Documents" / "FPGALab" if sys.platform == "win32" else "FPGALab")
+    return Path.home() / (Path("Documents") / "FPGALab" if sys.platform == "win32" else "FPGALab")
 
 
 class LabWorkspace:

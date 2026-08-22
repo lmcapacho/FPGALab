@@ -143,6 +143,12 @@ FPGALab checks GitHub Releases shortly after startup without interrupting the wo
 
 Release candidates are considered while running a release candidate build. Stable builds only check stable releases.
 
+### Windows release assets
+
+Windows releases provide two options: `windows-x64.exe` is a self-contained executable and is the recommended download; `windows-x64-portable.zip` contains an application folder and must be fully extracted before starting `FPGALab.exe`. Do not run the executable from Windows Explorer's compressed-folder view, because `_internal` dependencies are not available there.
+
+Windows SmartScreen may display an `Unknown publisher` warning until the application is Authenticode-signed and builds reputation. This is independent from the application package contents.
+
 ## Command-line options
 
 ```text

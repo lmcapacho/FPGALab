@@ -11,7 +11,7 @@ All notable changes to FPGALab are documented in this file.
 - Reusable virtual laboratories with configurable external LEDs, buttons, sensors, traffic lights, and seven-segment displays.
 - Virtual clock execution with independent human-visible signal sampling.
 - English and Spanish interface support.
-- GitHub Releases update checks and portable Linux/Windows release packaging workflows.
+- GitHub Releases update checks and Linux/Windows release packaging workflows, including a self-contained Windows executable.
 
 ### Known limitations
 

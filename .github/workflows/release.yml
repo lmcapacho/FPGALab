@@ -49,14 +49,21 @@ jobs:
       - name: Build portable application
         shell: powershell
         run: python -m PyInstaller packaging/pyinstaller/FPGALab.spec --noconfirm --clean
-      - name: Create Windows archive
+      - name: Build self-contained executable
         shell: powershell
-        run: Compress-Archive -Path "dist\FPGALab\*" -DestinationPath "FPGALab-${env:GITHUB_REF_NAME}-windows-x64-portable.zip" -Force
+        run: python -m PyInstaller packaging/pyinstaller/FPGALab-onefile.spec --noconfirm
+      - name: Create Windows release assets
+        shell: powershell
+        run: |
+          Compress-Archive -Path "dist\FPGALab\*" -DestinationPath "FPGALab-${env:GITHUB_REF_NAME}-windows-x64-portable.zip" -Force
+          Copy-Item "dist\FPGALab.exe" "FPGALab-${env:GITHUB_REF_NAME}-windows-x64.exe" -Force
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v6
         with:
           name: windows-release-assets
-          path: FPGALab-*-windows-x64-portable.zip
+          path: |
+            FPGALab-*-windows-x64-portable.zip
+            FPGALab-*-windows-x64.exe
 
   publish-release:
     runs-on: ubuntu-latest
