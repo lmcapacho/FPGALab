@@ -66,19 +66,21 @@ def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
 
 def _apio_suite_roots() -> tuple[Path, ...]:
     """Return likely tool roots installed by Apio or exposed by Icestudio."""
-    roots = [Path.home() / ".apio" / "packages" / "tools-oss-cad-suite"]
+    package_names = ("oss-cad-suite", "tools-oss-cad-suite")
+    roots = [Path.home() / ".apio" / "packages" / name for name in package_names]
     for variable in ("ICESTUDIO_APIO", "APIO_HOME"):
         value = os.environ.get(variable)
         if not value:
             continue
         base = Path(value).expanduser()
-        roots.extend((
-            base,
-            base / "tools-oss-cad-suite",
-            base / "packages" / "tools-oss-cad-suite",
-            base.parent / "tools-oss-cad-suite",
-            base.parent / "packages" / "tools-oss-cad-suite",
-        ))
+        roots.append(base)
+        for name in package_names:
+            roots.extend((
+                base / name,
+                base / "packages" / name,
+                base.parent / name,
+                base.parent / "packages" / name,
+            ))
     return _unique_paths(roots)
 
 
