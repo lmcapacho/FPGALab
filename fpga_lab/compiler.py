@@ -34,6 +34,7 @@ class BuildRequest:
     build_dir: Path = Path("build/verilator")
     verilator: str = "verilator"
     environment: dict[str, str] | None = None
+    make_variables: tuple[str, ...] = ()
 
 
 class VerilatorCompiler:
@@ -53,31 +54,48 @@ class VerilatorCompiler:
         wrapper.write_text(render_cpp_wrapper(request.profile, f"V{request.top_module}"), encoding="utf-8")
 
         library = shared_library_name(f"V{request.top_module}_shared")
-        # --exe uses Verilator's Makefile. -shared and -fPIC turn that
-        # target (without main()) into a ctypes-loadable library.
+        # --exe writes a Makefile.  Building it in a separate process is
+        # important on Windows: Verilator is native while Make runs in MSYS2.
         args = [
             "--cc", str(verilog), "--top-module", request.top_module, "--prefix", f"V{request.top_module}",
-            "--Mdir", str(obj_dir), "-O3", "-Wno-fatal", "--exe", str(wrapper), "--build", "-j", "0", "-MAKEFLAGS", "OPT_FAST=-O3",
+            "--Mdir", str(obj_dir), "-O3", "-Wno-fatal", "--exe", str(wrapper),
             "-CFLAGS", "-O3 -fPIC -march=native", "-LDFLAGS", "-shared", "-o", library,
         ]
         return obj_dir / library, args
 
     def build(self, request: BuildRequest) -> Path:
         target, args = self.prepare(request)
-        completed = subprocess.run(
+        self._run(
             [request.verilator, *args],
             cwd=request.build_dir.resolve(),
+            environment=request.environment,
+        )
+        make = shutil.which("make", path=(request.environment or os.environ).get("PATH"))
+        if make is None:
+            raise RuntimeError("Verilator generated its Makefile but GNU Make was not found.")
+        self._run(
+            [make, "-C", str(target.parent), "-f", f"V{request.top_module}.mk", "-j", "OPT_FAST=-O3", *request.make_variables],
+            cwd=request.build_dir.resolve(),
+            environment=request.environment,
+        )
+        if not target.exists():
+            raise RuntimeError(f"Verilator completed but did not produce {target}")
+        return target
+
+    @staticmethod
+    def _run(command: list[str], *, cwd: Path, environment: dict[str, str] | None) -> None:
+        """Run one build phase and retain Verilator diagnostics on failure."""
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            env=request.environment,
+            env=environment,
         )
         if completed.returncode:
             output = completed.stdout.strip() or "Verilator did not provide diagnostic output."
             raise VerilatorBuildError(output)
-        if not target.exists():
-            raise RuntimeError(f"Verilator completed but did not produce {target}")
-        return target
 
 
 def main() -> None:

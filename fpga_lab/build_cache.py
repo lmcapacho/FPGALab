@@ -81,7 +81,15 @@ class VerilatorBuildCache:
         self.root.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=f"{fingerprint[:12]}-", dir=self.root))
         try:
-            request = BuildRequest(project.main_v, profile, top_module, staging, str(toolchain.executable), toolchain.environment())
+            request = BuildRequest(
+                project.main_v,
+                profile,
+                top_module,
+                staging,
+                str(toolchain.executable),
+                toolchain.environment(),
+                toolchain.make_variables(),
+            )
             library = VerilatorCompiler().build(request)
             final = self.root / fingerprint
             if final.exists():

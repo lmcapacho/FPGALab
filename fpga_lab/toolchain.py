@@ -77,6 +77,15 @@ class VerilatorToolchain:
             if directory.is_dir():
                 _DLL_DIRECTORIES.append(os.add_dll_directory(str(directory)))
 
+    def make_variables(self) -> tuple[str, ...]:
+        """Return Make overrides needed when native Verilator uses MSYS2 Make."""
+        if sys.platform != "win32" or self.suite_root is None:
+            return ()
+        verilator_root = self.suite_root / "share" / "verilator"
+        if not verilator_root.is_dir():
+            return ()
+        return (f"VERILATOR_ROOT={_msys_path(verilator_root)}",)
+
 
 def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
     """Resolve Verilator in priority order: Apio, OSS CAD Suite, then system PATH."""
@@ -107,6 +116,14 @@ def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
 def _build_path(path: Path) -> str:
     """Format paths for Make and MSYS2 while preserving native Windows semantics."""
     return str(path).replace("\\", "/") if sys.platform == "win32" else str(path)
+
+
+def _msys_path(path: Path) -> str:
+    """Translate a drive path to the form understood by MSYS2 programs."""
+    value = _build_path(path)
+    if len(value) >= 3 and value[1] == ":" and value[0].isalpha() and value[2] == "/":
+        return f"/{value[0].lower()}{value[2:]}"
+    return value
 
 
 def _msys2_binary_directories() -> tuple[Path, ...]:
