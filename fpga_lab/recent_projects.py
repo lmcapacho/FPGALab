@@ -22,6 +22,7 @@ class RecentProjects:
         target = str(Path(ice_file).resolve())
         values = [target, *(str(path) for path in self.paths() if str(path.resolve()) != target)]
         self._settings.setValue(self.KEY, values[:self.LIMIT])
+        self._settings.sync()
 
     def clear(self) -> None:
         self._settings.remove(self.KEY)

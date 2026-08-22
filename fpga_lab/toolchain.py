@@ -28,9 +28,13 @@ class VerilatorToolchain:
         environment = os.environ.copy()
         if self.suite_root is None:
             return environment
-        binary_directory = self.suite_root / "bin"
-        if binary_directory.is_dir():
-            environment["PATH"] = str(binary_directory) + os.pathsep + environment.get("PATH", "")
+        binary_directories = (
+            self.suite_root / "bin",
+            self.suite_root / "share" / "verilator" / "bin",
+        )
+        available_directories = [str(directory) for directory in binary_directories if directory.is_dir()]
+        if available_directories:
+            environment["PATH"] = os.pathsep.join(available_directories + [environment.get("PATH", "")])
         verilator_root = self.suite_root / "share" / "verilator"
         if verilator_root.is_dir():
             environment.setdefault("VERILATOR_ROOT", str(verilator_root))
@@ -101,10 +105,10 @@ def _oss_cad_suite_roots() -> tuple[Path, ...]:
 
 
 def _from_suite(root: Path, source: str) -> VerilatorToolchain | None:
-    """Find a suite executable, accepting either the suite or its parent directory."""
+    """Find a native suite executable, accepting either the suite or its parent directory."""
     for suite_root in (root, root / "oss-cad-suite"):
-        for name in _executable_names():
-            executable = suite_root / "bin" / name
+        for relative_path in _suite_executable_paths():
+            executable = suite_root / relative_path
             if executable.is_file():
                 return VerilatorToolchain(executable, source, suite_root)
     return None
@@ -125,9 +129,15 @@ def _suite_parent(executable: Path) -> Path | None:
     return executable.parent.parent if executable.parent.name == "bin" else None
 
 
-def _executable_names() -> tuple[str, ...]:
-    """Return executable names for the host platform."""
-    return ("verilator.exe", "verilator.bat", "verilator") if sys.platform == "win32" else ("verilator",)
+def _suite_executable_paths() -> tuple[Path, ...]:
+    """Return native Verilator paths packaged by OSS CAD Suite."""
+    if sys.platform == "win32":
+        return (
+            Path("share") / "verilator" / "bin" / "verilator_bin.exe",
+            Path("bin") / "verilator_bin.exe",
+            Path("bin") / "verilator.exe",
+        )
+    return (Path("bin") / "verilator", Path("share") / "verilator" / "bin" / "verilator")
 
 
 def _unique_paths(paths: list[Path]) -> tuple[Path, ...]:

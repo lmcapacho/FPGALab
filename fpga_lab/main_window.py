@@ -188,15 +188,12 @@ class FPGALabMainWindow(QMainWindow):
         self._refresh_labs()
 
     def _refresh_recent(self) -> None:
-        selected = self.selected_project()
         self._recent.blockSignals(True)
         self._recent.clear()
         self._recent.addItem(t("Recent projects", "Proyectos recientes"), None)
         for path in self._recent_projects.paths():
             self._recent.addItem(path.name, path)
         self._recent.blockSignals(False)
-        if selected:
-            self.set_project_path(selected)
 
     def _browse(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(
@@ -232,14 +229,15 @@ class FPGALabMainWindow(QMainWindow):
     def set_project_path(self, path: str | Path) -> None:
         resolved = Path(path).expanduser().resolve()
         self._path.setText(str(resolved))
+        self._recent_projects.add(resolved)
+        self._refresh_recent()
         self.set_status(t("Ready to run. The cache will be reused if the design is unchanged.", "Listo para ejecutar. Se reutilizará la caché si el diseño no cambió."))
 
     def set_status(self, message: str) -> None:
         self._status_bar.showMessage(message)
 
     def remember_project(self, path: Path) -> None:
-        self._recent_projects.add(path)
-        self._refresh_recent()
+        self.set_project_path(path)
 
     def active_lab(self) -> QWidget | None:
         """Return the currently hosted laboratory widget."""
