@@ -179,6 +179,8 @@ class ApplicationController(QObject):
         except Exception as error:
             self._build_failed(str(error))
             return
+        active_lab = self._window.active_lab()
+        previous_zoom = active_lab.workbench_zoom() if isinstance(active_lab, FPGAVirtualLab) else 1.0
         self._window.dismiss_busy()
         lab = FPGAVirtualLab(
             simulation,
@@ -190,6 +192,7 @@ class ApplicationController(QObject):
             led_sources=pending.led_sources,
             input_sources=pending.input_sources,
         )
+        lab.set_workbench_zoom(previous_zoom)
         self._window.set_lab(lab)
         lab.status_changed.connect(self._window.set_status)
         lab.start_simulation()

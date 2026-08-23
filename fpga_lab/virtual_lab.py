@@ -134,6 +134,14 @@ class FPGAVirtualLab(QWidget):
         self._edit_layout_button.setToolTip(t("Edit board layout"))
         self._connections_button.setToolTip(t("View physical and HDL connections"))
 
+    def workbench_zoom(self) -> float:
+        """Return the current workbench zoom before this hosted lab is replaced."""
+        return self._peripherals.workbench._zoom
+
+    def set_workbench_zoom(self, zoom: float) -> None:
+        """Restore the user's workbench framing after rebuilding a design."""
+        self._peripherals.workbench.set_zoom(zoom)
+
     def stop_simulation(self) -> None:
         """Stop a clocked simulation from the main project toolbar."""
         if self._has_clock is True:
