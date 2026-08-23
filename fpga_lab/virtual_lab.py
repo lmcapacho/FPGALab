@@ -27,21 +27,6 @@ QLabel#caption { color: #94a3b8; font-size: 11px; }
 """
 
 
-class SevenSegmentDisplay(QLabel):
-    """Compact view: each active bit draws an illuminated Unicode segment."""
-    def __init__(self):
-        super().__init__("— — — — — — —\n— — — — — — —")
-        self.setStyleSheet("background:#020617; color:#334155; border-radius:10px; padding:10px; font: 22px monospace;")
-        self.setAlignment(__import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
-
-    def set_segments(self, bits: int) -> None:
-        rows = []
-        for offset in (0, 7):
-            rows.append(" ".join("━" if bits & (1 << (offset + index)) else "·" for index in range(7)))
-        self.setText("\n".join(rows))
-        self.setStyleSheet("background:#020617; color:#f97316; border:1px solid #475569; border-radius:10px; padding:10px; font: 22px monospace;")
-
-
 class FPGAVirtualLab(QWidget):
     """Embeddable window. Signals reach the worker through queued Qt slots."""
 

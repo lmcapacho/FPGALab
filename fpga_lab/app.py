@@ -5,9 +5,10 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from .board import BoardDefinition, bundled_board_definition
@@ -24,6 +25,44 @@ from .update_controller import UpdateController
 from .virtual_lab import FPGAVirtualLab
 
 _SIGNAL_REFERENCE = re.compile(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?$")
+
+
+class BuildWorker(QThread):
+    """Compile or recover one cached model without blocking the Qt event loop."""
+
+    completed = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(self, cache_dir: Path | None, project: IcestudioProject, profile: BoardProfile, top_module: str, parent=None):
+        super().__init__(parent)
+        self._cache_dir = cache_dir
+        self._project = project
+        self._profile = profile
+        self._top_module = top_module
+
+    def run(self) -> None:
+        try:
+            artifact = VerilatorBuildCache(self._cache_dir).build_or_reuse(
+                self._project,
+                self._profile,
+                top_module=self._top_module,
+            )
+        except Exception as error:
+            self.failed.emit(str(error))
+            return
+        self.completed.emit(artifact)
+
+
+@dataclass(frozen=True)
+class PendingProjectRun:
+    """UI data retained while the model is being built on a worker thread."""
+
+    project: IcestudioProject
+    profile: BoardProfile
+    module_name: str
+    lab_file: Path
+    led_sources: dict[int, tuple[str, int]]
+    input_sources: dict[str, tuple[str, int]]
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -90,10 +129,15 @@ class ApplicationController:
         self._window = window
         self._namespace = namespace
         self._manual_profile = BoardProfile.load(namespace.profile) if namespace.profile else None
+        self._build_worker: BuildWorker | None = None
+        self._pending_run: PendingProjectRun | None = None
         window.project_requested.connect(self.execute_project)
         window.stop_requested.connect(self.stop_simulation)
 
     def execute_project(self, ice_file: Path) -> None:
+        if self._build_worker is not None:
+            self._window.set_status(t("A build is already in progress.", "Ya hay una compilación en curso."))
+            return
         try:
             project = IcestudioProject.discover(ice_file)
             interface = VerilogInterface.discover(project.main_v)
@@ -113,16 +157,22 @@ class ApplicationController:
             "Preparando {name}. FPGALab está revisando la caché y puede compilar el modelo HDL.",
             name=project.ice_file.name,
         ))
-        self._app.processEvents()
+        self._pending_run = PendingProjectRun(project, profile, interface.module_name, lab_file, led_sources, input_sources)
+        self._window.set_project_loading(True)
+        self._build_worker = BuildWorker(self._namespace.cache_dir, project, profile, interface.module_name, self._window)
+        self._build_worker.completed.connect(self._complete_build)
+        self._build_worker.failed.connect(self._build_failed)
+        self._build_worker.finished.connect(self._dispose_build_worker)
+        self._build_worker.start()
+
+    def _complete_build(self, artifact) -> None:
+        pending = self._pending_run
+        if pending is None:
+            return
         try:
-            artifact = VerilatorBuildCache(self._namespace.cache_dir).build_or_reuse(
-                project, profile, top_module=interface.module_name
-            )
-            simulation = VerilatorSimulation(artifact.library, profile)
+            simulation = VerilatorSimulation(artifact.library, pending.profile)
         except Exception as error:
-            self._window.dismiss_busy()
-            QMessageBox.critical(self._window, t("Build error", "Error de compilación"), str(error))
-            self._window.set_status(t("Build did not complete.", "La compilación no terminó."))
+            self._build_failed(str(error))
             return
         self._window.dismiss_busy()
         lab = FPGAVirtualLab(
@@ -130,20 +180,34 @@ class ApplicationController:
             self._namespace.clock_hz,
             self._namespace.ui_refresh_hz,
             self._namespace.observation_hz,
-            project_pcf=project.pcf,
-            lab_file=lab_file,
-            led_sources=led_sources,
-            input_sources=input_sources,
+            project_pcf=pending.project.pcf,
+            lab_file=pending.lab_file,
+            led_sources=pending.led_sources,
+            input_sources=pending.input_sources,
         )
         self._window.set_lab(lab)
         lab.status_changed.connect(self._window.set_status)
         lab.start_simulation()
-        self._window.set_simulation_running(profile.clock_name is not None)
-        self._window.set_project_path(project.ice_file)
-        self._window.remember_project(project.ice_file)
+        self._window.set_simulation_running(pending.profile.clock_name is not None)
+        self._window.set_project_path(pending.project.ice_file)
+        self._window.remember_project(pending.project.ice_file)
         source = t("cache", "caché") if artifact.reused else t("new build", "compilación nueva")
-        run_state = t("simulation started", "simulación iniciada") if profile.clock_name is not None else t("combinational logic ready", "lógica combinacional lista")
-        self._window.set_status(t("{name}: {state} ({source}, module {module}).", "{name}: {state} ({source}, módulo {module}).", name=project.ice_file.name, state=run_state, source=source, module=interface.module_name))
+        run_state = t("simulation started", "simulación iniciada") if pending.profile.clock_name is not None else t("combinational logic ready", "lógica combinacional lista")
+        self._window.set_status(t("{name}: {state} ({source}, module {module}).", "{name}: {state} ({source}, módulo {module}).", name=pending.project.ice_file.name, state=run_state, source=source, module=pending.module_name))
+        self._pending_run = None
+
+    def _build_failed(self, error: str) -> None:
+        self._window.dismiss_busy()
+        self._window.set_simulation_running(False)
+        QMessageBox.critical(self._window, t("Build error", "Error de compilación"), error)
+        self._window.set_status(t("Build did not complete.", "La compilación no terminó."))
+        self._pending_run = None
+
+    def _dispose_build_worker(self) -> None:
+        worker = self._build_worker
+        self._build_worker = None
+        if worker is not None:
+            worker.deleteLater()
 
     def stop_simulation(self) -> None:
         """Stop the active clock without unloading the selected project."""

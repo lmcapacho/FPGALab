@@ -224,6 +224,11 @@ class FPGALabMainWindow(QMainWindow):
         self._run_button.setEnabled(not running)
         self._stop_button.setEnabled(running)
 
+    def set_project_loading(self, loading: bool) -> None:
+        """Disable run controls while a background build owns the selected project."""
+        self._run_button.setEnabled(not loading)
+        self._stop_button.setEnabled(False)
+
     def selected_project(self) -> Path | None:
         text = self._path.text().strip()
         return Path(text) if text else None

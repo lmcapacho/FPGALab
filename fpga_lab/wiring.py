@@ -66,7 +66,7 @@ class VirtualLabProject:
         self, board: BoardDefinition, constraints: list[PinConstraint]
     ) -> tuple[ResolvedWire, ...]:
         by_pin = PcfParser.index_by_pin(constraints)
-        drivers: set[str] = set()
+        input_drivers: set[str] = set()
         resolved: list[ResolvedWire] = []
         for peripheral in self.peripherals:
             known_terminals = _TERMINAL_DIRECTIONS.get(peripheral.kind)
@@ -82,9 +82,9 @@ class VirtualLabProject:
                     raise ValueError(f"{peripheral.peripheral_id}.{terminal}: {endpoint} does not support {expected_direction} direction.")
                 constraint = by_pin.get(board_pin.fpga_pin)
                 if terminal in _DRIVING_TERMINALS.get(peripheral.kind, set()):
-                    if endpoint in drivers:
-                        raise ValueError(f"Two peripherals attempt to drive {endpoint}.")
-                    drivers.add(endpoint)
+                    if endpoint in input_drivers:
+                        raise ValueError(f"Input conflict: more than one peripheral drives {endpoint}.")
+                    input_drivers.add(endpoint)
                 resolved.append(
                     ResolvedWire(peripheral.peripheral_id, terminal, endpoint, constraint.net if constraint else None)
                 )

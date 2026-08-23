@@ -258,6 +258,9 @@ class PeripheralsPanel(QWidget):
         catalog.addWidget(self.kind); catalog.addWidget(self._add_button); layout.addLayout(catalog)
         self.status = QLabel(); layout.addWidget(self.status)
         self._workbench_hint = QLabel(); layout.addWidget(self._workbench_hint)
+        self._connection_status = QLabel()
+        self._connection_status.setStyleSheet("color:#93c5fd; font-size:11px;")
+        layout.addWidget(self._connection_status)
         self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 480, 420); self.workbench = WorkbenchView(self._workbench_scene, self._delete)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
         self._workbench_bindings = {}; self._reload()
@@ -271,6 +274,7 @@ class PeripheralsPanel(QWidget):
         self._add_button.setText(t("＋ Add", "＋ Agregar"))
         self.status.setText(t("Select a type and configure the part when creating it.", "Seleccione un tipo y configure la pieza al crearla."))
         self._workbench_hint.setText(t("Virtual workbench · drag a part; double-click to configure or delete", "Mesa virtual · arrastre una pieza; doble clic para configurar o eliminar"))
+        self._update_connection_status()
         for item in self._workbench_scene.items():
             item.update()
 
@@ -281,6 +285,7 @@ class PeripheralsPanel(QWidget):
     def _reload(self):
         project = VirtualLabProject.load(self._lab)
         wires = project.resolve(self._board, self._constraints())
+        self._connection_counts = (len(wires), sum(wire.hdl_net is not None for wire in wires))
         self._workbench_scene.clear(); self._workbench_bindings = {}
         for index, peripheral in enumerate(project.peripherals):
             bench_item = WorkbenchPeripheralItem(peripheral, self._configure, self._save_position, self._drive_input)
@@ -291,6 +296,29 @@ class PeripheralsPanel(QWidget):
             for wire in wires:
                 if wire.peripheral_id == peripheral.peripheral_id:
                     self._workbench_bindings[(peripheral.peripheral_id, wire.terminal)] = (bench_item, wire.hdl_net)
+        self._update_connection_status()
+
+    def _update_connection_status(self) -> None:
+        """Summarize physical terminals and the subset currently present in HDL."""
+        total, mapped = getattr(self, "_connection_counts", (0, 0))
+        if total == 0:
+            self._connection_status.setText(t("Connection status: no peripheral terminals configured.", "Estado de conexiones: no hay terminales de periféricos configurados."))
+            return
+        unmapped = total - mapped
+        if unmapped == 0:
+            self._connection_status.setText(t(
+                "Connection status: all {total} terminal(s) are mapped by the current PCF.",
+                "Estado de conexiones: los {total} terminal(es) están mapeados por el PCF actual.",
+                total=total,
+            ))
+            return
+        self._connection_status.setText(t(
+            "Connection status: {mapped}/{total} terminal(s) mapped; {unmapped} physically connected but unused by this HDL.",
+            "Estado de conexiones: {mapped}/{total} terminal(es) mapeados; {unmapped} conectados físicamente pero sin uso en este HDL.",
+            mapped=mapped,
+            total=total,
+            unmapped=unmapped,
+        ))
 
     def set_editable(self, enabled):
         self._editing_enabled = enabled
