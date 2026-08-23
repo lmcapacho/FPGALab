@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsItemGroup, QGraphicsRectItem, QGraphicsScene, QGraphicsView
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
 from .board_layout import BoardLayout, BoardLayoutElement
 
@@ -73,6 +73,21 @@ class BoardButtonItem(QGraphicsRectItem):
         event.accept()
 
 
+class BoardTransformItem(QGraphicsItem):
+    """A non-interactive parent used to rotate board artwork and controls."""
+
+    def __init__(self, bounds: QRectF):
+        super().__init__()
+        self._bounds = bounds
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+
+    def boundingRect(self) -> QRectF:
+        return self._bounds
+
+    def paint(self, _painter, _option, _widget=None) -> None:
+        pass
+
+
 class BoardView(QGraphicsView):
     """Render board artwork and overlay interactive LEDs/buttons."""
 
@@ -88,7 +103,8 @@ class BoardView(QGraphicsView):
         self._leds: dict[str, BoardLedItem] = {}
         self._led_items: dict[str, BoardLedItem] = {}
         self._calibration_mode = False
-        self._board_group = QGraphicsItemGroup()
+        origin_x, origin_y, width, height = layout.view_box
+        self._board_group = BoardTransformItem(QRectF(origin_x, origin_y, width, height))
         self._scene.addItem(self._board_group)
         artwork_bounds = self._add_svg()
         for element in layout.elements:
@@ -96,15 +112,15 @@ class BoardView(QGraphicsView):
             if element.kind == "led":
                 self._leds[element.signal] = BoardLedItem(element)
                 self._led_items[element.id] = self._leds[element.signal]
-                self._board_group.addToGroup(self._leds[element.signal])
+                self._leds[element.signal].setParentItem(self._board_group)
             elif element.kind == "button":
-                self._board_group.addToGroup(BoardButtonItem(element, input_changed))
+                BoardButtonItem(element, input_changed).setParentItem(self._board_group)
         self._apply_orientation()
 
     def _add_svg(self):
         artwork = QGraphicsSvgItem(str(self._layout.svg))
         artwork.setZValue(-10)
-        self._board_group.addToGroup(artwork)
+        artwork.setParentItem(self._board_group)
         return artwork.boundingRect()
 
     def _apply_orientation(self) -> None:
