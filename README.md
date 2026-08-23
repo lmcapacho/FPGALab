@@ -4,6 +4,10 @@ FPGALab is an interactive virtual FPGA laboratory for Verilog designs. It turns 
 
 The first supported board is **Alhambra II**. The architecture is board-profile driven, allowing additional boards and visual peripherals to be added over time.
 
+## Screenshot
+
+![FPGALab showing the Alhambra II board and virtual peripheral workbench](docs/images/fpgalab-workbench.png)
+
 ## What it does
 
 - Opens an Icestudio `.ice` design and finds its generated `main.v` and PCF file in `ice-build`.
