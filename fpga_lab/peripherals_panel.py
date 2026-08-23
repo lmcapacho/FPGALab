@@ -236,6 +236,10 @@ class WorkbenchView(QGraphicsView):
         self.set_zoom(1.0)
 
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_0 and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self.reset_zoom()
+            event.accept()
+            return
         if event.key() == Qt.Key.Key_D and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
             if selected:
@@ -417,7 +421,7 @@ class PeripheralsPanel(QWidget):
         self._add_button.setText(t("Add"))
         self._add_button.setToolTip(t("Add a peripheral"))
         self._workbench_hint.setText(t("Virtual workbench"))
-        self._workbench_hint.setToolTip(t("Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms. Ctrl+drag pans."))
+        self._workbench_hint.setToolTip(t("Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms. Ctrl+drag pans. Ctrl+0 resets zoom."))
         self._zoom_out_button.setToolTip(t("Zoom out"))
         self._zoom_reset_button.setToolTip(t("Reset zoom"))
         self._zoom_in_button.setToolTip(t("Zoom in"))
