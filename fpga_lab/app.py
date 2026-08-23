@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from .board import BoardDefinition, bundled_board_definition
@@ -121,10 +121,11 @@ def board_sources(project: IcestudioProject, profile: BoardProfile) -> tuple[dic
 
 
 
-class ApplicationController:
+class ApplicationController(QObject):
     """Compile selected designs and replace the hosted virtual laboratory."""
 
     def __init__(self, app: QApplication, window: FPGALabMainWindow, namespace: argparse.Namespace):
+        super().__init__(app)
         self._app = app
         self._window = window
         self._namespace = namespace
@@ -133,6 +134,7 @@ class ApplicationController:
         self._pending_run: PendingProjectRun | None = None
         window.project_requested.connect(self.execute_project)
         window.stop_requested.connect(self.stop_simulation)
+        app.aboutToQuit.connect(self.shutdown)
 
     def execute_project(self, ice_file: Path) -> None:
         if self._build_worker is not None:
@@ -158,7 +160,8 @@ class ApplicationController:
         ))
         self._pending_run = PendingProjectRun(project, profile, interface.module_name, lab_file, led_sources, input_sources)
         self._window.set_project_loading(True)
-        self._build_worker = BuildWorker(self._namespace.cache_dir, project, profile, interface.module_name, self._window)
+        # The worker must outlive the window while a native build is running.
+        self._build_worker = BuildWorker(self._namespace.cache_dir, project, profile, interface.module_name)
         self._build_worker.completed.connect(self._complete_build)
         self._build_worker.failed.connect(self._build_failed)
         self._build_worker.finished.connect(self._dispose_build_worker)
@@ -207,6 +210,12 @@ class ApplicationController:
         self._build_worker = None
         if worker is not None:
             worker.deleteLater()
+
+    def shutdown(self) -> None:
+        """Wait for an in-flight native build before Qt destroys thread objects."""
+        worker = self._build_worker
+        if worker is not None and worker.isRunning():
+            worker.wait()
 
     def stop_simulation(self) -> None:
         """Stop the active clock without unloading the selected project."""
