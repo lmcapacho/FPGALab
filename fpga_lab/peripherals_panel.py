@@ -174,6 +174,7 @@ class WorkbenchView(QGraphicsView):
         self._delete_selected = delete_selected
         self._duplicate_selected = duplicate_selected
         self._zoom = 1.0
+        self._panning = False
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
@@ -187,7 +188,21 @@ class WorkbenchView(QGraphicsView):
 
     def mousePressEvent(self, event):
         self.setFocus()
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
+            self._panning = True
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
         super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        if self._panning and event.button() == Qt.MouseButton.LeftButton:
+            self._panning = False
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def wheelEvent(self, event):
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
@@ -402,7 +417,7 @@ class PeripheralsPanel(QWidget):
         self._add_button.setText(t("Add"))
         self._add_button.setToolTip(t("Add a peripheral"))
         self._workbench_hint.setText(t("Virtual workbench"))
-        self._workbench_hint.setToolTip(t("Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms."))
+        self._workbench_hint.setToolTip(t("Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms. Ctrl+drag pans."))
         self._zoom_out_button.setToolTip(t("Zoom out"))
         self._zoom_reset_button.setToolTip(t("Reset zoom"))
         self._zoom_in_button.setToolTip(t("Zoom in"))

@@ -126,6 +126,7 @@
   "Virtual workbench · drag a part; double-click to configure or delete": "Mesa virtual · arrastre una pieza; doble clic para configurar o eliminar",
   "Virtual workbench": "Mesa virtual",
   "Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms.": "Arrastre una pieza. Doble clic para configurar. Ctrl+D duplica la pieza seleccionada. Ctrl+rueda acerca o aleja.",
+  "Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms. Ctrl+drag pans.": "Arrastre una pieza. Doble clic para configurar. Ctrl+D duplica la pieza seleccionada. Ctrl+rueda acerca o aleja. Ctrl+arrastrar desplaza el lienzo.",
   "Zoom in": "Acercar",
   "Zoom out": "Alejar",
   "Reset zoom": "Restablecer zoom",
