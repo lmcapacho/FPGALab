@@ -168,7 +168,8 @@ class FPGAVirtualLab(QWidget):
             return
         port, bit = self._input_sources.get(name, (name, 0))
         if port not in self._available_inputs:
-            self._show_failure(t("{name}: not connected by the current HDL", name=name))
+            # Physical controls remain available even when the current HDL
+            # does not constrain or read them, exactly as on a real board.
             return
         values = [final_value, 1 - final_value, final_value]
         for index, value in enumerate(values):
