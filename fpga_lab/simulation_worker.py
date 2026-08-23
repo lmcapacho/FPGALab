@@ -28,7 +28,7 @@ class SimulationWorker(QObject):
     ):
         super().__init__()
         if clock_hz <= 0 or ui_refresh_hz <= 0 or observation_hz <= 0:
-            raise ValueError(t("clock_hz, ui_refresh_hz, and observation_hz must be positive.", "clock_hz, ui_refresh_hz y observation_hz deben ser positivos."))
+            raise ValueError(t("clock_hz, ui_refresh_hz, and observation_hz must be positive."))
         self._simulation = simulation
         self._clock_hz = clock_hz
         self._ui_refresh_hz = ui_refresh_hz

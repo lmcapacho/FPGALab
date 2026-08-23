@@ -97,7 +97,7 @@ class VerilatorBuildCache:
                 cached = self.lookup(fingerprint, top_module)
                 if cached:
                     return cached
-                raise RuntimeError(t("Incomplete cache: {path}", "Caché incompleta: {path}", path=final))
+                raise RuntimeError(t("Incomplete cache: {path}", path=final))
             manifest = {
                 "format": _CACHE_FORMAT,
                 "fingerprint": fingerprint,

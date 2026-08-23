@@ -60,12 +60,10 @@ class VerilatorToolchain:
         if sys.platform == "win32":
             raise ToolchainPrerequisiteError(t(
                 "Verilator was found, but Windows needs MSYS2 build tools: {tools}. Install MSYS2, then install make, Python, and a MinGW-w64 C++ compiler.",
-                "Se encontró Verilator, pero Windows necesita las herramientas de compilación de MSYS2: {tools}. Instale MSYS2 y luego make, Python y un compilador C++ MinGW-w64.",
                 tools=", ".join(missing),
             ))
         raise ToolchainPrerequisiteError(t(
             "Verilator was found, but the required build tools are missing: {tools}.",
-            "Se encontró Verilator, pero faltan las herramientas de compilación requeridas: {tools}.",
             tools=", ".join(missing),
         ))
 
@@ -95,7 +93,7 @@ def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
         if toolchain is not None:
             return toolchain
         raise ToolchainNotFoundError(
-            t("Configured Verilator executable was not found: {path}", "No se encontró el ejecutable Verilator configurado: {path}", path=configured)
+            t("Configured Verilator executable was not found: {path}", path=configured)
         )
 
     for root in _apio_suite_roots():
@@ -109,7 +107,6 @@ def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
 
     raise ToolchainNotFoundError(t(
         "Verilator was not found. Install Icestudio/Apio, configure FPGALAB_OSS_CAD_SUITE, or install Verilator on PATH.",
-        "No se encontró Verilator. Instale Icestudio/Apio, configure FPGALAB_OSS_CAD_SUITE o instale Verilator en PATH.",
     ))
 
 

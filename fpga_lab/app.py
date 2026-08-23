@@ -136,7 +136,7 @@ class ApplicationController:
 
     def execute_project(self, ice_file: Path) -> None:
         if self._build_worker is not None:
-            self._window.set_status(t("A build is already in progress.", "Ya hay una compilación en curso."))
+            self._window.set_status(t("A build is already in progress."))
             return
         try:
             project = IcestudioProject.discover(ice_file)
@@ -146,15 +146,14 @@ class ApplicationController:
             led_sources, input_sources = board_sources(project, profile)
             lab_file = self._window.selected_lab()
         except (IcestudioProjectError, ValueError, OSError) as error:
-            QMessageBox.critical(self._window, t("Cannot load design", "No se puede cargar el diseño"), str(error))
+            QMessageBox.critical(self._window, t("Cannot load design"), str(error))
             return
 
         self._window.set_status(
-            t("Preparing {name}: analyzing HDL and looking for a cached build…", "Preparando {name}: analizando HDL y buscando compilación en caché…", name=project.ice_file.name)
+            t("Preparing {name}: analyzing HDL and looking for a cached build…", name=project.ice_file.name)
         )
         self._window.show_busy(t(
             "Preparing {name}. FPGALab is checking the cache and may compile the HDL model.",
-            "Preparando {name}. FPGALab está revisando la caché y puede compilar el modelo HDL.",
             name=project.ice_file.name,
         ))
         self._pending_run = PendingProjectRun(project, profile, interface.module_name, lab_file, led_sources, input_sources)
@@ -191,16 +190,16 @@ class ApplicationController:
         self._window.set_simulation_running(pending.profile.clock_name is not None)
         self._window.set_project_path(pending.project.ice_file)
         self._window.remember_project(pending.project.ice_file)
-        source = t("cache", "caché") if artifact.reused else t("new build", "compilación nueva")
-        run_state = t("simulation started", "simulación iniciada") if pending.profile.clock_name is not None else t("combinational logic ready", "lógica combinacional lista")
-        self._window.set_status(t("{name}: {state} ({source}, module {module}).", "{name}: {state} ({source}, módulo {module}).", name=pending.project.ice_file.name, state=run_state, source=source, module=pending.module_name))
+        source = t("cache") if artifact.reused else t("new build")
+        run_state = t("simulation started") if pending.profile.clock_name is not None else t("combinational logic ready")
+        self._window.set_status(t("{name}: {state} ({source}, module {module}).", name=pending.project.ice_file.name, state=run_state, source=source, module=pending.module_name))
         self._pending_run = None
 
     def _build_failed(self, error: str) -> None:
         self._window.dismiss_busy()
         self._window.set_simulation_running(False)
-        QMessageBox.critical(self._window, t("Build error", "Error de compilación"), error)
-        self._window.set_status(t("Build did not complete.", "La compilación no terminó."))
+        QMessageBox.critical(self._window, t("Build error"), error)
+        self._window.set_status(t("Build did not complete."))
         self._pending_run = None
 
     def _dispose_build_worker(self) -> None:
@@ -215,14 +214,14 @@ class ApplicationController:
         if isinstance(active_lab, FPGAVirtualLab):
             active_lab.stop_simulation()
         self._window.set_simulation_running(False)
-        self._window.set_status(t("Simulation stopped.", "Simulación detenida."))
+        self._window.set_status(t("Simulation stopped."))
 
     def load_advanced_library(self, library: Path) -> None:
         profile = self._manual_profile or BoardProfile.load(bundled_profile())
         try:
             simulation = VerilatorSimulation(library, profile)
         except Exception as error:
-            QMessageBox.critical(self._window, t("Cannot open library", "No se puede abrir la biblioteca"), str(error))
+            QMessageBox.critical(self._window, t("Cannot open library"), str(error))
             return
         self._window.set_lab(FPGAVirtualLab(
             simulation,
@@ -231,7 +230,7 @@ class ApplicationController:
             self._namespace.observation_hz,
         ))
         self._window.set_simulation_running(False)
-        self._window.set_status(t("Advanced library loaded. Select an .ice file to change design.", "Biblioteca avanzada cargada. Seleccione un .ice para cambiar de diseño."))
+        self._window.set_status(t("Advanced library loaded. Select an .ice file to change design."))
 
 
 def main() -> None:

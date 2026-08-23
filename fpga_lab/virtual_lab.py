@@ -50,7 +50,7 @@ class FPGAVirtualLab(QWidget):
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle(t("FPGALab · Virtual FPGA Lab", "FPGALab · Laboratorio Virtual"))
+        self.setWindowTitle(t("FPGALab · Virtual FPGA Lab"))
         self.setMinimumSize(800, 520)
         self.setStyleSheet(_QSS)
         self._bounce_timers: list[QTimer] = []
@@ -97,11 +97,15 @@ class FPGAVirtualLab(QWidget):
         board_header = QHBoxLayout()
         self._board_title = QLabel()
         self._board_title.setStyleSheet("font-size: 20px; font-weight: 800; color:#bbf7d0;")
+        self._connections_button = QPushButton("🔌")
+        self._connections_button.setFixedSize(30, 28)
+        self._connections_button.clicked.connect(lambda: self._peripherals.open_connections())
         self._edit_layout_button = QPushButton("⚙")
         self._edit_layout_button.setFixedSize(30, 28)
         self._edit_layout_button.clicked.connect(self._open_layout_editor)
         board_header.addWidget(self._board_title)
         board_header.addStretch()
+        board_header.addWidget(self._connections_button)
         board_header.addWidget(self._edit_layout_button)
         board_layout.addLayout(board_header)
         self._board_view = BoardView(self._layout, self._bouncy_input)
@@ -125,9 +129,10 @@ class FPGAVirtualLab(QWidget):
         self._retranslate_ui()
 
     def _retranslate_ui(self) -> None:
-        self.setWindowTitle(t("FPGALab · Virtual FPGA Lab", "FPGALab · Laboratorio Virtual"))
-        self._board_title.setText(f"{self._board_name.upper()} · {t('VIRTUAL FPGA', 'FPGA VIRTUAL')}")
-        self._edit_layout_button.setToolTip(t("Edit board layout", "Editar layout de la placa"))
+        self.setWindowTitle(t("FPGALab · Virtual FPGA Lab"))
+        self._board_title.setText(f"{self._board_name.upper()} · {t('VIRTUAL FPGA')}")
+        self._edit_layout_button.setToolTip(t("Edit board layout"))
+        self._connections_button.setToolTip(t("View physical and HDL connections"))
 
     def stop_simulation(self) -> None:
         """Stop a clocked simulation from the main project toolbar."""
@@ -142,19 +147,19 @@ class FPGAVirtualLab(QWidget):
     def _play(self) -> None:
         self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
-        self.status_changed.emit(t("Simulation running.", "Simulación ejecutando."))
+        self.status_changed.emit(t("Simulation running."))
         self._peripherals.set_editable(False)
 
     def _pause(self) -> None:
         self.pause_requested.emit()
         self._board_view.set_led_brightness("PWR", 0.0)
-        self.status_changed.emit(t("Simulation stopped.", "Simulación detenida."))
+        self.status_changed.emit(t("Simulation stopped."))
         self._peripherals.set_editable(True)
 
     def _open_layout_editor(self) -> None:
         editor = BoardLayoutEditor(BoardLayout.load(bundled_layout()), self)
         if editor.exec():
-            self.setWindowTitle(t("FPGALab · layout saved; restart the view to reload it", "FPGALab · layout guardado; reinicie la vista para recargarlo"))
+            self.setWindowTitle(t("FPGALab · layout saved; restart the view to reload it"))
 
     def _bouncy_input(self, name: str, final_value: int) -> None:
         """Three quick transitions make button bounce perceptible and configurable."""
@@ -163,7 +168,7 @@ class FPGAVirtualLab(QWidget):
             return
         port, bit = self._input_sources.get(name, (name, 0))
         if port not in self._available_inputs:
-            self._show_failure(t("{name}: not connected by the current HDL", "{name}: no está conectado en el HDL actual", name=name))
+            self._show_failure(t("{name}: not connected by the current HDL", name=name))
             return
         values = [final_value, 1 - final_value, final_value]
         for index, value in enumerate(values):
@@ -186,15 +191,15 @@ class FPGAVirtualLab(QWidget):
         self._peripherals.update_outputs(outputs)
 
     def _show_failure(self, error: str) -> None:
-        self.setWindowTitle(t("FPGALab · simulation stopped: {error}", "FPGALab · simulación detenida: {error}", error=error))
-        self.status_changed.emit(t("Simulation error: {error}", "Error de simulación: {error}", error=error))
+        self.setWindowTitle(t("FPGALab · simulation stopped: {error}", error=error))
+        self.status_changed.emit(t("Simulation error: {error}", error=error))
 
     def closeEvent(self, event) -> None:
         if self._thread is not None and self._thread.isRunning():
             QMetaObject.invokeMethod(self._worker, "shutdown", Qt.ConnectionType.BlockingQueuedConnection)
             self._thread.quit()
             if not self._thread.wait(3000):
-                self._show_failure(t("waiting for safe simulation shutdown", "esperando el cierre seguro de la simulación"))
+                self._show_failure(t("waiting for safe simulation shutdown"))
                 event.ignore()
                 return
         event.accept()

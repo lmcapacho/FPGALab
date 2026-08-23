@@ -45,7 +45,7 @@ class BoardLayout:
         )
         view_box = tuple(float(value) for value in raw["viewBox"])
         if len(view_box) != 4:
-            raise ValueError(t("viewBox must have four values.", "viewBox debe tener cuatro valores."))
+            raise ValueError(t("viewBox must have four values."))
         layout = cls(
             raw["board_id"],
             source,
@@ -61,13 +61,13 @@ class BoardLayout:
         if not self.svg.is_file():
             raise FileNotFoundError(self.svg)
         if self.orientation not in {"horizontal", "vertical"}:
-            raise ValueError(t("Board orientation must be horizontal or vertical.", "La orientación de la placa debe ser horizontal o vertical."))
+            raise ValueError(t("Board orientation must be horizontal or vertical."))
         ids = [element.id for element in self.elements]
         if len(ids) != len(set(ids)):
-            raise ValueError(t("Board layout contains duplicate identifiers.", "Hay identificadores repetidos en el layout de placa."))
+            raise ValueError(t("Board layout contains duplicate identifiers."))
         for element in self.elements:
             if element.kind not in {"led", "button"}:
-                raise ValueError(t("Unsupported component type: {kind}", "Tipo de componente no soportado: {kind}", kind=element.kind))
+                raise ValueError(t("Unsupported component type: {kind}", kind=element.kind))
             if element.width <= 0 or element.height <= 0:
                 raise ValueError(f"Invalid size for {element.id}")
 

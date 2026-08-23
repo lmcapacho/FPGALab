@@ -53,7 +53,7 @@ class BoardLayoutEditor(QDialog):
     def __init__(self, layout: BoardLayout, parent=None):
         super().__init__(parent)
         self._layout = layout
-        self.setWindowTitle(t("Edit layout · {board}", "Editar layout · {board}", board=layout.board_id))
+        self.setWindowTitle(t("Edit layout · {board}", board=layout.board_id))
         self.setWindowFlag(Qt.WindowType.Window, True)
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setMinimumSize(900, 600)
@@ -83,8 +83,8 @@ class BoardLayoutEditor(QDialog):
         side_frame = QFrame()
         side_frame.setFixedWidth(280)
         side = QVBoxLayout(side_frame)
-        side.addWidget(QLabel(t("Layout editor", "Editor de layout")))
-        instructions = QLabel(t("Drag for larger moves. Arrows: 0.25 units. Shift+arrows: 2 units.", "Arrastre: recorrido grande. Flechas: 0.25 unidades. Mayús+flechas: 2 unidades."))
+        side.addWidget(QLabel(t("Layout editor")))
+        instructions = QLabel(t("Drag for larger moves. Arrows: 0.25 units. Shift+arrows: 2 units."))
         instructions.setWordWrap(True)
         side.addWidget(instructions)
         form = QFormLayout()
@@ -93,9 +93,9 @@ class BoardLayoutEditor(QDialog):
         self._signal = QLabel("—")
         self._position = QLabel("—")
         form.addRow("Id", self._id)
-        form.addRow(t("Type", "Tipo"), self._kind)
-        form.addRow(t("Signal", "Señal"), self._signal)
-        form.addRow(t("Position", "Posición"), self._position)
+        form.addRow(t("Type"), self._kind)
+        form.addRow(t("Signal"), self._signal)
+        form.addRow(t("Position"), self._position)
         side.addLayout(form)
         add_led = QPushButton("+ LED")
         add_led.clicked.connect(lambda: self._add_component("led"))
@@ -103,16 +103,16 @@ class BoardLayoutEditor(QDialog):
         add_switch = QPushButton("+ Switch")
         add_switch.clicked.connect(lambda: self._add_component("button"))
         side.addWidget(add_switch)
-        color = QPushButton(t("Change color", "Cambiar color"))
+        color = QPushButton(t("Change color"))
         color.clicked.connect(self._change_color)
         side.addWidget(color)
-        delete = QPushButton(t("Delete selected", "Eliminar seleccionado"))
+        delete = QPushButton(t("Delete selected"))
         delete.clicked.connect(self._delete_selected)
         side.addWidget(delete)
-        fit = QPushButton(t("Fit canvas", "Ajustar al lienzo"))
+        fit = QPushButton(t("Fit canvas"))
         fit.clicked.connect(self.fit_to_canvas)
         side.addWidget(fit)
-        save = QPushButton(t("Save JSON", "Guardar JSON"))
+        save = QPushButton(t("Save JSON"))
         save.clicked.connect(self.save)
         side.addWidget(save)
         side.addStretch()
@@ -143,9 +143,9 @@ class BoardLayoutEditor(QDialog):
 
     def _add_component(self, kind: str) -> None:
         prefix = "LED" if kind == "led" else "SW"
-        element_id, ok = QInputDialog.getText(self, t("New component", "Nuevo componente"), t("Identifier", "Identificador"), text=f"{prefix}{len(self._elements)}")
+        element_id, ok = QInputDialog.getText(self, t("New component"), t("Identifier"), text=f"{prefix}{len(self._elements)}")
         if not ok or not element_id or element_id in self._elements: return
-        signal, ok = QInputDialog.getText(self, t("New component", "Nuevo componente"), t("HDL signal", "Señal HDL"), text=element_id)
+        signal, ok = QInputDialog.getText(self, t("New component"), t("HDL signal"), text=element_id)
         if not ok or not signal: return
         width, height = (4.2, 1.8) if kind == "led" else (14.0, 5.6)
         element = BoardLayoutElement(element_id, kind, signal, self._layout.view_box[2] / 2 - width / 2, self._layout.view_box[3] / 2 - height / 2, width, height, "#b6ff00")
@@ -161,7 +161,7 @@ class BoardLayoutEditor(QDialog):
         selected = self._scene.selectedItems()
         if not selected: return
         item = selected[0]; element = self._elements[item.element_id]
-        color = QColorDialog.getColor(QColor(element.color), self, t("Component color", "Color del componente"))
+        color = QColorDialog.getColor(QColor(element.color), self, t("Component color"))
         if color.isValid():
             self._elements[element.id] = BoardLayoutElement(element.id, element.kind, element.signal, element.x, element.y, element.width, element.height, color.name())
 

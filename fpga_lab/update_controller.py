@@ -38,7 +38,7 @@ class UpdateController:
     def _start(self, *, manual: bool) -> None:
         if self._worker is not None:
             if manual:
-                self._parent.set_status(t("An update check is already running.", "Ya hay una comprobación de actualización en curso."))
+                self._parent.set_status(t("An update check is already running."))
             return
         self._manual_check = manual
         self._worker = UpdateCheckWorker(self._parent)
@@ -46,7 +46,7 @@ class UpdateController:
         self._worker.finished.connect(self._clear_worker)
         self._worker.start()
         if manual:
-            self._parent.set_status(t("Checking for updates…", "Buscando actualizaciones…"))
+            self._parent.set_status(t("Checking for updates…"))
 
     def _clear_worker(self) -> None:
         worker = self._worker
@@ -60,26 +60,24 @@ class UpdateController:
             if manual:
                 QMessageBox.warning(
                     self._parent,
-                    t("Update check failed", "No se pudo buscar actualizaciones"),
-                    t("Could not check for updates: {error}", "No se pudo buscar actualizaciones: {error}", error=result.get("error", "unknown error")),
+                    t("Update check failed"),
+                    t("Could not check for updates: {error}", error=result.get("error", "unknown error")),
                 )
             return
         if not result.get("update_available"):
             if manual:
                 message = t(
                     "FPGALab is up to date ({version}).",
-                    "FPGALab está actualizado ({version}).",
                     version=result["current_version"],
                 )
                 self._parent.set_status(message)
-                QMessageBox.information(self._parent, t("No update available", "No hay actualización disponible"), message)
+                QMessageBox.information(self._parent, t("No update available"), message)
             return
         answer = QMessageBox.question(
             self._parent,
-            t("Update available", "Actualización disponible"),
+            t("Update available"),
             t(
                 "FPGALab {latest} is available (installed: {current}).\n\nOpen the release page?",
-                "FPGALab {latest} está disponible (instalado: {current}).\n\n¿Abrir la página de la versión?",
                 latest=result["latest_version"],
                 current=result["current_version"],
             ),

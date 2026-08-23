@@ -86,6 +86,7 @@ class FPGALabMainWindow(QMainWindow):
         self._status_bar.addPermanentWidget(self._stop_button)
         language_manager.language_changed.connect(self._retranslate_ui)
         self._retranslate_ui()
+        self._restore_last_project()
 
     def _project_bar(self) -> QWidget:
         frame = QFrame()
@@ -111,8 +112,8 @@ class FPGALabMainWindow(QMainWindow):
         self._new_lab_button.setFixedWidth(30)
         self._new_lab_button.clicked.connect(self._create_lab)
         self._language = QComboBox()
-        self._language.addItem("EN", "en")
-        self._language.addItem("ES", "es")
+        for language in language_manager.languages:
+            self._language.addItem(language.upper(), language)
         self._language.setCurrentIndex(self._language.findData(language_manager.language))
         self._language.currentIndexChanged.connect(self._choose_language)
         self._language.setFixedWidth(58)
@@ -128,20 +129,20 @@ class FPGALabMainWindow(QMainWindow):
         return frame
 
     def _retranslate_ui(self) -> None:
-        self.setWindowTitle(t("FPGALab · Virtual FPGA Lab", "FPGALab · Laboratorio Virtual"))
-        self._project_label.setText(t("Project", "Proyecto"))
-        self._path.setPlaceholderText(t("Select an .ice file", "Seleccione un archivo .ice"))
-        self._browse_button.setText(t("Browse…", "Buscar…"))
-        self._browse_button.setToolTip(t("Browse for an Icestudio design", "Buscar un diseño de Icestudio"))
-        self._lab_label.setText(t("Lab", "Laboratorio"))
-        self._new_lab_button.setToolTip(t("Create a new lab", "Crear un laboratorio nuevo"))
-        self._language.setToolTip(t("Interface language", "Idioma de la interfaz"))
-        self._update_button.setToolTip(t("Check for updates", "Buscar actualizaciones"))
-        self._run_button.setToolTip(t("Run selected project", "Ejecutar proyecto seleccionado"))
-        self._stop_button.setToolTip(t("Stop simulation", "Detener simulación"))
-        self._placeholder.setText(t("Select an Icestudio design (.ice) to start.", "Seleccione un diseño Icestudio (.ice) para iniciar."))
+        self.setWindowTitle(t("FPGALab · Virtual FPGA Lab"))
+        self._project_label.setText(t("Project"))
+        self._path.setPlaceholderText(t("Select an .ice file"))
+        self._browse_button.setText(t("Browse…"))
+        self._browse_button.setToolTip(t("Browse for an Icestudio design"))
+        self._lab_label.setText(t("Lab"))
+        self._new_lab_button.setToolTip(t("Create a new lab"))
+        self._language.setToolTip(t("Interface language"))
+        self._update_button.setToolTip(t("Check for updates"))
+        self._run_button.setToolTip(t("Run selected project"))
+        self._stop_button.setToolTip(t("Stop simulation"))
+        self._placeholder.setText(t("Select an Icestudio design (.ice) to start."))
         if not self._status_bar.currentMessage():
-            self._status_bar.showMessage(t("Select a design to start.", "Seleccione un diseño para iniciar."))
+            self._status_bar.showMessage(t("Select a design to start."))
         self._refresh_recent()
 
     def _choose_language(self, index: int) -> None:
@@ -156,7 +157,7 @@ class FPGALabMainWindow(QMainWindow):
         for descriptor in self._workspace.labs():
             display_name = descriptor.name
             if descriptor.path.name == "my-first-lab.lab.json":
-                display_name = t("My first lab", "Mi primer laboratorio")
+                display_name = t("My first lab")
             self._labs.addItem(display_name, descriptor.path)
         index = self._labs.findData(current)
         self._labs.setCurrentIndex(max(0, index))
@@ -171,16 +172,16 @@ class FPGALabMainWindow(QMainWindow):
         if path:
             self._selected_lab = Path(path)
             self._update_lab_tooltip()
-            self.set_status(t("Selected lab: {name}", "Laboratorio seleccionado: {name}", name=self._labs.currentText()))
+            self.set_status(t("Selected lab: {name}", name=self._labs.currentText()))
 
     def _create_lab(self) -> None:
-        name, accepted = QInputDialog.getText(self, t("New lab", "Nuevo laboratorio"), t("Lab name:", "Nombre del laboratorio:"))
+        name, accepted = QInputDialog.getText(self, t("New lab"), t("Lab name:"))
         if not accepted:
             return
         descriptor = self._workspace.create(name)
         self._selected_lab = descriptor.path
         self._refresh_labs()
-        self.set_status(t("Lab created: {name}", "Laboratorio creado: {name}", name=descriptor.name))
+        self.set_status(t("Lab created: {name}", name=descriptor.name))
 
     def selected_lab(self) -> Path:
         return self._selected_lab
@@ -192,14 +193,20 @@ class FPGALabMainWindow(QMainWindow):
     def _refresh_recent(self) -> None:
         self._recent.blockSignals(True)
         self._recent.clear()
-        self._recent.addItem(t("Recent projects", "Proyectos recientes"), None)
+        self._recent.addItem(t("Recent projects"), None)
         for path in self._recent_projects.paths():
             self._recent.addItem(path.name, path)
         self._recent.blockSignals(False)
 
+    def _restore_last_project(self) -> None:
+        """Prefill the previous valid design; the user still explicitly runs it."""
+        if path := self._recent_projects.last_path():
+            self._path.setText(str(path))
+            self.set_status(t("Last project restored. Ready to run."))
+
     def _browse(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(
-            self, t("Select Icestudio design", "Seleccionar diseño Icestudio"), "", t("Icestudio designs (*.ice)", "Diseños Icestudio (*.ice)")
+            self, t("Select Icestudio design"), "", t("Icestudio designs (*.ice)")
         )
         if filename:
             self.set_project_path(Path(filename))
@@ -212,7 +219,7 @@ class FPGALabMainWindow(QMainWindow):
     def _request_project(self) -> None:
         path = self.selected_project()
         if path is None:
-            QMessageBox.information(self, t("Icestudio project", "Proyecto Icestudio"), t("Select an .ice file first.", "Seleccione un archivo .ice primero."))
+            QMessageBox.information(self, t("Icestudio project"), t("Select an .ice file first."))
             return
         self.project_requested.emit(path)
 
@@ -238,7 +245,7 @@ class FPGALabMainWindow(QMainWindow):
         self._path.setText(str(resolved))
         self._recent_projects.add(resolved)
         self._refresh_recent()
-        self.set_status(t("Ready to run. The cache will be reused if the design is unchanged.", "Listo para ejecutar. Se reutilizará la caché si el diseño no cambió."))
+        self.set_status(t("Ready to run. The cache will be reused if the design is unchanged."))
 
     def set_status(self, message: str) -> None:
         self._status_bar.showMessage(message)

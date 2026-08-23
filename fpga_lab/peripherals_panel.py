@@ -5,11 +5,11 @@ from pathlib import Path
 from PyQt6.QtCore import QPointF, Qt, pyqtSignal
 import re
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
-from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from .board import BoardDefinition
 from .constraints import PcfParser
 from .i18n import language_manager, t
-from .wiring import PERIPHERAL_LABELS, PERIPHERAL_LABELS_ES, PERIPHERAL_TERMINALS, PeripheralInstance, VirtualLabProject
+from .wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS, PeripheralInstance, VirtualLabProject
 
 
 TRAFFIC_LIGHT_DEFAULT_COLORS = {"red": "#ef4444", "yellow": "#facc15", "green": "#22c55e"}
@@ -43,7 +43,7 @@ class PeripheralConfigDialog(QDialog):
 
     def __init__(self, peripheral, board, assigned_endpoints=None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(t("Configure · {identifier}", "Configurar · {identifier}", identifier=peripheral.peripheral_id))
+        self.setWindowTitle(t("Configure · {identifier}", identifier=peripheral.peripheral_id))
         self._board = board; self._assigned_endpoints = assigned_endpoints
         self._kind = peripheral.kind
         self._pickers = {}
@@ -58,9 +58,9 @@ class PeripheralConfigDialog(QDialog):
         layout = QVBoxLayout(self)
         form = QFormLayout()
         self.identifier = QLineEdit(peripheral.peripheral_id)
-        form.addRow(t("Identifier", "Identificador"), self.identifier)
+        form.addRow(t("Identifier"), self.identifier)
         for terminal, direction in PERIPHERAL_TERMINALS[peripheral.kind].items():
-            picker = QComboBox(); picker.addItem(t("— not connected —", "— sin conectar —"), "")
+            picker = QComboBox(); picker.addItem(t("— not connected —"), "")
             for pin in board.available_endpoints(direction):
                 if pin.location.startswith("header") and (self._assigned_endpoints is None or pin.id in self._assigned_endpoints):
                     picker.addItem(pin.id, pin.id)
@@ -69,11 +69,11 @@ class PeripheralConfigDialog(QDialog):
             form.addRow(terminal, picker); self._pickers[terminal] = picker
         self.common = QComboBox(); self.common.addItems(["cathode", "anode"])
         self.common.setCurrentText(str(peripheral.properties.get("common", "cathode")))
-        if peripheral.kind == "seven_segment": form.addRow(t("Common", "Común"), self.common)
+        if peripheral.kind == "seven_segment": form.addRow(t("Common"), self.common)
         self.color = QPushButton(self._color)
         self.color.clicked.connect(self._choose_color)
         if peripheral.kind == "led":
-            form.addRow(t("Color", "Color"), self.color)
+            form.addRow(t("Color"), self.color)
         elif peripheral.kind == "traffic_light":
             for terminal in ("red", "yellow", "green"):
                 button = QPushButton(self._traffic_colors[terminal])
@@ -82,9 +82,9 @@ class PeripheralConfigDialog(QDialog):
                 form.addRow(terminal.capitalize(), button)
         layout.addLayout(form)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save)
-        buttons.button(QDialogButtonBox.StandardButton.Save).setText(t("Save", "Guardar"))
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel", "Cancelar"))
-        delete = buttons.addButton(t("Delete", "Eliminar"), QDialogButtonBox.ButtonRole.DestructiveRole)
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText(t("Save"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
+        delete = buttons.addButton(t("Delete"), QDialogButtonBox.ButtonRole.DestructiveRole)
         delete.clicked.connect(self._request_delete)
         buttons.accepted.connect(self.accept); buttons.rejected.connect(self.reject); layout.addWidget(buttons)
 
@@ -112,6 +112,56 @@ class PeripheralConfigDialog(QDialog):
         if self._kind == "traffic_light":
             properties["colors"] = self._traffic_colors
         return {"id": self.identifier.text().strip(), "type": self._kind, "connections": connections, "properties": properties}
+
+
+class ConnectionDialog(QDialog):
+    """Explain virtual physical connections without requiring visible wires."""
+
+    def __init__(self, board: BoardDefinition, constraints, wires, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("Connections"))
+        self.resize(780, 460)
+        layout = QVBoxLayout(self)
+        description = QLabel(t("Board endpoints used by the PCF or an external peripheral."))
+        description.setWordWrap(True)
+        layout.addWidget(description)
+        table = QTableWidget(self)
+        table.setColumnCount(5)
+        table.setHorizontalHeaderLabels([
+            t("Board endpoint"),
+            t("FPGA pin"),
+            t("Direction"),
+            t("HDL net (PCF)"),
+            t("External peripheral"),
+        ])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        net_by_pin = {constraint.fpga_pin: constraint.net for constraint in constraints}
+        peripherals_by_endpoint: dict[str, list[str]] = {}
+        for wire in wires:
+            peripherals_by_endpoint.setdefault(wire.board_endpoint, []).append(f"{wire.peripheral_id}.{wire.terminal}")
+        rows = [
+            pin for pin in board.pins
+            if pin.fpga_pin in net_by_pin or pin.id in peripherals_by_endpoint
+        ]
+        table.setRowCount(len(rows))
+        for row, pin in enumerate(rows):
+            values = (
+                pin.id,
+                pin.fpga_pin,
+                pin.direction,
+                net_by_pin.get(pin.fpga_pin, t("— not mapped —")),
+                ", ".join(peripherals_by_endpoint.get(pin.id, ())) or t("— none —"),
+            )
+            for column, value in enumerate(values):
+                table.setItem(row, column, QTableWidgetItem(value))
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(table, 1)
+        close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        close.rejected.connect(self.reject)
+        close.accepted.connect(self.accept)
+        layout.addWidget(close)
 
 
 class WorkbenchView(QGraphicsView):
@@ -210,7 +260,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         else:
             state = self._pressed if kind == "button" else self._sensor_value
             painter.setPen(QColor("#f8fafc") if state else QColor("#94a3b8"))
-            label = (t("Button: 1", "Pulsador: 1") if state else t("Button: 0", "Pulsador: 0")) if kind == "button" else (t("Sensor: 1", "Sensor: 1") if state else t("Sensor: 0", "Sensor: 0"))
+            label = (t("Button: 1") if state else t("Button: 0")) if kind == "button" else (t("Sensor: 1") if state else t("Sensor: 0"))
             painter.drawText(self.rect().adjusted(10, 29, -8, -8), Qt.AlignmentFlag.AlignCenter, label)
 
     def _draw_display(self, painter):
@@ -253,7 +303,7 @@ class PeripheralsPanel(QWidget):
         self._assigned_endpoints = None  # The entire board is available; the design PCF is optional.
         layout = QVBoxLayout(self); self._catalog_title = QLabel(); layout.addWidget(self._catalog_title)
         catalog = QHBoxLayout(); self.kind = QComboBox()
-        for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(t(label, PERIPHERAL_LABELS_ES[key]), key)
+        for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(t(label), key)
         self._add_button = QPushButton(); self._add_button.clicked.connect(self._add)
         catalog.addWidget(self.kind); catalog.addWidget(self._add_button); layout.addLayout(catalog)
         self.status = QLabel(); layout.addWidget(self.status)
@@ -267,13 +317,13 @@ class PeripheralsPanel(QWidget):
         language_manager.language_changed.connect(self._retranslate_ui)
         self._retranslate_ui()
     def _retranslate_ui(self) -> None:
-        self._catalog_title.setText(t("Peripheral catalog", "Catálogo de periféricos"))
+        self._catalog_title.setText(t("Peripheral catalog"))
         for index in range(self.kind.count()):
             key = self.kind.itemData(index)
-            self.kind.setItemText(index, t(PERIPHERAL_LABELS[key], PERIPHERAL_LABELS_ES[key]))
-        self._add_button.setText(t("＋ Add", "＋ Agregar"))
-        self.status.setText(t("Select a type and configure the part when creating it.", "Seleccione un tipo y configure la pieza al crearla."))
-        self._workbench_hint.setText(t("Virtual workbench · drag a part; double-click to configure or delete", "Mesa virtual · arrastre una pieza; doble clic para configurar o eliminar"))
+            self.kind.setItemText(index, t(PERIPHERAL_LABELS[key]))
+        self._add_button.setText(t("＋ Add"))
+        self.status.setText(t("Select a type and configure the part when creating it."))
+        self._workbench_hint.setText(t("Virtual workbench · drag a part; double-click to configure or delete"))
         self._update_connection_status()
         for item in self._workbench_scene.items():
             item.update()
@@ -285,6 +335,7 @@ class PeripheralsPanel(QWidget):
     def _reload(self):
         project = VirtualLabProject.load(self._lab)
         wires = project.resolve(self._board, self._constraints())
+        self._resolved_wires = wires
         self._connection_counts = (len(wires), sum(wire.hdl_net is not None for wire in wires))
         self._workbench_scene.clear(); self._workbench_bindings = {}
         for index, peripheral in enumerate(project.peripherals):
@@ -302,19 +353,17 @@ class PeripheralsPanel(QWidget):
         """Summarize physical terminals and the subset currently present in HDL."""
         total, mapped = getattr(self, "_connection_counts", (0, 0))
         if total == 0:
-            self._connection_status.setText(t("Connection status: no peripheral terminals configured.", "Estado de conexiones: no hay terminales de periféricos configurados."))
+            self._connection_status.setText(t("Connection status: no peripheral terminals configured."))
             return
         unmapped = total - mapped
         if unmapped == 0:
             self._connection_status.setText(t(
                 "Connection status: all {total} terminal(s) are mapped by the current PCF.",
-                "Estado de conexiones: los {total} terminal(es) están mapeados por el PCF actual.",
                 total=total,
             ))
             return
         self._connection_status.setText(t(
             "Connection status: {mapped}/{total} terminal(s) mapped; {unmapped} physically connected but unused by this HDL.",
-            "Estado de conexiones: {mapped}/{total} terminal(es) mapeados; {unmapped} conectados físicamente pero sin uso en este HDL.",
             mapped=mapped,
             total=total,
             unmapped=unmapped,
@@ -326,12 +375,16 @@ class PeripheralsPanel(QWidget):
         for item in self._workbench_scene.items():
             if isinstance(item, WorkbenchPeripheralItem): item.set_editable(enabled)
 
+    def open_connections(self) -> None:
+        """Show PCF and peripheral mappings in a compact, inspectable table."""
+        ConnectionDialog(self._board, self._constraints(), self._resolved_wires, self).exec()
+
     def _drive_input(self, peripheral_id, terminal, value):
         binding = self._workbench_bindings.get((peripheral_id, terminal))
         net = binding[1] if binding else None
         match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]", net or "")
         if not match or match.group(1) not in self._input_widths:
-            self.status.setText(t("{identifier}: physically connected; the current HDL does not read this pin.", "{identifier}: conectado físicamente; el HDL actual no lee este pin.", identifier=peripheral_id))
+            self.status.setText(t("{identifier}: physically connected; the current HDL does not read this pin.", identifier=peripheral_id))
             return
         port, bit = match.group(1), int(match.group(2))
         if bit >= self._input_widths[port]: return
@@ -361,7 +414,7 @@ class PeripheralsPanel(QWidget):
     def _show_configuration_error(self, message: str) -> None:
         """Keep validation failures visible instead of hiding them below the catalog."""
         self.status.setText(message)
-        QMessageBox.warning(self, t("Peripheral configuration", "Configuración del periférico"), message)
+        QMessageBox.warning(self, t("Peripheral configuration"), message)
 
     def _configure(self, peripheral):
         dialog = PeripheralConfigDialog(peripheral, self._board, self._assigned_endpoints, self)
@@ -370,26 +423,26 @@ class PeripheralsPanel(QWidget):
         if result != QDialog.DialogCode.Accepted: return
         value = dialog.value()
         if not value["id"] or len(value["connections"]) != len(PERIPHERAL_TERMINALS[peripheral.kind]):
-            self._show_configuration_error(t("Complete the identifier and every terminal.", "Complete el identificador y todos los terminales."))
+            self._show_configuration_error(t("Complete the identifier and every terminal."))
             return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         ids = [item["id"] for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
         if value["id"] in ids:
-            self._show_configuration_error(t("A peripheral with that identifier already exists.", "Ya existe un periférico con ese identificador."))
+            self._show_configuration_error(t("A peripheral with that identifier already exists."))
             return
         for index, item in enumerate(raw.get("peripherals", [])):
             if item["id"] == peripheral.peripheral_id:
                 dialog_properties = dict(value["properties"]); dialog_properties.pop("position", None)
                 value["properties"] = {**item.get("properties", {}), **dialog_properties}
                 raw["peripherals"][index] = value; break
-        self._commit(raw, t("{identifier} updated", "{identifier} actualizado", identifier=value["id"]))
+        self._commit(raw, t("{identifier} updated", identifier=value["id"]))
 
     def _delete(self, peripheral):
-        answer = QMessageBox.question(self, t("Delete peripheral", "Eliminar periférico"), t("Delete {identifier}?", "¿Eliminar {identifier}?", identifier=peripheral.peripheral_id))
+        answer = QMessageBox.question(self, t("Delete peripheral"), t("Delete {identifier}?", identifier=peripheral.peripheral_id))
         if answer != QMessageBox.StandardButton.Yes: return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         raw["peripherals"] = [item for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
-        self._commit(raw, t("{identifier} deleted", "{identifier} eliminado", identifier=peripheral.peripheral_id))
+        self._commit(raw, t("{identifier} deleted", identifier=peripheral.peripheral_id))
 
     def update_outputs(self, outputs: dict[str, int]) -> None:
         """Paint output peripherals from their actual HDL net resolved by the PCF."""
@@ -413,10 +466,10 @@ class PeripheralsPanel(QWidget):
         if dialog.exec() != QDialog.DialogCode.Accepted: return
         value = dialog.value()
         if not value["id"] or len(value["connections"]) != len(PERIPHERAL_TERMINALS[kind]):
-            self._show_configuration_error(t("Complete the identifier and every terminal.", "Complete el identificador y todos los terminales."))
+            self._show_configuration_error(t("Complete the identifier and every terminal."))
             return
         if value["id"] in existing:
-            self._show_configuration_error(t("A peripheral with that identifier already exists.", "Ya existe un periférico con ese identificador."))
+            self._show_configuration_error(t("A peripheral with that identifier already exists."))
             return
         raw.setdefault("peripherals", []).append(value)
-        self._commit(raw, t("{identifier} added", "{identifier} agregado", identifier=value["id"]))
+        self._commit(raw, t("{identifier} added", identifier=value["id"]))

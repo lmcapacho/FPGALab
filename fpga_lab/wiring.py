@@ -20,12 +20,6 @@ PERIPHERAL_LABELS = {
     "led": "LED", "traffic_light": "Traffic light", "seven_segment": "Seven-segment display",
     "button": "Push button", "sensor": "Digital sensor",
 }
-PERIPHERAL_LABELS_ES = {
-    "led": "LED", "traffic_light": "Semáforo", "seven_segment": "Display de 7 segmentos",
-    "button": "Pulsador", "sensor": "Sensor digital",
-}
-
-
 _DRIVING_TERMINALS = {"button": {"signal"}, "sensor": {"signal"}}
 _TERMINAL_DIRECTIONS = PERIPHERAL_TERMINALS
 
