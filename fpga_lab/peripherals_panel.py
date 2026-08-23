@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from PyQt6.QtCore import QPointF, Qt, pyqtSignal
+from PyQt6.QtCore import QPointF, QTimer, Qt, pyqtSignal
 import re
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
@@ -165,15 +165,21 @@ class ConnectionDialog(QDialog):
 
 
 class WorkbenchView(QGraphicsView):
-    """Scroll-free canvas whose logical size follows the available space."""
+    """Zoomable workbench canvas with keyboard actions for selected parts."""
 
-    def __init__(self, scene, delete_selected, parent=None):
+    zoom_changed = pyqtSignal(float)
+
+    def __init__(self, scene, delete_selected, duplicate_selected, parent=None):
         super().__init__(scene, parent)
         self._delete_selected = delete_selected
+        self._duplicate_selected = duplicate_selected
+        self._zoom = 1.0
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -183,7 +189,44 @@ class WorkbenchView(QGraphicsView):
         self.setFocus()
         super().mousePressEvent(event)
 
+    def wheelEvent(self, event):
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            steps = event.angleDelta().y() / 120
+            if steps:
+                self.set_zoom(self._zoom * (1.15 ** steps))
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def set_zoom(self, zoom: float) -> None:
+        """Apply bounded scene zoom while retaining ordinary scrolling when needed."""
+        zoom = max(0.65, min(float(zoom), 2.5))
+        if abs(zoom - self._zoom) < 0.001:
+            return
+        self._zoom = zoom
+        self.resetTransform()
+        self.scale(self._zoom, self._zoom)
+        policy = Qt.ScrollBarPolicy.ScrollBarAsNeeded if self._zoom > 1.0 else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        self.setHorizontalScrollBarPolicy(policy)
+        self.setVerticalScrollBarPolicy(policy)
+        self.zoom_changed.emit(self._zoom)
+
+    def zoom_in(self) -> None:
+        self.set_zoom(self._zoom * 1.15)
+
+    def zoom_out(self) -> None:
+        self.set_zoom(self._zoom / 1.15)
+
+    def reset_zoom(self) -> None:
+        self.set_zoom(1.0)
+
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_D and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
+            if selected:
+                self._duplicate_selected(selected[0].peripheral)
+                event.accept()
+                return
         if event.key() in {Qt.Key.Key_Delete, Qt.Key.Key_Backspace}:
             selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
             if selected:
@@ -301,17 +344,49 @@ class PeripheralsPanel(QWidget):
         super().__init__(parent); self._board, self._pcf, self._lab = board, pcf, lab
         self._input_widths = input_widths or {}; self._input_values = {}; self._editing_enabled = True
         self._assigned_endpoints = None  # The entire board is available; the design PCF is optional.
-        layout = QVBoxLayout(self); self._catalog_title = QLabel(); layout.addWidget(self._catalog_title)
-        catalog = QHBoxLayout(); self.kind = QComboBox()
-        for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(t(label), key)
-        self._add_button = QPushButton(); self._add_button.clicked.connect(self._add)
-        catalog.addWidget(self.kind); catalog.addWidget(self._add_button); layout.addLayout(catalog)
-        self.status = QLabel(); layout.addWidget(self.status)
-        self._workbench_hint = QLabel(); layout.addWidget(self._workbench_hint)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 7, 8, 8)
+        layout.setSpacing(5)
+        catalog_header = QHBoxLayout()
+        self._catalog_title = QLabel()
+        catalog_header.addWidget(self._catalog_title)
+        catalog_header.addStretch(1)
         self._connection_status = QLabel()
         self._connection_status.setStyleSheet("color:#93c5fd; font-size:11px;")
-        layout.addWidget(self._connection_status)
-        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 480, 420); self.workbench = WorkbenchView(self._workbench_scene, self._delete)
+        catalog_header.addWidget(self._connection_status)
+        layout.addLayout(catalog_header)
+        catalog = QHBoxLayout(); catalog.setSpacing(6); self.kind = QComboBox()
+        for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(t(label), key)
+        self._add_button = QPushButton(); self._add_button.clicked.connect(self._add)
+        self.kind.setMaximumWidth(310)
+        self._add_button.setFixedWidth(86)
+        catalog.addWidget(self.kind, 1); catalog.addWidget(self._add_button); layout.addLayout(catalog)
+        self.status = QLabel()
+        self.status.setStyleSheet("color:#93c5fd; font-size:11px;")
+        self.status.setVisible(False)
+        self._status_timer = QTimer(self)
+        self._status_timer.setSingleShot(True)
+        self._status_timer.timeout.connect(lambda: self.status.setVisible(False))
+        layout.addWidget(self.status)
+        workbench_header = QHBoxLayout(); workbench_header.setSpacing(4)
+        self._workbench_hint = QLabel()
+        workbench_header.addWidget(self._workbench_hint)
+        workbench_header.addStretch(1)
+        self._zoom_out_button = QPushButton("−")
+        self._zoom_reset_button = QPushButton()
+        self._zoom_in_button = QPushButton("+")
+        for button in (self._zoom_out_button, self._zoom_reset_button, self._zoom_in_button):
+            button.setFixedWidth(32)
+        self._zoom_reset_button.setFixedWidth(48)
+        workbench_header.addWidget(self._zoom_out_button)
+        workbench_header.addWidget(self._zoom_reset_button)
+        workbench_header.addWidget(self._zoom_in_button)
+        layout.addLayout(workbench_header)
+        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 480, 420); self.workbench = WorkbenchView(self._workbench_scene, self._delete, self._duplicate)
+        self._zoom_out_button.clicked.connect(self.workbench.zoom_out)
+        self._zoom_reset_button.clicked.connect(self.workbench.reset_zoom)
+        self._zoom_in_button.clicked.connect(self.workbench.zoom_in)
+        self.workbench.zoom_changed.connect(self._update_zoom_label)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
         self._workbench_bindings = {}; self._reload()
         language_manager.language_changed.connect(self._retranslate_ui)
@@ -321,9 +396,14 @@ class PeripheralsPanel(QWidget):
         for index in range(self.kind.count()):
             key = self.kind.itemData(index)
             self.kind.setItemText(index, t(PERIPHERAL_LABELS[key]))
-        self._add_button.setText(t("＋ Add"))
-        self.status.setText(t("Select a type and configure the part when creating it."))
-        self._workbench_hint.setText(t("Virtual workbench · drag a part; double-click to configure or delete"))
+        self._add_button.setText(t("Add"))
+        self._add_button.setToolTip(t("Add a peripheral"))
+        self._workbench_hint.setText(t("Virtual workbench"))
+        self._workbench_hint.setToolTip(t("Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms."))
+        self._zoom_out_button.setToolTip(t("Zoom out"))
+        self._zoom_reset_button.setToolTip(t("Reset zoom"))
+        self._zoom_in_button.setToolTip(t("Zoom in"))
+        self._update_zoom_label(self.workbench._zoom)
         self._update_connection_status()
         for item in self._workbench_scene.items():
             item.update()
@@ -353,21 +433,26 @@ class PeripheralsPanel(QWidget):
         """Summarize physical terminals and the subset currently present in HDL."""
         total, mapped = getattr(self, "_connection_counts", (0, 0))
         if total == 0:
-            self._connection_status.setText(t("Connection status: no peripheral terminals configured."))
+            self._connection_status.setText(t("PCF —"))
+            self._connection_status.setToolTip(t("No peripheral terminals configured."))
             return
         unmapped = total - mapped
-        if unmapped == 0:
-            self._connection_status.setText(t(
-                "Connection status: all {total} terminal(s) are mapped by the current PCF.",
-                total=total,
-            ))
-            return
-        self._connection_status.setText(t(
-            "Connection status: {mapped}/{total} terminal(s) mapped; {unmapped} physically connected but unused by this HDL.",
+        self._connection_status.setText(t("PCF {mapped}/{total}", mapped=mapped, total=total))
+        self._connection_status.setToolTip(t(
+            "{mapped}/{total} peripheral terminal(s) are mapped by the current PCF; {unmapped} are physically connected but unused by this HDL.",
             mapped=mapped,
             total=total,
             unmapped=unmapped,
         ))
+
+    def _update_zoom_label(self, zoom: float) -> None:
+        self._zoom_reset_button.setText(f"{round(zoom * 100)}%")
+
+    def _show_status(self, message: str, timeout_ms: int = 3500) -> None:
+        """Show concise, temporary feedback without reserving permanent panel space."""
+        self.status.setText(message)
+        self.status.setVisible(True)
+        self._status_timer.start(timeout_ms)
 
     def set_editable(self, enabled):
         self._editing_enabled = enabled
@@ -384,7 +469,6 @@ class PeripheralsPanel(QWidget):
         net = binding[1] if binding else None
         match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]", net or "")
         if not match or match.group(1) not in self._input_widths:
-            self.status.setText(t("{identifier}: physically connected; the current HDL does not read this pin.", identifier=peripheral_id))
             return
         port, bit = match.group(1), int(match.group(2))
         if bit >= self._input_widths[port]: return
@@ -409,11 +493,14 @@ class PeripheralsPanel(QWidget):
             self._lab.write_text(original, encoding="utf-8")
             self._show_configuration_error(str(exc))
             return False
-        self.status.setText(message); self._reload(); self.changed.emit(message); return True
+        self._show_status(message)
+        self._reload()
+        self.changed.emit(message)
+        return True
 
     def _show_configuration_error(self, message: str) -> None:
         """Keep validation failures visible instead of hiding them below the catalog."""
-        self.status.setText(message)
+        self._show_status(message, 7000)
         QMessageBox.warning(self, t("Peripheral configuration"), message)
 
     def _configure(self, peripheral):
@@ -443,6 +530,31 @@ class PeripheralsPanel(QWidget):
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         raw["peripherals"] = [item for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
         self._commit(raw, t("{identifier} deleted", identifier=peripheral.peripheral_id))
+
+    def _duplicate(self, peripheral) -> None:
+        """Duplicate a selected visual part without copying electrical connections."""
+        if not self._editing_enabled:
+            return
+        raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        existing = {item["id"] for item in raw.get("peripherals", [])}
+        index = 1
+        while f"{peripheral.kind}_{index}" in existing:
+            index += 1
+        properties = dict(peripheral.properties)
+        position = properties.get("position", [16, 16])
+        properties["position"] = [round(float(position[0]) + 24, 1), round(float(position[1]) + 24, 1)]
+        duplicate = {
+            "id": f"{peripheral.kind}_{index}",
+            "type": peripheral.kind,
+            "connections": {},
+            "properties": properties,
+        }
+        raw.setdefault("peripherals", []).append(duplicate)
+        if self._commit(raw, t("{identifier} duplicated", identifier=duplicate["id"])):
+            for item in self._workbench_scene.items():
+                if isinstance(item, WorkbenchPeripheralItem) and item.peripheral.peripheral_id == duplicate["id"]:
+                    item.setSelected(True)
+                    break
 
     def update_outputs(self, outputs: dict[str, int]) -> None:
         """Paint output peripherals from their actual HDL net resolved by the PCF."""
