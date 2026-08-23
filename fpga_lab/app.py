@@ -12,6 +12,7 @@ from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from .board import BoardDefinition, bundled_board_definition
+from .branding import application_icon
 from .build_cache import VerilatorBuildCache
 from .ice_project import IcestudioProject, IcestudioProjectError
 from .i18n import t
@@ -20,6 +21,7 @@ from .main_window import FPGALabMainWindow
 from .profile import BoardProfile, bundled_profile
 from .project_pins import ProjectPinMap
 from .simulation import VerilatorSimulation
+from .toolchain import resolve_verilator
 from .verilog_interface import VerilogInterface
 from .update_controller import UpdateController
 from .virtual_lab import FPGAVirtualLab
@@ -134,6 +136,7 @@ class ApplicationController(QObject):
         self._pending_run: PendingProjectRun | None = None
         window.project_requested.connect(self.execute_project)
         window.stop_requested.connect(self.stop_simulation)
+        window.toolchain_requested.connect(self.check_toolchain)
         app.aboutToQuit.connect(self.shutdown)
 
     def execute_project(self, ice_file: Path) -> None:
@@ -225,6 +228,23 @@ class ApplicationController(QObject):
         self._window.set_simulation_running(False)
         self._window.set_status(t("Simulation stopped."))
 
+    def check_toolchain(self) -> None:
+        """Report the resolved compiler stack before a user starts a build."""
+        try:
+            toolchain = resolve_verilator()
+            toolchain.validate_build_prerequisites()
+        except Exception as error:
+            self._window.set_status(t("Simulation toolchain is not ready."))
+            QMessageBox.warning(self._window, t("Simulation toolchain"), str(error))
+            return
+        message = t(
+            "Ready to compile.\n\nSource: {source}\nVerilator: {path}",
+            source=toolchain.source,
+            path=toolchain.executable,
+        )
+        self._window.set_status(t("Simulation toolchain is ready."))
+        QMessageBox.information(self._window, t("Simulation toolchain"), message)
+
     def load_advanced_library(self, library: Path) -> None:
         profile = self._manual_profile or BoardProfile.load(bundled_profile())
         try:
@@ -244,9 +264,22 @@ class ApplicationController(QObject):
 
 def main() -> None:
     namespace = parse_arguments()
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FPGALab.FPGALab")
+        except Exception:
+            pass
     app = QApplication(sys.argv)
+    app.setApplicationName("FPGALab")
+    app.setApplicationDisplayName("FPGALab")
+    app.setOrganizationName("FPGALab")
+    if hasattr(app, "setDesktopFileName"):
+        app.setDesktopFileName("fpgalab")
+    app.setWindowIcon(application_icon())
     workspace = LabWorkspace()
     window = FPGALabMainWindow(workspace)
+    window.setWindowIcon(application_icon())
     window.set_lab(FPGAVirtualLab(lab_file=window.selected_lab()))
     controller = ApplicationController(app, window, namespace)
     update_controller = UpdateController(window)

@@ -33,6 +33,7 @@ class FPGALabMainWindow(QMainWindow):
 
     project_requested = pyqtSignal(Path)
     stop_requested = pyqtSignal()
+    toolchain_requested = pyqtSignal()
     update_requested = pyqtSignal()
 
     def __init__(self, workspace: LabWorkspace, parent=None):
@@ -72,6 +73,9 @@ class FPGALabMainWindow(QMainWindow):
         self._update_button = QPushButton("↻")
         self._update_button.setFixedSize(34, 24)
         self._update_button.clicked.connect(self.update_requested.emit)
+        self._toolchain_button = QPushButton("🛠")
+        self._toolchain_button.setFixedSize(34, 24)
+        self._toolchain_button.clicked.connect(self.toolchain_requested.emit)
         self._run_button = QPushButton("▶")
         self._run_button.setObjectName("runButton")
         self._run_button.setFixedSize(34, 24)
@@ -82,6 +86,7 @@ class FPGALabMainWindow(QMainWindow):
         self._stop_button.setEnabled(False)
         self._stop_button.clicked.connect(self._request_stop)
         self._status_bar.addPermanentWidget(self._update_button)
+        self._status_bar.addPermanentWidget(self._toolchain_button)
         self._status_bar.addPermanentWidget(self._run_button)
         self._status_bar.addPermanentWidget(self._stop_button)
         language_manager.language_changed.connect(self._retranslate_ui)
@@ -138,6 +143,7 @@ class FPGALabMainWindow(QMainWindow):
         self._new_lab_button.setToolTip(t("Create a new lab"))
         self._language.setToolTip(t("Interface language"))
         self._update_button.setToolTip(t("Check for updates"))
+        self._toolchain_button.setToolTip(t("Check simulation toolchain"))
         self._run_button.setToolTip(t("Run selected project"))
         self._stop_button.setToolTip(t("Stop simulation"))
         self._placeholder.setText(t("Select an Icestudio design (.ice) to start."))

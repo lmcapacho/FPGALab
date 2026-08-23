@@ -32,4 +32,5 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    icon=str(Path(SPECPATH).parents[1] / "fpga_lab" / "assets" / "icons" / "fpgalab.ico"),
 )
