@@ -1,16 +1,55 @@
+# Python virtual environments (never commit local installs)
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# Bytecode and test/tool caches
 __pycache__/
 *.py[cod]
-.venv/
-.idea/
-.vscode/
+*$py.class
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.hypothesis/
+.cache/
 
-# Verilator-generated artifacts
+# Packaging / pip
+dist/
 build/
+*.egg
+*.egg-info/
+eggs/
+.eggs/
+pip-wheel-metadata/
+*.whl
+
+# Native / Verilator compile residues (in-tree only; user cache is ~/.cache/fpgalab)
 obj_dir/
+*.o
+*.a
 *.so
 *.dll
 *.dylib
+*.dSYM/
+*.exe
 
-# Packaging artifacts
-dist/
-*.egg-info/
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+.env.*
