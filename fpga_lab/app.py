@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,14 +18,14 @@ from .i18n import t
 from .lab_workspace import LabWorkspace
 from .main_window import FPGALabMainWindow
 from .profile import BoardProfile, bundled_profile
+from .profile_policy import apply_led_observed
 from .project_pins import ProjectPinMap
+from .signals import signal_reference
 from .simulation import VerilatorSimulation
 from .toolchain import resolve_verilator
 from .verilog_interface import VerilogInterface
 from .update_controller import UpdateController
 from .virtual_lab import FPGAVirtualLab
-
-_SIGNAL_REFERENCE = re.compile(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?$")
 
 
 class BuildWorker(QThread):
@@ -78,18 +77,6 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--ui-refresh-hz", type=int, default=60, help="Maximum UI refresh frequency.")
     parser.add_argument("--observation-hz", type=int, default=1_000_000, help="Peripheral temporal sampling rate.")
     return parser.parse_args()
-
-
-def signal_reference(net: str | None, ports: dict[str, int]) -> tuple[str, int] | None:
-    """Convert a PCF net such as ``vinit[2]`` into an ABI port and bit."""
-    match = _SIGNAL_REFERENCE.fullmatch(net or "")
-    if match is None:
-        return None
-    name, raw_bit = match.groups()
-    bit = int(raw_bit) if raw_bit else 0
-    if name not in ports or bit >= ports[name]:
-        return None
-    return name, bit
 
 
 def project_clock_port(project: IcestudioProject, interface: VerilogInterface) -> str | None:
@@ -149,6 +136,8 @@ class ApplicationController(QObject):
             clock_port = project_clock_port(project, interface)
             profile = self._manual_profile or interface.profile(clock_port=clock_port)
             led_sources, input_sources = board_sources(project, profile)
+            if self._manual_profile is None:
+                profile = apply_led_observed(profile, led_sources)
             lab_file = self._window.selected_lab()
         except (IcestudioProjectError, ValueError, OSError) as error:
             QMessageBox.critical(self._window, t("Cannot load design"), str(error))

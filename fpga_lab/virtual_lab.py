@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
 from .board import BoardDefinition, bundled_board_definition
 from .i18n import language_manager, t
@@ -14,8 +14,10 @@ from .board_editor import BoardLayoutEditor
 from .peripherals_panel import PeripheralsPanel
 from .board_layout import BoardLayout, bundled_layout
 from .board_view import BoardView
+from .sink_bind import collect_vga_bindings
 from .simulation import VerilatorSimulation
-from .simulation_worker import SimulationWorker
+from .simulation_worker import SimulationFrame, SimulationWorker
+from .wiring import VirtualLabProject
 
 _QSS = """
 QWidget { background: #0f172a; color: #e2e8f0; font-family: Inter, Arial, sans-serif; }
@@ -35,6 +37,7 @@ class FPGAVirtualLab(QWidget):
     play_requested = pyqtSignal()
     pause_requested = pyqtSignal()
     reset_requested = pyqtSignal()
+    configure_vga_requested = pyqtSignal(object)
     status_changed = pyqtSignal(str)
 
     def __init__(
@@ -55,6 +58,8 @@ class FPGAVirtualLab(QWidget):
         self.setStyleSheet(_QSS)
         self._bounce_timers: list[QTimer] = []
         self._simulation = simulation
+        self._clock_hz = clock_hz
+        self._ignore_state = False
         self._board_name = simulation.profile.board_name if simulation else "Alhambra II"
         self._available_inputs = frozenset(simulation.profile.inputs) if simulation else frozenset()
         self._has_clock = simulation.profile.clock_name is not None if simulation else None
@@ -79,6 +84,7 @@ class FPGAVirtualLab(QWidget):
             self.play_requested.connect(self._worker.play)
             self.pause_requested.connect(self._worker.power_off)
             self.reset_requested.connect(self._worker.reset)
+            self.configure_vga_requested.connect(self._worker.configure_vga_bindings)
             self._worker.state_changed.connect(self._paint_state)
             self._worker.failure.connect(self._show_failure)
             self._worker.stopped.connect(self._thread.quit)
@@ -153,9 +159,24 @@ class FPGAVirtualLab(QWidget):
             self._play()
 
     def _play(self) -> None:
+        bindings = ()
+        if self._simulation is not None:
+            project = VirtualLabProject.load(self._lab_file)
+            bindings = collect_vga_bindings(project, self._peripherals.current_wires(), self._simulation.profile)
+        if bindings and self._has_clock is not True:
+            QMessageBox.warning(self, t("VGA monitor"), t("VGA monitor requires a clocked design."))
+            self.status_changed.emit(t("VGA monitor requires a clocked design."))
+            return
+        if bindings and self._clock_hz == 12_000_000:
+            self.status_changed.emit(t(
+                "VGA 640×480 expects a ~25 MHz pixel clock; this lab is running at 12 MHz "
+                "(Alhambra default). Use --clock-hz 25000000 or 25175000."
+            ))
+        self.configure_vga_requested.emit(bindings)
         self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
-        self.status_changed.emit(t("Simulation running."))
+        if not (bindings and self._clock_hz == 12_000_000):
+            self.status_changed.emit(t("Simulation running."))
         self._peripherals.set_editable(False)
 
     def _pause(self) -> None:
@@ -194,16 +215,33 @@ class FPGAVirtualLab(QWidget):
         self._board_input_values[port] = current
         self.set_input_requested.emit(port, current)
 
-    def _paint_state(self, leds: list, segments: int, gpio_out: int, outputs: dict[str, int]) -> None:
-        for index, state in enumerate(leds):
+    def _paint_state(self, frame: SimulationFrame) -> None:
+        if self._ignore_state:
+            return
+        for index, state in enumerate(frame.led_brightness):
             self._board_view.set_led_brightness(f"LED{index}", float(state))
-        self._peripherals.update_outputs(outputs)
+        self._peripherals.update_frame(frame)
+        for snapshot in frame.sinks.values():
+            if snapshot.seq and frame.virtual_hz:
+                self.status_changed.emit(t(
+                    "VGA 640×480 · frame {seq} · virtual {mhz:.1f} MHz",
+                    seq=snapshot.seq,
+                    mhz=frame.virtual_hz / 1e6,
+                ))
+                break
 
     def _show_failure(self, error: str) -> None:
         self.setWindowTitle(t("FPGALab · simulation stopped: {error}", error=error))
         self.status_changed.emit(t("Simulation error: {error}", error=error))
 
     def closeEvent(self, event) -> None:
+        self._ignore_state = True
+        if self._worker is not None:
+            try:
+                self._worker.state_changed.disconnect(self._paint_state)
+            except TypeError:
+                pass
+        self._peripherals.drop_vga_images()
         if self._thread is not None and self._thread.isRunning():
             QMetaObject.invokeMethod(self._worker, "shutdown", Qt.ConnectionType.BlockingQueuedConnection)
             self._thread.quit()

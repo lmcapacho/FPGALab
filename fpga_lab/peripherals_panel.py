@@ -9,10 +9,11 @@ from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, 
 from .board import BoardDefinition
 from .constraints import PcfParser
 from .i18n import language_manager, t
-from .wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS, PeripheralInstance, VirtualLabProject
-
-
-TRAFFIC_LIGHT_DEFAULT_COLORS = {"red": "#ef4444", "yellow": "#facc15", "green": "#22c55e"}
+from .peripherals.catalog import load_catalog, spec_for
+from .peripherals.manifest import RESERVED_PROPERTIES
+from .peripherals.renderers import renderer_for
+from .peripherals.renderers.vga_monitor import VgaMonitorRenderer
+from .wiring import PERIPHERAL_LABELS, PeripheralInstance, VirtualLabProject
 
 class SegmentDisplay(QFrame):
     """Compact representation of an external seven-segment display."""
@@ -39,78 +40,120 @@ class SegmentDisplay(QFrame):
 
 
 class PeripheralConfigDialog(QDialog):
-    """Modal editor for one instance; it does not render wires."""
+    """Modal editor for one instance; fields come from the catalog schema."""
 
     def __init__(self, peripheral, board, assigned_endpoints=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle(t("Configure · {identifier}", identifier=peripheral.peripheral_id))
-        self._board = board; self._assigned_endpoints = assigned_endpoints
+        self._board = board
+        self._assigned_endpoints = assigned_endpoints
         self._kind = peripheral.kind
+        self._spec = spec_for(peripheral.kind)
         self._pickers = {}
         self._properties = dict(peripheral.properties)
-        self._color = str(peripheral.properties.get("color", "#b6ff00"))
-        self._traffic_colors = {
-            **TRAFFIC_LIGHT_DEFAULT_COLORS,
-            **dict(peripheral.properties.get("colors", {})),
-        }
-        self._traffic_color_buttons: dict[str, QPushButton] = {}
+        self._property_widgets = {}
         self._delete_requested = False
         layout = QVBoxLayout(self)
         form = QFormLayout()
         self.identifier = QLineEdit(peripheral.peripheral_id)
         form.addRow(t("Identifier"), self.identifier)
-        for terminal, direction in PERIPHERAL_TERMINALS[peripheral.kind].items():
-            picker = QComboBox(); picker.addItem(t("— not connected —"), "")
-            for pin in board.available_endpoints(direction):
+        for terminal in self._spec.terminals:
+            picker = QComboBox()
+            picker.addItem(t("— not connected —"), "")
+            for pin in board.available_endpoints(terminal.direction):
                 if pin.location.startswith("header") and (self._assigned_endpoints is None or pin.id in self._assigned_endpoints):
                     picker.addItem(pin.id, pin.id)
-            index = picker.findData(peripheral.connections.get(terminal, ""))
+            index = picker.findData(peripheral.connections.get(terminal.name, ""))
             picker.setCurrentIndex(max(0, index))
-            form.addRow(terminal, picker); self._pickers[terminal] = picker
-        self.common = QComboBox(); self.common.addItems(["cathode", "anode"])
-        self.common.setCurrentText(str(peripheral.properties.get("common", "cathode")))
-        if peripheral.kind == "seven_segment": form.addRow(t("Common"), self.common)
-        self.color = QPushButton(self._color)
-        self.color.clicked.connect(self._choose_color)
-        if peripheral.kind == "led":
-            form.addRow(t("Color"), self.color)
-        elif peripheral.kind == "traffic_light":
-            for terminal in ("red", "yellow", "green"):
-                button = QPushButton(self._traffic_colors[terminal])
-                button.clicked.connect(lambda _checked=False, name=terminal: self._choose_color(name))
-                self._traffic_color_buttons[terminal] = button
-                form.addRow(terminal.capitalize(), button)
+            label = terminal.name if terminal.required else f"{terminal.name} *"
+            form.addRow(label, picker)
+            self._pickers[terminal.name] = picker
+        for name, schema in self._spec.properties.items():
+            if name in RESERVED_PROPERTIES:
+                continue
+            form.addRow(t(str(schema.get("label", name))), self._property_widget(name, schema, peripheral.properties))
         layout.addLayout(form)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText(t("Save"))
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
         delete = buttons.addButton(t("Delete"), QDialogButtonBox.ButtonRole.DestructiveRole)
         delete.clicked.connect(self._request_delete)
-        buttons.accepted.connect(self.accept); buttons.rejected.connect(self.reject); layout.addWidget(buttons)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _property_widget(self, name, schema, properties):
+        kind = schema.get("type")
+        if kind == "color":
+            current = str(properties.get(name, schema.get("default", "#b6ff00")))
+            button = QPushButton(current)
+            button.clicked.connect(lambda _=False, key=name, widget=button: self._pick_color(key, widget, None))
+            self._property_widgets[name] = ("color", button)
+            return button
+        if kind == "color_map":
+            keys = list(schema.get("keys") or [])
+            defaults = dict(schema.get("default") or {})
+            current = {**defaults, **dict(properties.get(name, {}))}
+            box = QWidget()
+            row = QHBoxLayout(box)
+            row.setContentsMargins(0, 0, 0, 0)
+            buttons = {}
+            for key in keys:
+                button = QPushButton(str(current.get(key, "#ffffff")))
+                button.clicked.connect(lambda _=False, map_name=name, map_key=key, widget=button: self._pick_color(map_name, widget, map_key))
+                row.addWidget(QLabel(key))
+                row.addWidget(button)
+                buttons[key] = button
+            self._property_widgets[name] = ("color_map", buttons, current)
+            return box
+        if kind == "enum":
+            combo = QComboBox()
+            for value in schema.get("values") or []:
+                combo.addItem(str(value), str(value))
+            current = str(properties.get(name, schema.get("default", "")))
+            index = combo.findData(current)
+            combo.setCurrentIndex(max(0, index))
+            self._property_widgets[name] = ("enum", combo)
+            return combo
+        if kind == "boolean":
+            from PyQt6.QtWidgets import QCheckBox
+            box = QCheckBox()
+            box.setChecked(bool(properties.get(name, schema.get("default", False))))
+            self._property_widgets[name] = ("boolean", box)
+            return box
+        field = QLineEdit(str(properties.get(name, schema.get("default", ""))))
+        self._property_widgets[name] = ("string", field)
+        return field
 
     def _request_delete(self):
-        self._delete_requested = True; self.done(2)
+        self._delete_requested = True
+        self.done(2)
 
-    def _choose_color(self, terminal: str | None = None):
-        current = self._traffic_colors[terminal] if terminal else self._color
+    def _pick_color(self, property_name, button: QPushButton, map_key: str | None):
+        current = button.text()
         color = QColorDialog.getColor(QColor(current), self)
         if not color.isValid():
             return
-        if terminal:
-            self._traffic_colors[terminal] = color.name()
-            self._traffic_color_buttons[terminal].setText(color.name())
-            return
-        self._color = color.name()
-        self.color.setText(self._color)
+        button.setText(color.name())
+        widget = self._property_widgets[property_name]
+        if map_key is not None:
+            widget[2][map_key] = color.name()
 
     def value(self):
         connections = {name: picker.currentData() for name, picker in self._pickers.items() if picker.currentData()}
         properties = dict(self._properties)
-        if self._kind == "seven_segment": properties["common"] = self.common.currentText()
-        if self._kind == "led":
-            properties["color"] = self._color
-        if self._kind == "traffic_light":
-            properties["colors"] = self._traffic_colors
+        for name, widget in self._property_widgets.items():
+            kind = widget[0]
+            if kind == "color":
+                properties[name] = widget[1].text()
+            elif kind == "color_map":
+                properties[name] = dict(widget[2])
+            elif kind == "enum":
+                properties[name] = widget[1].currentData()
+            elif kind == "boolean":
+                properties[name] = widget[1].isChecked()
+            else:
+                properties[name] = widget[1].text()
         return {"id": self.identifier.text().strip(), "type": self._kind, "connections": connections, "properties": properties}
 
 
@@ -175,8 +218,8 @@ class WorkbenchView(QGraphicsView):
         self._duplicate_selected = duplicate_selected
         self._zoom = 1.0
         self._panning = False
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
@@ -184,7 +227,14 @@ class WorkbenchView(QGraphicsView):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.scene().setSceneRect(0, 0, self.viewport().width(), self.viewport().height())
+        self.ensure_scene_fits()
+
+    def ensure_scene_fits(self) -> None:
+        """Keep the scene large enough for 640×480 VGA items and the viewport."""
+        bounds = self.scene().itemsBoundingRect()
+        width = max(float(self.viewport().width()), bounds.right() + 24.0, 680.0)
+        height = max(float(self.viewport().height()), bounds.bottom() + 24.0, 540.0)
+        self.scene().setSceneRect(0, 0, width, height)
 
     def mousePressEvent(self, event):
         self.setFocus()
@@ -215,15 +265,12 @@ class WorkbenchView(QGraphicsView):
 
     def set_zoom(self, zoom: float) -> None:
         """Apply bounded scene zoom while retaining ordinary scrolling when needed."""
-        zoom = max(0.65, min(float(zoom), 2.5))
+        zoom = max(0.4, min(float(zoom), 2.5))
         if abs(zoom - self._zoom) < 0.001:
             return
         self._zoom = zoom
         self.resetTransform()
         self.scale(self._zoom, self._zoom)
-        policy = Qt.ScrollBarPolicy.ScrollBarAsNeeded if self._zoom > 1.0 else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        self.setHorizontalScrollBarPolicy(policy)
-        self.setVerticalScrollBarPolicy(policy)
         self.zoom_changed.emit(self._zoom)
 
     def zoom_in(self) -> None:
@@ -260,8 +307,9 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     """Draggable item whose coordinates live in ``properties.position``."""
 
     def __init__(self, peripheral, configured, moved, input_changed):
-        sizes = {"led": (120, 88), "traffic_light": (120, 180), "seven_segment": (150, 205), "button": (150, 88), "sensor": (150, 88)}
-        width, height = sizes.get(peripheral.kind, (150, 88))
+        spec = spec_for(peripheral.kind)
+        self._renderer = renderer_for(spec.visual["renderer"])
+        width, height = self._renderer.size(peripheral)
         super().__init__(0, 0, width, height)
         self._peripheral, self._configured, self._moved, self._input_changed = peripheral, configured, moved, input_changed
         position = peripheral.properties.get("position", [16, 16])
@@ -270,8 +318,13 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
-        self._active = {}; self._pressed = False; self._sensor_value = False; self._editable = True
-        self._drag_dirty = False; self._last_position = self.pos()
+        self._active = {}
+        self._pressed = False
+        self._sensor_value = False
+        self._editable = True
+        self._snapshot = None
+        self._drag_dirty = False
+        self._last_position = self.pos()
 
     @property
     def peripheral(self):
@@ -297,7 +350,18 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             self._drag_dirty = False
 
     def set_terminal(self, terminal, active):
-        self._active[terminal] = active; self.update()
+        self._active[terminal] = active
+        self.update()
+
+    def set_snapshot(self, snapshot):
+        self._snapshot = snapshot
+        self.update()
+
+    def drop_vga_images(self):
+        if isinstance(self._renderer, VgaMonitorRenderer):
+            self._renderer.drop_images()
+            self._snapshot = None
+            self.update()
 
     def set_editable(self, enabled):
         self._editable = enabled
@@ -309,40 +373,24 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         painter.setPen(QPen(QColor("#64748b") if not self.isSelected() else QColor("#38bdf8"), 2))
         painter.setBrush(QBrush(QColor("#172033")))
         painter.drawRoundedRect(self.rect(), 10, 10)
-        painter.setPen(QColor("#e2e8f0")); painter.drawText(self.rect().adjusted(10, 7, -8, -42), Qt.AlignmentFlag.AlignLeft, self._peripheral.peripheral_id)
-        kind = self._peripheral.kind
-        if kind == "led":
-            self._lamp(painter, 77, 47, self._active.get("anode", False), self._peripheral.properties.get("color", "#b6ff00"))
-        elif kind == "traffic_light":
-            colors = {**TRAFFIC_LIGHT_DEFAULT_COLORS, **dict(self._peripheral.properties.get("colors", {}))}
-            for y, terminal in ((58, "red"), (102, "yellow"), (146, "green")):
-                self._lamp(painter, 60, y, self._active.get(terminal, False), colors[terminal])
-        elif kind == "seven_segment":
-            self._draw_display(painter)
-        else:
-            state = self._pressed if kind == "button" else self._sensor_value
-            painter.setPen(QColor("#f8fafc") if state else QColor("#94a3b8"))
-            label = (t("Button: 1") if state else t("Button: 0")) if kind == "button" else (t("Sensor: 1") if state else t("Sensor: 0"))
-            painter.drawText(self.rect().adjusted(10, 29, -8, -8), Qt.AlignmentFlag.AlignCenter, label)
-
-    def _draw_display(self, painter):
-        segments = {
-            "a": ((48, 52), (102, 52)), "b": ((108, 58), (108, 98)), "c": ((108, 110), (108, 150)),
-            "d": ((48, 156), (102, 156)), "e": ((42, 110), (42, 150)), "f": ((42, 58), (42, 98)), "g": ((48, 104), (102, 104)),
-        }
-        for terminal, (start, end) in segments.items():
-            painter.setPen(QPen(QColor("#f97316") if self._active.get(terminal, False) else QColor("#334155"), 9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-            painter.drawLine(*start, *end)
-
-    def _lamp(self, painter, x, y, active, color):
-        painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(color) if active else QColor("#334155"))
-        painter.drawEllipse(x - 10, y - 10, 20, 20)
+        painter.setPen(QColor("#e2e8f0"))
+        painter.drawText(self.rect().adjusted(10, 7, -8, -42), Qt.AlignmentFlag.AlignLeft, self._peripheral.peripheral_id)
+        self._renderer.paint(painter, self.rect(), self._peripheral, {
+            "active": self._active,
+            "pressed": self._pressed,
+            "sensor_value": self._sensor_value,
+            "snapshot": self._snapshot,
+        })
 
     def mousePressEvent(self, event):
-        if self._peripheral.kind == "button":
-            self._pressed = True; self._input_changed(self._peripheral.peripheral_id, "signal", 1); self.update()
-        elif self._peripheral.kind == "sensor":
-            self._sensor_value = not self._sensor_value; self._input_changed(self._peripheral.peripheral_id, "signal", int(self._sensor_value)); self.update()
+        if self._peripheral.kind == "sensor":
+            self._sensor_value = not self._sensor_value
+            self._input_changed(self._peripheral.peripheral_id, "signal", int(self._sensor_value))
+            self.update()
+        elif self._peripheral.kind == "button":
+            self._pressed = True
+            self.update()
+        self._renderer.mouse_press(self._peripheral, event.pos(), self._input_changed)
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
@@ -351,7 +399,10 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
-        if self._peripheral.kind == "button": self._pressed = False; self._input_changed(self._peripheral.peripheral_id, "signal", 0); self.update()
+        if self._peripheral.kind == "button":
+            self._pressed = False
+            self.update()
+        self._renderer.mouse_release(self._peripheral, event.pos(), self._input_changed)
         if self._editable:
             self._persist_position()
 
@@ -375,7 +426,8 @@ class PeripheralsPanel(QWidget):
         catalog_header.addWidget(self._connection_status)
         layout.addLayout(catalog_header)
         catalog = QHBoxLayout(); catalog.setSpacing(6); self.kind = QComboBox()
-        for key, label in PERIPHERAL_LABELS.items(): self.kind.addItem(t(label), key)
+        for key, spec in load_catalog().items():
+            self.kind.addItem(t(spec.label), key)
         self._add_button = QPushButton(); self._add_button.clicked.connect(self._add)
         self.kind.setMaximumWidth(310)
         self._add_button.setFixedWidth(86)
@@ -404,7 +456,7 @@ class PeripheralsPanel(QWidget):
         workbench_header.addWidget(self._zoom_reset_button)
         workbench_header.addWidget(self._zoom_in_button)
         layout.addLayout(workbench_header)
-        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 480, 420); self.workbench = WorkbenchView(self._workbench_scene, self._delete, self._duplicate)
+        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 680, 540); self.workbench = WorkbenchView(self._workbench_scene, self._delete, self._duplicate)
         self._zoom_out_button.clicked.connect(self.workbench.zoom_out)
         self._zoom_reset_button.clicked.connect(self.workbench.reset_zoom)
         self._zoom_in_button.clicked.connect(self.workbench.zoom_in)
@@ -449,6 +501,7 @@ class PeripheralsPanel(QWidget):
             for wire in wires:
                 if wire.peripheral_id == peripheral.peripheral_id:
                     self._workbench_bindings[(peripheral.peripheral_id, wire.terminal)] = (bench_item, wire.hdl_net)
+        self.workbench.ensure_scene_fits()
         self._update_connection_status()
 
     def _update_connection_status(self) -> None:
@@ -531,7 +584,8 @@ class PeripheralsPanel(QWidget):
         if result == 2: self._delete(peripheral); return
         if result != QDialog.DialogCode.Accepted: return
         value = dialog.value()
-        if not value["id"] or len(value["connections"]) != len(PERIPHERAL_TERMINALS[peripheral.kind]):
+        required = spec_for(peripheral.kind).required_terminals(value["properties"])
+        if not value["id"] or any(terminal not in value["connections"] for terminal in required):
             self._show_configuration_error(t("Complete the identifier and every terminal."))
             return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
@@ -589,6 +643,23 @@ class PeripheralsPanel(QWidget):
             bit = int(raw_bit) if raw_bit else 0
             item.set_terminal(terminal, bool(outputs.get(port, 0) & (1 << bit)))
 
+    def update_frame(self, frame) -> None:
+        self.update_outputs(frame.outputs)
+        for item in self._workbench_scene.items():
+            if not isinstance(item, WorkbenchPeripheralItem):
+                continue
+            snapshot = frame.sinks.get(item.peripheral.peripheral_id) if getattr(frame, "sinks", None) else None
+            if snapshot is not None or isinstance(getattr(item, "_renderer", None), VgaMonitorRenderer):
+                item.set_snapshot(snapshot)
+
+    def drop_vga_images(self) -> None:
+        for item in self._workbench_scene.items():
+            if isinstance(item, WorkbenchPeripheralItem):
+                item.drop_vga_images()
+
+    def current_wires(self):
+        return getattr(self, "_resolved_wires", ())
+
     def _add(self):
         kind = self.kind.currentData()
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
@@ -599,7 +670,8 @@ class PeripheralsPanel(QWidget):
         dialog = PeripheralConfigDialog(draft, self._board, self._assigned_endpoints, self)
         if dialog.exec() != QDialog.DialogCode.Accepted: return
         value = dialog.value()
-        if not value["id"] or len(value["connections"]) != len(PERIPHERAL_TERMINALS[kind]):
+        required = spec_for(kind).required_terminals(value["properties"])
+        if not value["id"] or any(terminal not in value["connections"] for terminal in required):
             self._show_configuration_error(t("Complete the identifier and every terminal."))
             return
         if value["id"] in existing:
