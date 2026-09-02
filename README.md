@@ -15,7 +15,7 @@ The first supported board is **Alhambra II**. The architecture is board-profile 
 - Runs the compiled model through a native C ABI and Python `ctypes`, without VCD-based interaction.
 - Emulates a configurable virtual clock (12 MHz by default) while refreshing the GUI at a human-friendly rate.
 - Maps Alhambra II LEDs, switches, reset, and GPIO endpoints through the design PCF.
-- Provides a reusable laboratory workspace for external LEDs, push buttons, digital sensors, traffic lights, and seven-segment displays.
+- Provides a reusable laboratory workspace for external LEDs, push buttons, digital sensors, traffic lights, seven-segment displays, and VGA monitors (1-bit, 6-bit, and 12-bit 640×480 capture inside the Verilator model, painted in PyQt).
 - Keeps physical board artwork and interactive element placement in SVG and JSON assets.
 - Offers an English interface by default, with Spanish available from the `EN / ES` language selector.
 
@@ -117,6 +117,10 @@ The virtual FPGA advances according to elapsed host time and `--clock-hz` (12 MH
 The interface is refreshed at `--ui-refresh-hz` (60 Hz by default). Fast signals are sampled independently at `--observation-hz` (1 MHz by default), allowing LEDs and other visual peripherals to represent duty cycle, transitions, and final state without depending on Qt timer phase.
 
 If the host cannot sustain the requested virtual frequency, use a lower `--clock-hz` value for a slower instructional mode.
+
+VGA 640×480 labs should be run at `--clock-hz 25000000` or `25175000`. FPGALab does not raise the clock automatically; a 12 MHz default with a VGA monitor on the workbench produces a status-bar warning.
+
+The workbench catalog includes **VGA 1-bit**, **VGA 6-bit** (2 bits per colour) and **VGA 12-bit** (4 bits per colour). Each part has a fixed terminal list; assign those terminals to header pins (suggested Alhambra II mapping: 1-bit on D0–D4, 6-bit on D0–D7, 12-bit on D0–D13). The active image is painted at 640×480. Sync is active-low by default.
 
 ## Board mapping and GPIO
 
