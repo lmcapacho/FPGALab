@@ -28,6 +28,7 @@ fpga_lab = [
     "assets/icons/*.svg",
     "assets/icons/*.png",
     "assets/icons/*.ico",
+    "assets/labs/*.json",
     "locales/*.json",
     "peripherals/*/manifest.json",
     "native/*",

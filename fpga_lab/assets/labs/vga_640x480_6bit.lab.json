@@ -1,0 +1,27 @@
+{
+  "metadata": {
+    "name": "VGA 640x480 6-bit",
+    "board_id": "alhambra-ii",
+    "simulation": { "clock_hz": 25000000 }
+  },
+  "peripherals": [
+    {
+      "id": "vga_1",
+      "type": "vga_6bit",
+      "connections": {
+        "hsync": "D0",
+        "vsync": "D1",
+        "r0": "D2",
+        "r1": "D3",
+        "g0": "D4",
+        "g1": "D5",
+        "b0": "D6",
+        "b1": "D7"
+      },
+      "properties": {
+        "mode": "640x480@60",
+        "position": [16, 16]
+      }
+    }
+  ]
+}
