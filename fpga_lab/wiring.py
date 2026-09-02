@@ -7,20 +7,16 @@ from pathlib import Path
 
 from .board import BoardDefinition
 from .constraints import PcfParser, PinConstraint
+from .peripherals.catalog import load_catalog, spec_for
 
-# GUI-independent catalog: each kind declares its HDL terminals.
+# Aliases computed from the bundled catalog (PR1 compatibility).
+_CATALOG = load_catalog()
 PERIPHERAL_TERMINALS = {
-    "led": {"anode": "output"},
-    "traffic_light": {"red": "output", "yellow": "output", "green": "output"},
-    "seven_segment": {"a": "output", "b": "output", "c": "output", "d": "output", "e": "output", "f": "output", "g": "output"},
-    "button": {"signal": "input"},
-    "sensor": {"signal": "input"},
+    spec.id: {terminal.name: terminal.direction for terminal in spec.terminals}
+    for spec in _CATALOG.values()
 }
-PERIPHERAL_LABELS = {
-    "led": "LED", "traffic_light": "Traffic light", "seven_segment": "Seven-segment display",
-    "button": "Push button", "sensor": "Digital sensor",
-}
-_DRIVING_TERMINALS = {"button": {"signal"}, "sensor": {"signal"}}
+PERIPHERAL_LABELS = {spec.id: spec.label for spec in _CATALOG.values()}
+_DRIVING_TERMINALS = {spec.id: spec.driving_terminals() for spec in _CATALOG.values()}
 _TERMINAL_DIRECTIONS = PERIPHERAL_TERMINALS
 
 
@@ -63,19 +59,18 @@ class VirtualLabProject:
         input_drivers: set[str] = set()
         resolved: list[ResolvedWire] = []
         for peripheral in self.peripherals:
-            known_terminals = _TERMINAL_DIRECTIONS.get(peripheral.kind)
-            if known_terminals is None:
-                raise ValueError(f"Unknown peripheral type: {peripheral.kind}.")
+            spec = spec_for(peripheral.kind)
+            known_terminals = spec.terminal_map()
             unknown = set(peripheral.connections) - set(known_terminals)
             if unknown:
                 raise ValueError(f"{peripheral.peripheral_id}: invalid terminals: {', '.join(sorted(unknown))}.")
             for terminal, endpoint in peripheral.connections.items():
                 board_pin = board.pin(endpoint)
-                expected_direction = _TERMINAL_DIRECTIONS.get(peripheral.kind, {}).get(terminal)
+                expected_direction = known_terminals[terminal].direction
                 if expected_direction and board_pin.direction not in {expected_direction, "inout"}:
                     raise ValueError(f"{peripheral.peripheral_id}.{terminal}: {endpoint} does not support {expected_direction} direction.")
                 constraint = by_pin.get(board_pin.fpga_pin)
-                if terminal in _DRIVING_TERMINALS.get(peripheral.kind, set()):
+                if terminal in spec.driving_terminals():
                     if endpoint in input_drivers:
                         raise ValueError(f"Input conflict: more than one peripheral drives {endpoint}.")
                     input_drivers.add(endpoint)

@@ -10,6 +10,9 @@ license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.10"
 dependencies = ["PyQt6>=6.5"]
 
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
 [project.scripts]
 fpga-lab = "fpga_lab.app:main"
 
@@ -17,4 +20,14 @@ fpga-lab = "fpga_lab.app:main"
 include = ["fpga_lab*"]
 
 [tool.setuptools.package-data]
-fpga_lab = ["assets/boards/*.svg", "assets/board_layouts/*.json", "assets/board_definitions/*.json", "assets/profiles/*.json", "assets/icons/*.svg", "assets/icons/*.png", "assets/icons/*.ico", "locales/*.json"]
+fpga_lab = [
+    "assets/boards/*.svg",
+    "assets/board_layouts/*.json",
+    "assets/board_definitions/*.json",
+    "assets/profiles/*.json",
+    "assets/icons/*.svg",
+    "assets/icons/*.png",
+    "assets/icons/*.ico",
+    "locales/*.json",
+    "peripherals/*/manifest.json",
+]

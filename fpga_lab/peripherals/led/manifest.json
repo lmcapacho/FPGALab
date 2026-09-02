@@ -1,0 +1,13 @@
+{
+  "id": "led",
+  "label": "LED",
+  "category": "output",
+  "simulation": { "class": "gpio_sampled" },
+  "terminals": [
+    { "name": "anode", "direction": "output", "width": 1, "required": true }
+  ],
+  "properties": {
+    "color": { "type": "color", "default": "#b6ff00", "label": "Color" }
+  },
+  "visual": { "renderer": "lamp", "size": [120, 88] }
+}
