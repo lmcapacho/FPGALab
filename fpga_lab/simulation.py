@@ -3,19 +3,64 @@
 from __future__ import annotations
 
 import ctypes
+from dataclasses import dataclass
 from pathlib import Path
 
 from .i18n import t
 from .profile import BoardProfile
+from .sink_bind import BoundBit, VgaTiming
 from .temporal import SignalWindow
+
+
+class SimVgaTiming(ctypes.Structure):
+    """Matches ``SimVgaTiming`` in ``native/sim_streaming_abi.h`` (natural alignment)."""
+
+    _fields_ = [
+        ("h_active", ctypes.c_uint16),
+        ("h_fp", ctypes.c_uint16),
+        ("h_sync", ctypes.c_uint16),
+        ("h_bp", ctypes.c_uint16),
+        ("v_active", ctypes.c_uint16),
+        ("v_fp", ctypes.c_uint16),
+        ("v_sync", ctypes.c_uint16),
+        ("v_bp", ctypes.c_uint16),
+        ("hsync_active_low", ctypes.c_uint8),
+        ("vsync_active_low", ctypes.c_uint8),
+        ("color_depth", ctypes.c_uint8),
+        ("skip_until_vsync", ctypes.c_uint8),
+    ]
+
+
+class SimVgaStats(ctypes.Structure):
+    """Matches ``SimVgaStats`` in ``native/sim_streaming_abi.h`` (natural alignment)."""
+
+    _fields_ = [
+        ("frames_complete", ctypes.c_uint32),
+        ("seq", ctypes.c_uint32),
+        ("last_h_total", ctypes.c_uint32),
+        ("last_v_total", ctypes.c_uint32),
+        ("pixels_this_frame", ctypes.c_uint32),
+        ("synced", ctypes.c_uint8),
+        ("_pad", ctypes.c_uint8 * 3),
+    ]
+
+
+@dataclass(frozen=True)
+class VgaStats:
+    frames_complete: int
+    seq: int
+    last_h_total: int
+    last_v_total: int
+    pixels_this_frame: int
+    synced: bool
 
 
 class VerilatorSimulation:
     """One Verilator model instance, used from a single thread.
 
-    The library deliberately uses a global model: each DLL/SO represents one
-    virtual FPGA. Multiple simultaneous boards require one library per board
-    or a future ABI based on opaque handles.
+    The library uses a global model. ticks(), getters, and sim_vga_copy_front
+    must run on that thread (SimulationWorker). The UI thread owns copies of
+    pixel bytes, never C++ framebuffer pointers.
     """
 
     def __init__(self, library: str | Path, profile: BoardProfile):
@@ -57,6 +102,24 @@ class VerilatorSimulation:
             name: self._function(f"sim_get_{name}", ctypes.c_uint64)
             for name in self.profile.outputs
         }
+        self._read_output = self._function("sim_read_output", ctypes.c_uint64, (ctypes.c_uint32,))
+        self._vga_create = self._function("sim_vga_create", ctypes.c_int, (ctypes.POINTER(ctypes.c_uint32),))
+        self._vga_destroy = self._function("sim_vga_destroy", None, (ctypes.c_uint32,))
+        self._vga_configure = self._function("sim_vga_configure", ctypes.c_int, (ctypes.c_uint32, ctypes.POINTER(SimVgaTiming)))
+        self._vga_bind_bit = self._function(
+            "sim_vga_bind_bit", ctypes.c_int, (ctypes.c_uint32, ctypes.c_uint32, ctypes.c_int32, ctypes.c_uint8)
+        )
+        self._vga_enable = self._function("sim_vga_enable", None, (ctypes.c_uint32, ctypes.c_uint8))
+        self._vga_seq = self._function("sim_vga_seq", ctypes.c_uint32, (ctypes.c_uint32,))
+        self._vga_copy_front = self._function(
+            "sim_vga_copy_front",
+            ctypes.c_int,
+            (ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint32), ctypes.c_uint32, ctypes.POINTER(SimVgaStats)),
+        )
+        self._vga_stats = self._function("sim_vga_stats", None, (ctypes.c_uint32, ctypes.POINTER(SimVgaStats)))
+        self._streaming_reset = self._function("sim_streaming_reset", None)
+        self._streaming_close = self._function("sim_streaming_close", None)
+        self._streaming_on_posedge = self._function("sim_streaming_on_posedge", None)
 
     def tick(self) -> None:
         """One full period: rising edge/evaluation followed by falling edge/evaluation."""
@@ -123,6 +186,64 @@ class VerilatorSimulation:
             return int(self._getters[name]())
         except KeyError as exc:
             raise KeyError(t("Undeclared output: {name}", name=name)) from exc
+
+    def read_output(self, index: int) -> int:
+        return int(self._read_output(index))
+
+    def configure_vga(self, timing: VgaTiming, channels: dict[int, BoundBit]) -> int:
+        """Create, configure, bind, and enable one VGA sink. Worker thread only."""
+        sink_id = ctypes.c_uint32()
+        if self._vga_create(ctypes.byref(sink_id)) != 0:
+            raise RuntimeError(t("Only one VGA monitor is supported in this version."))
+        c_timing = SimVgaTiming(
+            timing.h_active, timing.h_fp, timing.h_sync, timing.h_bp,
+            timing.v_active, timing.v_fp, timing.v_sync, timing.v_bp,
+            timing.hsync_active_low, timing.vsync_active_low,
+            timing.color_depth, timing.skip_until_vsync,
+        )
+        if self._vga_configure(sink_id, ctypes.byref(c_timing)) != 0:
+            self._vga_destroy(sink_id)
+            raise RuntimeError(t("VGA monitor could not allocate a framebuffer."))
+        for channel, bound in channels.items():
+            self._vga_bind_bit(sink_id.value, channel, bound.port_index, bound.bit)
+        self._vga_enable(sink_id, 1)
+        return int(sink_id.value)
+
+    def destroy_vga(self, sink_id: int) -> None:
+        self._vga_destroy(sink_id)
+
+    def vga_seq(self, sink_id: int = 0) -> int:
+        return int(self._vga_seq(sink_id))
+
+    def vga_copy_front(self, sink_id: int, width: int, height: int) -> tuple[bytes, VgaStats] | None:
+        n = width * height
+        buf = (ctypes.c_uint32 * n)()
+        stats = SimVgaStats()
+        if self._vga_copy_front(sink_id, buf, n * 4, ctypes.byref(stats)) != 0:
+            return None
+        return bytes(buf), VgaStats(
+            frames_complete=int(stats.frames_complete),
+            seq=int(stats.seq),
+            last_h_total=int(stats.last_h_total),
+            last_v_total=int(stats.last_v_total),
+            pixels_this_frame=int(stats.pixels_this_frame),
+            synced=bool(stats.synced),
+        )
+
+    def vga_stats(self, sink_id: int = 0) -> VgaStats:
+        stats = SimVgaStats()
+        self._vga_stats(sink_id, ctypes.byref(stats))
+        return VgaStats(
+            frames_complete=int(stats.frames_complete),
+            seq=int(stats.seq),
+            last_h_total=int(stats.last_h_total),
+            last_v_total=int(stats.last_v_total),
+            pixels_this_frame=int(stats.pixels_this_frame),
+            synced=bool(stats.synced),
+        )
+
+    def streaming_reset(self) -> None:
+        self._streaming_reset()
 
     def read_leds(self) -> list[bool]:
         """UI convention: LED0 is the first item in the returned list."""

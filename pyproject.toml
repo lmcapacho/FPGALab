@@ -30,4 +30,5 @@ fpga_lab = [
     "assets/icons/*.ico",
     "locales/*.json",
     "peripherals/*/manifest.json",
+    "native/*",
 ]
