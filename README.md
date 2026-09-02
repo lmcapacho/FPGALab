@@ -4,6 +4,8 @@ FPGALab is an interactive virtual FPGA laboratory for Verilog designs. It turns 
 
 The first supported board is **Alhambra II**. The architecture is board-profile driven, allowing additional boards and visual peripherals to be added over time.
 
+A maintainer-oriented description of the peripheral catalog and VGA workbench (what changed, why, and how to extend it) is in [REWORK.md](REWORK.md).
+
 ## Screenshot
 
 ![FPGALab showing the Alhambra II board and virtual peripheral workbench](docs/images/fpgalab-workbench.png)
