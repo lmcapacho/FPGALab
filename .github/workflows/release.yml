@@ -29,7 +29,9 @@ jobs:
       - name: Build portable application
         run: python -m PyInstaller packaging/pyinstaller/FPGALab.spec --noconfirm --clean
       - name: Create Linux archive
-        run: tar -C dist -czf "FPGALab-${GITHUB_REF_NAME}-linux-x86_64.tar.gz" FPGALab
+        run: |
+          version="${GITHUB_REF_NAME//\//-}"
+          tar -C dist -czf "FPGALab-${version}-linux-x86_64.tar.gz" FPGALab
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v6
         with:
@@ -59,8 +61,9 @@ jobs:
       - name: Create Windows release assets
         shell: powershell
         run: |
-          Compress-Archive -Path "dist\FPGALab\*" -DestinationPath "FPGALab-${env:GITHUB_REF_NAME}-windows-x64-portable.zip" -Force
-          Copy-Item "dist\FPGALab.exe" "FPGALab-${env:GITHUB_REF_NAME}-windows-x64.exe" -Force
+          $version = $env:GITHUB_REF_NAME -replace '[\\/]', '-'
+          Compress-Archive -Path "dist\FPGALab\*" -DestinationPath "FPGALab-$version-windows-x64-portable.zip" -Force
+          Copy-Item "dist\FPGALab.exe" "FPGALab-$version-windows-x64.exe" -Force
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v6
         with:
