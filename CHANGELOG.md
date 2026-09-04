@@ -2,6 +2,14 @@
 
 All notable changes to FPGALab are documented in this file.
 
+## Unreleased
+
+### Added
+
+- Manifest-driven peripheral catalog (`fpga_lab/peripherals/*/manifest.json`) so new workbench parts do not need `if kind ==` branches.
+- VGA monitor workbench peripherals: cycle-accurate 640×480 capture in C++ (`vga_decoder` + streaming sink), painted with PyQt6. Separate catalog parts for 1-bit, 6-bit (2 bits/colour), and 12-bit (4 bits/colour). No SDL2 and no extra Verilog top around Icestudio `main.v`.
+- pytest suite for the catalog, wiring, and VGA decoder harness.
+
 ## 0.1.0rc1 — Release Candidate
 
 ### Added

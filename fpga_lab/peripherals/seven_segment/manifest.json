@@ -1,0 +1,24 @@
+{
+  "id": "seven_segment",
+  "label": "Seven-segment display",
+  "category": "output",
+  "simulation": { "class": "gpio_sampled" },
+  "terminals": [
+    { "name": "a", "direction": "output", "width": 1, "required": true },
+    { "name": "b", "direction": "output", "width": 1, "required": true },
+    { "name": "c", "direction": "output", "width": 1, "required": true },
+    { "name": "d", "direction": "output", "width": 1, "required": true },
+    { "name": "e", "direction": "output", "width": 1, "required": true },
+    { "name": "f", "direction": "output", "width": 1, "required": true },
+    { "name": "g", "direction": "output", "width": 1, "required": true }
+  ],
+  "properties": {
+    "common": {
+      "type": "enum",
+      "values": ["cathode", "anode"],
+      "default": "cathode",
+      "label": "Common"
+    }
+  },
+  "visual": { "renderer": "seven_segment", "size": [150, 205] }
+}

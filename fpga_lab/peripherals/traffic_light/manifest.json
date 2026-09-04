@@ -1,0 +1,20 @@
+{
+  "id": "traffic_light",
+  "label": "Traffic light",
+  "category": "output",
+  "simulation": { "class": "gpio_sampled" },
+  "terminals": [
+    { "name": "red", "direction": "output", "width": 1, "required": true },
+    { "name": "yellow", "direction": "output", "width": 1, "required": true },
+    { "name": "green", "direction": "output", "width": 1, "required": true }
+  ],
+  "properties": {
+    "colors": {
+      "type": "color_map",
+      "keys": ["red", "yellow", "green"],
+      "default": { "red": "#ef4444", "yellow": "#facc15", "green": "#22c55e" },
+      "label": "Lamp colors"
+    }
+  },
+  "visual": { "renderer": "traffic_light", "size": [120, 180] }
+}

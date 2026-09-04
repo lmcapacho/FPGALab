@@ -1,0 +1,48 @@
+{
+  "id": "vga_12bit",
+  "label": "VGA 12-bit",
+  "category": "display",
+  "simulation": { "class": "streaming_sink", "sink_kind": "vga", "color_depth": 4 },
+  "terminals": [
+    { "name": "hsync", "direction": "output", "width": 1, "required": true },
+    { "name": "vsync", "direction": "output", "width": 1, "required": true },
+    { "name": "r0", "direction": "output", "width": 1, "required": true },
+    { "name": "r1", "direction": "output", "width": 1, "required": true },
+    { "name": "r2", "direction": "output", "width": 1, "required": true },
+    { "name": "r3", "direction": "output", "width": 1, "required": true },
+    { "name": "g0", "direction": "output", "width": 1, "required": true },
+    { "name": "g1", "direction": "output", "width": 1, "required": true },
+    { "name": "g2", "direction": "output", "width": 1, "required": true },
+    { "name": "g3", "direction": "output", "width": 1, "required": true },
+    { "name": "b0", "direction": "output", "width": 1, "required": true },
+    { "name": "b1", "direction": "output", "width": 1, "required": true },
+    { "name": "b2", "direction": "output", "width": 1, "required": true },
+    { "name": "b3", "direction": "output", "width": 1, "required": true }
+  ],
+  "properties": {
+    "mode": {
+      "type": "enum",
+      "values": ["640x480@60"],
+      "default": "640x480@60",
+      "label": "Video mode"
+    },
+    "hsync_polarity": {
+      "type": "enum",
+      "values": ["active_low", "active_high"],
+      "default": "active_low",
+      "label": "HSYNC polarity"
+    },
+    "vsync_polarity": {
+      "type": "enum",
+      "values": ["active_low", "active_high"],
+      "default": "active_low",
+      "label": "VSYNC polarity"
+    },
+    "skip_until_vsync": {
+      "type": "boolean",
+      "default": true,
+      "label": "Wait for first VSYNC"
+    }
+  },
+  "visual": { "renderer": "vga_monitor", "size": [656, 524] }
+}

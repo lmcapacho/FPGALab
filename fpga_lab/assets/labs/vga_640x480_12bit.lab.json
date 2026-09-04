@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "name": "VGA 640x480 12-bit",
+    "board_id": "alhambra-ii",
+    "simulation": { "clock_hz": 25000000 }
+  },
+  "peripherals": [
+    {
+      "id": "vga_1",
+      "type": "vga_12bit",
+      "connections": {
+        "hsync": "D0",
+        "vsync": "D1",
+        "r0": "D2",
+        "r1": "D3",
+        "r2": "D4",
+        "r3": "D5",
+        "g0": "D6",
+        "g1": "D7",
+        "g2": "D8",
+        "g3": "D9",
+        "b0": "D10",
+        "b1": "D11",
+        "b2": "D12",
+        "b3": "D13"
+      },
+      "properties": {
+        "mode": "640x480@60",
+        "position": [16, 16]
+      }
+    }
+  ]
+}

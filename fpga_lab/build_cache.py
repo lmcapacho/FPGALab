@@ -15,7 +15,8 @@ from .i18n import t
 from .profile import BoardProfile
 from .toolchain import resolve_verilator
 
-_CACHE_FORMAT = 2
+_CACHE_FORMAT = 3
+_NATIVE_DIR = Path(__file__).resolve().parent / "native"
 
 
 def default_cache_root() -> Path:
@@ -52,6 +53,10 @@ class VerilatorBuildCache:
         for source in project.sources:
             digest.update(str(source.name).encode() + b"\0")
             digest.update(source.read_bytes())
+        if _NATIVE_DIR.is_dir():
+            for path in sorted(p for p in _NATIVE_DIR.iterdir() if p.is_file()):
+                digest.update(path.name.encode() + b"\0")
+                digest.update(path.read_bytes())
         return digest.hexdigest()
 
     def lookup(self, fingerprint: str, top_module: str = "top") -> CachedBuild | None:

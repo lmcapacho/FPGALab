@@ -57,15 +57,20 @@ class VerilatorCompiler:
         obj_dir.mkdir(parents=True, exist_ok=True)
         wrapper = build_dir / "sim_main.cpp"
         wrapper.write_text(render_cpp_wrapper(request.profile, f"V{request.top_module}"), encoding="utf-8")
+        native = Path(__file__).resolve().parent / "native"
+        streaming = native / "sim_streaming.cpp"
+        decoder = native / "vga_decoder.cpp"
 
         library = shared_library_name(f"V{request.top_module}_shared")
         # --exe writes a Makefile.  Building it in a separate process is
         # important on Windows: Verilator is native while Make runs in MSYS2.
         args = [
             "--cc", str(verilog), "--top-module", request.top_module, "--prefix", f"V{request.top_module}",
-            "--Mdir", str(obj_dir), "-O3", "-Wno-fatal", "--exe", str(wrapper),
+            "--Mdir", str(obj_dir), "-O3", "-Wno-fatal",
+            "--exe", str(wrapper), str(streaming), str(decoder),
             # The wrapper owns a VerilatedContext.  VL_TIME_CONTEXT prevents
             # MinGW from requiring the legacy sc_time_stamp() callback.
+            "-CFLAGS", f"-O3 -fPIC -march=native -DVL_TIME_CONTEXT -I{native}", "-LDFLAGS", "-shared", "-o", library,
             "-CFLAGS", "-O3 -fPIC -march=native -DVL_TIME_CONTEXT",
             "-LDFLAGS", shared_library_linker_flag(), "-o", library,
         ]

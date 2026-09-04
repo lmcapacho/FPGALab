@@ -1,0 +1,11 @@
+{
+  "id": "sensor",
+  "label": "Digital sensor",
+  "category": "input",
+  "simulation": { "class": "gpio_driven" },
+  "terminals": [
+    { "name": "signal", "direction": "input", "width": 1, "required": true }
+  ],
+  "properties": {},
+  "visual": { "renderer": "sensor", "size": [150, 88] }
+}
