@@ -47,6 +47,8 @@ class SegmentDisplay(QFrame):
 class PeripheralConfigDialog(QDialog):
     """Modal editor for one instance; fields come from the catalog schema."""
 
+    save_requested = pyqtSignal()
+
     def __init__(self, peripheral, board, assigned_endpoints=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle(t("Configure · {identifier}", identifier=peripheral.peripheral_id))
@@ -80,12 +82,17 @@ class PeripheralConfigDialog(QDialog):
                 continue
             form.addRow(t(str(schema.get("label", name))), self._property_widget(name, schema, peripheral.properties))
         layout.addLayout(form)
+        self._error_label = QLabel()
+        self._error_label.setWordWrap(True)
+        self._error_label.setStyleSheet("color:#fca5a5; font-size:11px;")
+        self._error_label.setVisible(False)
+        layout.addWidget(self._error_label)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText(t("Save"))
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
         delete = buttons.addButton(t("Delete"), QDialogButtonBox.ButtonRole.DestructiveRole)
         delete.clicked.connect(self._request_delete)
-        buttons.accepted.connect(self.accept)
+        buttons.accepted.connect(self.save_requested.emit)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
@@ -147,6 +154,16 @@ class PeripheralConfigDialog(QDialog):
     def _request_delete(self):
         self._delete_requested = True
         self.done(2)
+
+    def show_error(self, message: str, endpoint: str | None = None) -> None:
+        """Keep the editor open and clear only an invalid endpoint assignment."""
+        if endpoint:
+            for picker in self._pickers.values():
+                if picker.currentData() == endpoint:
+                    picker.setCurrentIndex(0)
+                    break
+        self._error_label.setText(message)
+        self._error_label.setVisible(True)
 
     def _pick_color(self, property_name, button: QPushButton, map_key: str | None):
         current = button.text()
@@ -585,6 +602,7 @@ class PeripheralsPanel(QWidget):
         """Create output predicates from a peripheral's manifest metadata."""
         probes: list[tuple[tuple[int, int, bool], ...]] = []
         bindings: list[tuple[WorkbenchPeripheralItem, str]] = []
+        temporal_terminals: set[tuple[str, str]] = set()
 
         def add(peripheral_id: str, terminal: str, conditions: list[tuple[int, int, bool]]) -> None:
             if conditions:
@@ -618,8 +636,13 @@ class PeripheralsPanel(QWidget):
                 condition = self._output_condition(binding[1] if binding else None, common_type == "anode")
                 common_conditions = [condition] if condition is not None else None
             if common_conditions is None:
+                temporal_terminals.update(
+                    (peripheral.peripheral_id, str(terminal))
+                    for terminal in temporal.get("active_terminals", ())
+                )
                 continue
             for terminal in temporal.get("active_terminals", ()):
+                temporal_terminals.add((peripheral.peripheral_id, str(terminal)))
                 binding = self._workbench_bindings.get((peripheral.peripheral_id, str(terminal)))
                 # Segment current flows low for common-anode displays and high
                 # for common-cathode displays. The common enable is handled above.
@@ -629,7 +652,7 @@ class PeripheralsPanel(QWidget):
 
         self._temporal_probes = probes
         self._temporal_bindings = bindings
-        self._temporal_terminals = {
+        self._temporal_terminals = temporal_terminals | {
             (item.peripheral.peripheral_id, terminal) for item, terminal in bindings
         }
         self._temporal_models = [LedModel(_EXTERNAL_LIGHT_PERSISTENCE_SECONDS) for _ in bindings]
@@ -721,14 +744,12 @@ class PeripheralsPanel(QWidget):
         self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
 
     def _commit(self, raw, message):
-        original = self._lab.read_text(encoding="utf-8")
-        self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
         try:
-            VirtualLabProject.load(self._lab).resolve(self._board, self._constraints())
+            VirtualLabProject.from_raw(raw).resolve(self._board, self._constraints())
         except Exception as exc:
-            self._lab.write_text(original, encoding="utf-8")
             self._show_configuration_error(str(exc))
             return False
+        self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
         self._show_status(message)
         self._reload()
         self.changed.emit(message)
@@ -741,25 +762,47 @@ class PeripheralsPanel(QWidget):
 
     def _configure(self, peripheral):
         dialog = PeripheralConfigDialog(peripheral, self._board, self._assigned_endpoints, self)
+        dialog.save_requested.connect(lambda: self._save_configuration(dialog, peripheral))
         result = dialog.exec()
         if result == 2: self._delete(peripheral); return
         if result != QDialog.DialogCode.Accepted: return
+
+    def _save_configuration(self, dialog: PeripheralConfigDialog, peripheral) -> None:
         value = dialog.value()
         required = spec_for(peripheral.kind).required_terminals(value["properties"])
         if not value["id"] or any(terminal not in value["connections"] for terminal in required):
-            self._show_configuration_error(t("Complete the identifier and every terminal."))
+            dialog.show_error(t("Complete the identifier and every terminal."))
             return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         ids = [item["id"] for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
         if value["id"] in ids:
-            self._show_configuration_error(t("A peripheral with that identifier already exists."))
+            dialog.show_error(t("A peripheral with that identifier already exists."))
             return
         for index, item in enumerate(raw.get("peripherals", [])):
             if item["id"] == peripheral.peripheral_id:
                 dialog_properties = dict(value["properties"]); dialog_properties.pop("position", None)
                 value["properties"] = {**item.get("properties", {}), **dialog_properties}
                 raw["peripherals"][index] = value; break
-        self._commit(raw, t("{identifier} updated", identifier=value["id"]))
+        error = self._validation_error(raw)
+        if error:
+            dialog.show_error(error, self._conflicting_endpoint(error))
+            return
+        if self._commit(raw, t("{identifier} updated", identifier=value["id"])):
+            dialog.accept()
+
+    def _validation_error(self, raw) -> str | None:
+        try:
+            VirtualLabProject.from_raw(raw).resolve(self._board, self._constraints())
+        except Exception as exc:
+            return str(exc)
+        return None
+
+    @staticmethod
+    def _conflicting_endpoint(error: str) -> str | None:
+        marker = t("Input conflict: more than one peripheral drives {endpoint}.", endpoint="{endpoint}")
+        pattern = re.escape(marker).replace(re.escape("{endpoint}"), r"(?P<endpoint>.+)")
+        match = re.fullmatch(pattern, error)
+        return match.group("endpoint") if match else None
 
     def _delete(self, peripheral):
         answer = QMessageBox.question(self, t("Delete peripheral"), t("Delete {identifier}?", identifier=peripheral.peripheral_id))
@@ -851,14 +894,23 @@ class PeripheralsPanel(QWidget):
         while f"{kind}_{index}" in existing: index += 1
         draft = PeripheralInstance(f"{kind}_{index}", kind, {}, {})
         dialog = PeripheralConfigDialog(draft, self._board, self._assigned_endpoints, self)
-        if dialog.exec() != QDialog.DialogCode.Accepted: return
+        dialog.save_requested.connect(lambda: self._save_new_peripheral(dialog, kind, existing))
+        dialog.exec()
+
+    def _save_new_peripheral(self, dialog: PeripheralConfigDialog, kind: str, existing: set[str]) -> None:
         value = dialog.value()
         required = spec_for(kind).required_terminals(value["properties"])
         if not value["id"] or any(terminal not in value["connections"] for terminal in required):
-            self._show_configuration_error(t("Complete the identifier and every terminal."))
+            dialog.show_error(t("Complete the identifier and every terminal."))
             return
         if value["id"] in existing:
-            self._show_configuration_error(t("A peripheral with that identifier already exists."))
+            dialog.show_error(t("A peripheral with that identifier already exists."))
             return
+        raw = json.loads(self._lab.read_text(encoding="utf-8"))
         raw.setdefault("peripherals", []).append(value)
-        self._commit(raw, t("{identifier} added", identifier=value["id"]))
+        error = self._validation_error(raw)
+        if error:
+            dialog.show_error(error, self._conflicting_endpoint(error))
+            return
+        if self._commit(raw, t("{identifier} added", identifier=value["id"])):
+            dialog.accept()
