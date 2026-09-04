@@ -53,6 +53,7 @@ The C++ wrapper exposes native getters, setters, clock stepping, and batched cyc
 - A C++17 compiler and GNU Make-compatible build tools
   - Linux: GCC or Clang with `make`
   - Windows: MSYS2/MinGW64 is recommended
+  - macOS: Xcode Command Line Tools (`xcode-select --install`)
 - PyQt6 (installed automatically with the Python package)
 
 ### Simulation toolchain
@@ -63,6 +64,14 @@ OSS CAD Suite is recommended for a portable toolchain installation, but generate
 
 ```bash
 pacman -S --needed make python mingw-w64-ucrt-x86_64-gcc
+```
+
+On macOS, install Apple's command-line build tools and Verilator before running a design. Homebrew is one supported way to install Verilator:
+
+```bash
+xcode-select --install
+brew install verilator
+verilator --version
 ```
 
 ```bash
@@ -156,6 +165,10 @@ Release candidates are considered while running a release candidate build. Stabl
 Windows releases provide two options: `windows-x64.exe` is a self-contained executable and is the recommended download; `windows-x64-portable.zip` contains an application folder and must be fully extracted before starting `FPGALab.exe`. Do not run the executable from Windows Explorer's compressed-folder view, because `_internal` dependencies are not available there.
 
 Windows SmartScreen may display an `Unknown publisher` warning until the application is Authenticode-signed and builds reputation. This is independent from the application package contents.
+
+### macOS release assets
+
+macOS releases provide separate `macos-x86_64.zip` (Intel) and `macos-arm64.zip` (Apple Silicon) application bundles. Extract the ZIP completely before opening `FPGALab.app`. Builds are ad-hoc signed for integrity but are not Apple-notarized yet, so macOS may require using **Open** from the context menu on first launch. The bundled application includes Python and PyQt6; Verilator and the Xcode Command Line Tools are still required to compile Icestudio designs.
 
 ## Command-line options
 

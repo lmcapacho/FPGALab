@@ -1,11 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import sys
 
 from PyInstaller.utils.hooks import collect_data_files
 
 
 datas = collect_data_files("fpga_lab")
+icon_directory = Path(SPECPATH).parents[1] / "fpga_lab" / "assets" / "icons"
+icon = icon_directory / ("fpgalab.icns" if sys.platform == "darwin" else "fpgalab.ico")
 
 a = Analysis(
     [str(Path(SPECPATH) / "launcher.py")],
@@ -31,7 +34,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    icon=str(Path(SPECPATH).parents[1] / "fpga_lab" / "assets" / "icons" / "fpgalab.ico"),
+    icon=str(icon),
 )
 coll = COLLECT(
     exe,
@@ -42,3 +45,11 @@ coll = COLLECT(
     upx_exclude=[],
     name="FPGALab",
 )
+
+if sys.platform == "darwin":
+    app = BUNDLE(
+        coll,
+        name="FPGALab.app",
+        icon=str(icon),
+        bundle_identifier="org.fpgalab.app",
+    )
