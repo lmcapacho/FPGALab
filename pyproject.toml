@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fpga-lab"
-version = "0.1.0rc1"
+version = "0.1.0rc2"
 description = "Interactive virtual laboratory for Verilog designs and FPGA boards"
 license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.10"
