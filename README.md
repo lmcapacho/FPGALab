@@ -160,9 +160,12 @@ Laboratories are reusable configurations independent from Icestudio project fold
 Default locations are:
 
 - Linux: `~/FPGALab/labs`
+- macOS: `~/FPGALab/labs`
 - Windows: `Documents/FPGALab/labs`
 
 Set `FPGALAB_WORKSPACE` to use a different workspace root.
+
+The most recently selected lab is remembered in the platform's standard FPGALab user settings and is restored when the application starts.
 
 ## Catalog, board assets, and extensibility
 

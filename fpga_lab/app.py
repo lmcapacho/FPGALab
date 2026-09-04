@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -61,7 +62,6 @@ class PendingProjectRun:
     project: IcestudioProject
     profile: BoardProfile
     module_name: str
-    lab_file: Path
     led_sources: dict[int, tuple[str, int]]
     input_sources: dict[str, tuple[str, int]]
 
@@ -122,9 +122,22 @@ class ApplicationController(QObject):
         self._build_worker: BuildWorker | None = None
         self._pending_run: PendingProjectRun | None = None
         window.project_requested.connect(self.execute_project)
+        window.lab_selected.connect(self.switch_lab)
         window.stop_requested.connect(self.stop_simulation)
         window.toolchain_requested.connect(self.check_toolchain)
         app.aboutToQuit.connect(self.shutdown)
+
+    def switch_lab(self, lab_file: Path) -> None:
+        """Apply the selected laboratory to the visible workbench immediately."""
+        active_lab = self._window.active_lab()
+        if not isinstance(active_lab, FPGAVirtualLab):
+            return
+        try:
+            active_lab.set_lab_file(lab_file)
+        except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+            QMessageBox.warning(self._window, t("Cannot load lab"), str(error))
+            return
+        self._window.set_status(t("Lab loaded: {name}", name=lab_file.stem.removesuffix(".lab")))
 
     def execute_project(self, ice_file: Path) -> None:
         if self._build_worker is not None:
@@ -138,7 +151,6 @@ class ApplicationController(QObject):
             led_sources, input_sources = board_sources(project, profile)
             if self._manual_profile is None:
                 profile = apply_led_observed(profile, led_sources)
-            lab_file = self._window.selected_lab()
         except (IcestudioProjectError, ValueError, OSError) as error:
             QMessageBox.critical(self._window, t("Cannot load design"), str(error))
             return
@@ -150,7 +162,7 @@ class ApplicationController(QObject):
             "Preparing {name}. FPGALab is checking the cache and may compile the HDL model.",
             name=project.ice_file.name,
         ))
-        self._pending_run = PendingProjectRun(project, profile, interface.module_name, lab_file, led_sources, input_sources)
+        self._pending_run = PendingProjectRun(project, profile, interface.module_name, led_sources, input_sources)
         self._window.set_project_loading(True)
         # The worker must outlive the window while a native build is running.
         self._build_worker = BuildWorker(self._namespace.cache_dir, project, profile, interface.module_name)
@@ -177,7 +189,7 @@ class ApplicationController(QObject):
             self._namespace.ui_refresh_hz,
             self._namespace.observation_hz,
             project_pcf=pending.project.pcf,
-            lab_file=pending.lab_file,
+            lab_file=self._window.selected_lab(),
             led_sources=pending.led_sources,
             input_sources=pending.input_sources,
         )

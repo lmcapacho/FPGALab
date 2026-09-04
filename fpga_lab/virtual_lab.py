@@ -156,6 +156,15 @@ class FPGAVirtualLab(QWidget):
         """Restore the user's workbench framing after rebuilding a design."""
         self._peripherals.workbench.set_zoom(zoom)
 
+    def set_lab_file(self, lab_file: str | Path) -> None:
+        """Load another laboratory without rebuilding the active HDL model."""
+        self._lab_file = Path(lab_file)
+        self._peripherals.set_lab_file(self._lab_file)
+        if self._simulation is not None:
+            project = VirtualLabProject.load(self._lab_file)
+            bindings = collect_vga_bindings(project, self._peripherals.current_wires(), self._simulation.profile)
+            self.configure_vga_requested.emit(bindings)
+
     def stop_simulation(self) -> None:
         """Power off a clocked or combinational model from the main toolbar."""
         self._pause()

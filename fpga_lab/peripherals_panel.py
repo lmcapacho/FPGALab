@@ -567,6 +567,20 @@ class PeripheralsPanel(QWidget):
         """Load optional design constraints without requiring a PCF for the board UI."""
         return PcfParser.parse_file(self._pcf) if self._pcf and self._pcf.is_file() else []
 
+    def set_lab_file(self, lab: str | Path) -> None:
+        """Replace the workbench content with another saved laboratory."""
+        next_lab = Path(lab)
+        if next_lab == self._lab:
+            return
+        for port in tuple(self._input_values):
+            self.input_changed.emit(port, 0)
+        self._input_values.clear()
+        self._active_shortcut_keys.clear()
+        self._lab = next_lab
+        self._status_timer.stop()
+        self.status.setVisible(False)
+        self._reload()
+
     def _reload(self):
         project = VirtualLabProject.load(self._lab)
         wires = project.resolve(self._board, self._constraints())

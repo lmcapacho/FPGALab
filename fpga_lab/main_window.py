@@ -7,12 +7,15 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QInputDialog,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -28,10 +31,164 @@ from .lab_workspace import LabWorkspace
 from .recent_projects import RecentProjects
 
 
+class LabNameDialog(QDialog):
+    """Purpose-built Lab naming dialog with predictable sizing on every platform."""
+
+    def __init__(self, title: str, action: str, initial_name: str = "", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumWidth(360)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(t("Lab Name:")))
+        self.name_field = QLineEdit()
+        self.name_field.setText(initial_name)
+        self.name_field.setPlaceholderText(t("New Lab"))
+        layout.addWidget(self.name_field)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(action)
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
+        buttons.accepted.connect(self._accept_if_named)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.name_field.setFocus()
+        self.name_field.selectAll()
+
+    def _accept_if_named(self) -> None:
+        if self.name_field.text().strip():
+            self.accept()
+
+
+class LabManagerDialog(QDialog):
+    """Search, select, create, and delete reusable labs from one compact view."""
+
+    def __init__(self, workspace: LabWorkspace, selected_lab: Path, parent=None):
+        super().__init__(parent)
+        self._workspace = workspace
+        self._selected_lab = selected_lab.resolve()
+        self.setWindowTitle(t("Laboratories"))
+        self.setMinimumSize(460, 360)
+        layout = QVBoxLayout(self)
+        self._search = QLineEdit()
+        self._search.setPlaceholderText(t("Search labs…"))
+        self._search.textChanged.connect(self._refresh)
+        layout.addWidget(self._search)
+        self._list = QListWidget()
+        self._list.itemDoubleClicked.connect(lambda _: self.accept())
+        self._list.itemSelectionChanged.connect(self._update_actions)
+        management_actions = QHBoxLayout()
+        self._new_button = QPushButton(t("New Lab"))
+        self._new_button.clicked.connect(self._create_lab)
+        self._duplicate_button = QPushButton(t("Duplicate"))
+        self._duplicate_button.clicked.connect(self._duplicate_lab)
+        self._rename_button = QPushButton(t("Rename"))
+        self._rename_button.clicked.connect(self._rename_lab)
+        self._delete_button = QPushButton(t("Delete"))
+        self._delete_button.clicked.connect(self._delete_lab)
+        management_actions.addWidget(self._new_button)
+        management_actions.addWidget(self._duplicate_button)
+        management_actions.addWidget(self._rename_button)
+        management_actions.addWidget(self._delete_button)
+        management_actions.addStretch(1)
+        layout.addLayout(management_actions)
+        layout.addWidget(self._list, 1)
+        selection_actions = QHBoxLayout()
+        selection_actions.addStretch(1)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Open)
+        buttons.button(QDialogButtonBox.StandardButton.Open).setText(t("Open"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        selection_actions.addWidget(buttons)
+        layout.addLayout(selection_actions)
+        self._refresh()
+
+    def selected_lab(self) -> Path | None:
+        item = self._list.currentItem()
+        return Path(item.data(Qt.ItemDataRole.UserRole)) if item is not None else None
+
+    def _refresh(self) -> None:
+        current = self.selected_lab() or self._selected_lab
+        filter_text = self._search.text().strip().casefold()
+        self._list.blockSignals(True)
+        self._list.clear()
+        for descriptor in self._workspace.labs():
+            if filter_text and filter_text not in descriptor.name.casefold():
+                continue
+            name = t("My First Lab") if descriptor.path.name == "my-first-lab.lab.json" else descriptor.name
+            item = QListWidgetItem(LabWorkspace.base_name(name))
+            item.setData(Qt.ItemDataRole.UserRole, descriptor.path)
+            item.setToolTip(name)
+            self._list.addItem(item)
+            if descriptor.path.resolve() == current.resolve():
+                self._list.setCurrentItem(item)
+        if self._list.currentItem() is None and self._list.count():
+            self._list.setCurrentRow(0)
+        self._list.blockSignals(False)
+        self._update_actions()
+
+    def _update_actions(self) -> None:
+        selected = self.selected_lab()
+        is_user_lab = selected is not None and selected.name != "my-first-lab.lab.json"
+        self._duplicate_button.setEnabled(selected is not None)
+        self._rename_button.setEnabled(is_user_lab)
+        self._delete_button.setEnabled(is_user_lab)
+
+    def _create_lab(self) -> None:
+        dialog = LabNameDialog(t("New Lab"), t("Create"), parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        descriptor = self._workspace.create(dialog.name_field.text())
+        self._selected_lab = descriptor.path.resolve()
+        self._refresh()
+
+    def _duplicate_lab(self) -> None:
+        selected = self.selected_lab()
+        if selected is None:
+            return
+        descriptor = self._workspace.duplicate(selected)
+        self._selected_lab = descriptor.path.resolve()
+        self._refresh()
+
+    def _rename_lab(self) -> None:
+        selected = self.selected_lab()
+        if selected is None:
+            return
+        current_name = next(
+            descriptor.name for descriptor in self._workspace.labs()
+            if descriptor.path.resolve() == selected.resolve()
+        )
+        dialog = LabNameDialog(
+            t("Rename Lab"),
+            t("Rename"),
+            LabWorkspace.base_name(current_name),
+            self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        descriptor = self._workspace.rename(selected, dialog.name_field.text())
+        self._selected_lab = descriptor.path.resolve()
+        self._refresh()
+
+    def _delete_lab(self) -> None:
+        selected = self.selected_lab()
+        if selected is None:
+            return
+        answer = QMessageBox.question(
+            self,
+            t("Delete Lab"),
+            t("Delete Lab {name}?", name=self._list.currentItem().text()),
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        if self._workspace.delete(selected):
+            self._selected_lab = self._workspace.last_selected().resolve()
+            self._refresh()
+
 class FPGALabMainWindow(QMainWindow):
     """Persistent shell that selects and hosts one active virtual laboratory."""
 
     project_requested = pyqtSignal(Path)
+    lab_selected = pyqtSignal(Path)
     stop_requested = pyqtSignal()
     toolchain_requested = pyqtSignal()
     update_requested = pyqtSignal()
@@ -51,7 +208,7 @@ class FPGALabMainWindow(QMainWindow):
         """)
         self._recent_projects = RecentProjects()
         self._workspace = workspace
-        self._selected_lab = self._workspace.ensure_default()
+        self._selected_lab = self._workspace.last_selected()
         self._active_lab: QWidget | None = None
         self._busy_dialog: QProgressDialog | None = None
         self._status_bar = QStatusBar(self)
@@ -108,14 +265,10 @@ class FPGALabMainWindow(QMainWindow):
         self._recent.setMinimumWidth(155)
         self._recent.currentIndexChanged.connect(self._choose_recent)
         self._refresh_recent()
-        self._lab_label = QLabel()
-        self._labs = QComboBox()
-        self._labs.setMinimumWidth(190)
-        self._labs.currentIndexChanged.connect(self._choose_lab)
+        self._lab_button = QPushButton()
+        self._lab_button.setMinimumWidth(210)
+        self._lab_button.clicked.connect(self._open_lab_manager)
         self._refresh_labs()
-        self._new_lab_button = QPushButton("＋")
-        self._new_lab_button.setFixedWidth(30)
-        self._new_lab_button.clicked.connect(self._create_lab)
         self._language = QComboBox()
         for language in language_manager.languages:
             self._language.addItem(language.upper(), language)
@@ -127,9 +280,7 @@ class FPGALabMainWindow(QMainWindow):
         layout.addWidget(self._browse_button)
         layout.addWidget(self._recent)
         layout.addSpacing(8)
-        layout.addWidget(self._lab_label)
-        layout.addWidget(self._labs, 2)
-        layout.addWidget(self._new_lab_button)
+        layout.addWidget(self._lab_button, 2)
         layout.addWidget(self._language)
         return frame
 
@@ -139,8 +290,7 @@ class FPGALabMainWindow(QMainWindow):
         self._path.setPlaceholderText(t("Select an .ice file"))
         self._browse_button.setText(t("Browse…"))
         self._browse_button.setToolTip(t("Browse for an Icestudio design"))
-        self._lab_label.setText(t("Lab"))
-        self._new_lab_button.setToolTip(t("Create a new lab"))
+        self._lab_button.setToolTip(t("Select or manage labs"))
         self._language.setToolTip(t("Interface language"))
         self._update_button.setToolTip(t("Check for updates"))
         self._toolchain_button.setToolTip(t("Check simulation toolchain"))
@@ -157,44 +307,46 @@ class FPGALabMainWindow(QMainWindow):
             language_manager.set_language(language)
 
     def _refresh_labs(self) -> None:
-        current = self._selected_lab
-        self._labs.blockSignals(True)
-        self._labs.clear()
+        current = self._selected_lab.resolve()
+        current_name = current.stem.removesuffix(".lab")
         for descriptor in self._workspace.labs():
             display_name = descriptor.name
             if descriptor.path.name == "my-first-lab.lab.json":
-                display_name = t("My first lab")
-            self._labs.addItem(display_name, descriptor.path)
-        index = self._labs.findData(current)
-        self._labs.setCurrentIndex(max(0, index))
-        self._labs.blockSignals(False)
+                display_name = t("My First Lab")
+            if descriptor.path.resolve() == current:
+                current_name = self._button_lab_name(display_name)
+                break
+        self._lab_button.setText(current_name)
         self._update_lab_tooltip()
 
     def _update_lab_tooltip(self) -> None:
-        self._labs.setToolTip(str(self._selected_lab))
+        self._lab_button.setToolTip(f"{t('Select or manage labs')}\n{self._selected_lab}")
 
-    def _choose_lab(self, index: int) -> None:
-        path = self._labs.itemData(index)
-        if path:
-            self._selected_lab = Path(path)
-            self._update_lab_tooltip()
-            self.set_status(t("Selected lab: {name}", name=self._labs.currentText()))
+    @staticmethod
+    def _button_lab_name(name: str) -> str:
+        """Keep the active selector explicit without repeating an existing suffix."""
+        return name if name.casefold().endswith(" lab") else f"{name} Lab"
 
-    def _create_lab(self) -> None:
-        name, accepted = QInputDialog.getText(self, t("New lab"), t("Lab name:"))
-        if not accepted:
+    def _open_lab_manager(self) -> None:
+        dialog = LabManagerDialog(self._workspace, self._selected_lab, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        descriptor = self._workspace.create(name)
-        self._selected_lab = descriptor.path
+        if path := dialog.selected_lab():
+            self._set_selected_lab(path, notify=True)
+
+    def _set_selected_lab(self, path: Path, notify: bool) -> None:
+        self._selected_lab = path.resolve()
+        self._workspace.remember_selected(self._selected_lab)
         self._refresh_labs()
-        self.set_status(t("Lab created: {name}", name=descriptor.name))
+        if notify:
+            self.set_status(t("Selected lab: {name}", name=self._lab_button.text()))
+            self.lab_selected.emit(self._selected_lab)
 
     def selected_lab(self) -> Path:
         return self._selected_lab
 
     def select_lab(self, path: Path) -> None:
-        self._selected_lab = path
-        self._refresh_labs()
+        self._set_selected_lab(path, notify=False)
 
     def _refresh_recent(self) -> None:
         self._recent.blockSignals(True)

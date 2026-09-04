@@ -82,6 +82,50 @@ def test_anode_display_with_ground_common_never_falls_back_to_raw_segments(tmp_p
     assert _APPLICATION is not None
 
 
+def test_switching_labs_rebuilds_the_workbench(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    first_lab = tmp_path / "first.lab.json"
+    first_lab.write_text(
+        json.dumps({
+            "peripherals": [{
+                "id": "led_1",
+                "type": "led",
+                "connections": {"anode": "D0"},
+                "properties": {},
+            }],
+        }),
+        encoding="utf-8",
+    )
+    second_lab = tmp_path / "second.lab.json"
+    second_lab.write_text(
+        json.dumps({
+            "peripherals": [{
+                "id": "button_1",
+                "type": "button",
+                "connections": {"signal": "D1"},
+                "properties": {},
+            }, {
+                "id": "sensor_1",
+                "type": "sensor",
+                "connections": {"signal": "D2"},
+                "properties": {},
+            }],
+        }),
+        encoding="utf-8",
+    )
+    panel = PeripheralsPanel(board, None, first_lab)
+
+    panel.set_lab_file(second_lab)
+
+    identifiers = {
+        item.peripheral.peripheral_id
+        for item in panel._workbench_scene.items()
+        if hasattr(item, "peripheral")
+    }
+    assert identifiers == {"button_1", "sensor_1"}
+    panel.deleteLater()
+
+
 def test_conflicting_input_remains_open_and_clears_only_that_pin():
     board = BoardDefinition.load(bundled_board_definition())
     dialog = PeripheralConfigDialog(
