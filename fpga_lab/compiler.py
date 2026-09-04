@@ -26,6 +26,11 @@ def shared_library_name(stem: str = "Vtop_shared") -> str:
     return f"lib{stem}.so"
 
 
+def shared_library_linker_flag() -> str:
+    """Return the platform linker option for a loadable native model."""
+    return "-dynamiclib" if sys.platform == "darwin" else "-shared"
+
+
 @dataclass(frozen=True)
 class BuildRequest:
     verilog: Path
@@ -66,6 +71,8 @@ class VerilatorCompiler:
             # The wrapper owns a VerilatedContext.  VL_TIME_CONTEXT prevents
             # MinGW from requiring the legacy sc_time_stamp() callback.
             "-CFLAGS", f"-O3 -fPIC -march=native -DVL_TIME_CONTEXT -I{native}", "-LDFLAGS", "-shared", "-o", library,
+            "-CFLAGS", "-O3 -fPIC -march=native -DVL_TIME_CONTEXT",
+            "-LDFLAGS", shared_library_linker_flag(), "-o", library,
         ]
         return obj_dir / library, args
 

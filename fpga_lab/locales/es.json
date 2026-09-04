@@ -122,6 +122,7 @@
   "VIRTUAL FPGA": "FPGA VIRTUAL",
   "Verilator was found, but Windows needs MSYS2 build tools: {tools}. Install MSYS2, then install make, Python, and a MinGW-w64 C++ compiler.": "Se encontró Verilator, pero Windows necesita las herramientas de compilación de MSYS2: {tools}. Instale MSYS2 y luego make, Python y un compilador C++ MinGW-w64.",
   "Verilator was found, but the required build tools are missing: {tools}.": "Se encontró Verilator, pero faltan las herramientas de compilación requeridas: {tools}.",
+  "Verilator was found, but macOS needs Xcode Command Line Tools: {tools}. Run xcode-select --install, then install Verilator (for example with Homebrew).": "Se encontró Verilator, pero macOS necesita las herramientas de línea de comandos de Xcode: {tools}. Ejecute xcode-select --install y luego instale Verilator (por ejemplo, con Homebrew).",
   "Verilator was not found. Install Icestudio/Apio, configure FPGALAB_OSS_CAD_SUITE, or install Verilator on PATH.": "No se encontró Verilator. Instale Icestudio/Apio, configure FPGALAB_OSS_CAD_SUITE o instale Verilator en PATH.",
   "Virtual workbench · drag a part; double-click to configure or delete": "Mesa virtual · arrastre una pieza; doble clic para configurar o eliminar",
   "Virtual workbench": "Mesa virtual",

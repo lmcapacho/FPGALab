@@ -52,7 +52,8 @@ class VerilatorToolchain:
     def validate_build_prerequisites(self) -> None:
         """Ensure the native build tools required by Verilator are available."""
         environment = self.environment()
-        missing = [command for command in ("make", "g++") if not _command_exists(command, environment)]
+        compiler = "c++" if sys.platform == "darwin" else "g++"
+        missing = [command for command in ("make", compiler) if not _command_exists(command, environment)]
         if sys.platform == "win32" and not _msys2_python_exists():
             missing.append("python")
         if not missing:
@@ -60,6 +61,11 @@ class VerilatorToolchain:
         if sys.platform == "win32":
             raise ToolchainPrerequisiteError(t(
                 "Verilator was found, but Windows needs MSYS2 build tools: {tools}. Install MSYS2, then install make, Python, and a MinGW-w64 C++ compiler.",
+                tools=", ".join(missing),
+            ))
+        if sys.platform == "darwin":
+            raise ToolchainPrerequisiteError(t(
+                "Verilator was found, but macOS needs Xcode Command Line Tools: {tools}. Run xcode-select --install, then install Verilator (for example with Homebrew).",
                 tools=", ".join(missing),
             ))
         raise ToolchainPrerequisiteError(t(
@@ -77,6 +83,8 @@ class VerilatorToolchain:
 
     def make_variables(self) -> tuple[str, ...]:
         """Return Make overrides needed when native Verilator uses MSYS2 Make."""
+        if sys.platform == "darwin":
+            return ("CXX=c++",)
         if sys.platform != "win32" or self.suite_root is None:
             return ()
         verilator_root = self.suite_root / "share" / "verilator"
