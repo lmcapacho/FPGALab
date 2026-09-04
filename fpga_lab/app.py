@@ -185,11 +185,11 @@ class ApplicationController(QObject):
         self._window.set_lab(lab)
         lab.status_changed.connect(self._window.set_status)
         lab.start_simulation()
-        self._window.set_simulation_running(pending.profile.clock_name is not None)
+        self._window.set_simulation_running(True)
         self._window.set_project_path(pending.project.ice_file)
         self._window.remember_project(pending.project.ice_file)
         source = t("cache") if artifact.reused else t("new build")
-        run_state = t("simulation started") if pending.profile.clock_name is not None else t("combinational logic ready")
+        run_state = t("simulation started") if pending.profile.clock_name is not None else t("combinational logic active")
         self._window.set_status(t("{name}: {state} ({source}, module {module}).", name=pending.project.ice_file.name, state=run_state, source=source, module=pending.module_name))
         self._pending_run = None
 

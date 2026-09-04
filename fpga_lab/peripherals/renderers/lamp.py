@@ -11,6 +11,6 @@ class LampRenderer(NullInputMixin):
         return (120, 88)
 
     def paint(self, painter: QPainter, rect, peripheral: PeripheralInstance, state) -> None:
-        active = bool(state.get("active", {}).get("anode", False))
+        brightness = float(state.get("brightness", {}).get("anode", state.get("active", {}).get("anode", False)))
         color = str(peripheral.properties.get("color", "#b6ff00"))
-        lamp(painter, 77, 47, active, color)
+        lamp(painter, 77, 47, brightness, color)

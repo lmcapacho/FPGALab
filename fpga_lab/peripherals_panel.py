@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 from PyQt6.QtCore import QPointF, QTimer, Qt, pyqtSignal
 import re
-from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
-from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt6.QtGui import QBrush, QColor, QKeySequence, QPainter, QPen
+from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from .board import BoardDefinition
 from .constraints import PcfParser
 from .i18n import language_manager, t
@@ -13,7 +13,12 @@ from .peripherals.catalog import load_catalog, spec_for
 from .peripherals.manifest import RESERVED_PROPERTIES
 from .peripherals.renderers import renderer_for
 from .peripherals.renderers.vga_monitor import VgaMonitorRenderer
-from .wiring import PERIPHERAL_LABELS, PeripheralInstance, VirtualLabProject
+from .temporal import LedModel, SignalWindow
+from .wiring import PERIPHERAL_LABELS, SUPPLY_ENDPOINTS, PeripheralInstance, VirtualLabProject
+
+
+_EXTERNAL_LIGHT_PERSISTENCE_SECONDS = 0.030
+_VISUAL_FUSION_EDGE_RATE_HZ = 60.0
 
 class SegmentDisplay(QFrame):
     """Compact representation of an external seven-segment display."""
@@ -60,6 +65,8 @@ class PeripheralConfigDialog(QDialog):
         for terminal in self._spec.terminals:
             picker = QComboBox()
             picker.addItem(t("— not connected —"), "")
+            for supply in terminal.supplies:
+                picker.addItem(t(f"{supply} (fixed)"), supply)
             for pin in board.available_endpoints(terminal.direction):
                 if pin.location.startswith("header") and (self._assigned_endpoints is None or pin.id in self._assigned_endpoints):
                     picker.addItem(pin.id, pin.id)
@@ -121,6 +128,18 @@ class PeripheralConfigDialog(QDialog):
             box.setChecked(bool(properties.get(name, schema.get("default", False))))
             self._property_widgets[name] = ("boolean", box)
             return box
+        if kind == "key_sequence":
+            editor = QKeySequenceEdit(self)
+            editor.setKeySequence(QKeySequence(str(properties.get(name, schema.get("default", "")))))
+            box = QWidget()
+            row = QHBoxLayout(box)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(editor, 1)
+            clear = QPushButton(t("Clear"))
+            clear.clicked.connect(editor.clear)
+            row.addWidget(clear)
+            self._property_widgets[name] = ("key_sequence", editor)
+            return box
         field = QLineEdit(str(properties.get(name, schema.get("default", ""))))
         self._property_widgets[name] = ("string", field)
         return field
@@ -152,6 +171,8 @@ class PeripheralConfigDialog(QDialog):
                 properties[name] = widget[1].currentData()
             elif kind == "boolean":
                 properties[name] = widget[1].isChecked()
+            elif kind == "key_sequence":
+                properties[name] = widget[1].keySequence().toString(QKeySequence.SequenceFormat.PortableText)
             else:
                 properties[name] = widget[1].text()
         return {"id": self.identifier.text().strip(), "type": self._kind, "connections": connections, "properties": properties}
@@ -319,7 +340,9 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self._active = {}
+        self._brightness = {}
         self._pressed = False
+        self._press_sources: set[str] = set()
         self._sensor_value = False
         self._editable = True
         self._snapshot = None
@@ -350,7 +373,13 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             self._drag_dirty = False
 
     def set_terminal(self, terminal, active):
-        self._active[terminal] = active
+        self.set_terminal_brightness(terminal, 1.0 if active else 0.0)
+
+    def set_terminal_brightness(self, terminal: str, brightness: float) -> None:
+        """Expose a continuous brightness value to catalog renderers."""
+        brightness = max(0.0, min(float(brightness), 1.0))
+        self._brightness[terminal] = brightness ** 0.38
+        self._active[terminal] = brightness > 0.0
         self.update()
 
     def set_snapshot(self, snapshot):
@@ -368,15 +397,34 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, enabled)
         self.setCursor(Qt.CursorShape.OpenHandCursor if enabled else Qt.CursorShape.ArrowCursor)
 
+    def set_button_pressed(self, source: str, pressed: bool) -> None:
+        """Merge mouse and keyboard press states for a momentary button."""
+        if self._peripheral.kind != "button":
+            return
+        previous = self._pressed
+        if pressed:
+            self._press_sources.add(source)
+        else:
+            self._press_sources.discard(source)
+        self._pressed = bool(self._press_sources)
+        if self._pressed != previous:
+            self._input_changed(self._peripheral.peripheral_id, "signal", int(self._pressed))
+            self.update()
+
     def paint(self, painter: QPainter, option, widget=None):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(QColor("#64748b") if not self.isSelected() else QColor("#38bdf8"), 2))
-        painter.setBrush(QBrush(QColor("#172033")))
+        button_active = self._peripheral.kind == "button" and self._pressed
+        border = QColor("#22c55e") if button_active else (
+            QColor("#64748b") if not self.isSelected() else QColor("#38bdf8")
+        )
+        painter.setPen(QPen(border, 2))
+        painter.setBrush(QBrush(QColor("#14532d") if button_active else QColor("#172033")))
         painter.drawRoundedRect(self.rect(), 10, 10)
         painter.setPen(QColor("#e2e8f0"))
         painter.drawText(self.rect().adjusted(10, 7, -8, -42), Qt.AlignmentFlag.AlignLeft, self._peripheral.peripheral_id)
         self._renderer.paint(painter, self.rect(), self._peripheral, {
             "active": self._active,
+            "brightness": self._brightness,
             "pressed": self._pressed,
             "sensor_value": self._sensor_value,
             "snapshot": self._snapshot,
@@ -388,8 +436,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             self._input_changed(self._peripheral.peripheral_id, "signal", int(self._sensor_value))
             self.update()
         elif self._peripheral.kind == "button":
-            self._pressed = True
-            self.update()
+            self.set_button_pressed("mouse", True)
         self._renderer.mouse_press(self._peripheral, event.pos(), self._input_changed)
         super().mousePressEvent(event)
 
@@ -400,8 +447,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
         if self._peripheral.kind == "button":
-            self._pressed = False
-            self.update()
+            self.set_button_pressed("mouse", False)
         self._renderer.mouse_release(self._peripheral, event.pos(), self._input_changed)
         if self._editable:
             self._persist_position()
@@ -410,10 +456,28 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
 class PeripheralsPanel(QWidget):
     changed = pyqtSignal(str)
     input_changed = pyqtSignal(str, int)
-    def __init__(self, board: BoardDefinition, pcf: Path | None, lab: Path, input_widths: dict[str, int] | None = None, parent=None):
+    temporal_probes_changed = pyqtSignal(object)
+
+    def __init__(
+        self,
+        board: BoardDefinition,
+        pcf: Path | None,
+        lab: Path,
+        input_widths: dict[str, int] | None = None,
+        output_widths: dict[str, int] | None = None,
+        parent=None,
+    ):
         super().__init__(parent); self._board, self._pcf, self._lab = board, pcf, lab
-        self._input_widths = input_widths or {}; self._input_values = {}; self._editing_enabled = True
+        self._input_widths = input_widths or {}
+        self._output_widths = output_widths or {}
+        self._output_indexes = {name: index for index, name in enumerate(self._output_widths)}
+        self._input_values = {}; self._editing_enabled = True
         self._assigned_endpoints = None  # The entire board is available; the design PCF is optional.
+        self._temporal_probes: list[tuple[tuple[int, int, bool], ...]] = []
+        self._temporal_bindings: list[tuple[WorkbenchPeripheralItem, str]] = []
+        self._temporal_terminals: set[tuple[str, str]] = set()
+        self._temporal_models: list[LedModel] = []
+        self._active_shortcut_keys: dict[int, list[WorkbenchPeripheralItem]] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 7, 8, 8)
         layout.setSpacing(5)
@@ -492,17 +556,87 @@ class PeripheralsPanel(QWidget):
         self._resolved_wires = wires
         self._connection_counts = (len(wires), sum(wire.hdl_net is not None for wire in wires))
         self._workbench_scene.clear(); self._workbench_bindings = {}
+        workbench_items: dict[str, WorkbenchPeripheralItem] = {}
         for index, peripheral in enumerate(project.peripherals):
             bench_item = WorkbenchPeripheralItem(peripheral, self._configure, self._save_position, self._drive_input)
             bench_item.set_editable(self._editing_enabled)
             if "position" not in peripheral.properties:
                 bench_item.setPos(16 + (index % 3) * 160, 16 + (index // 3) * 88)
             self._workbench_scene.addItem(bench_item)
+            workbench_items[peripheral.peripheral_id] = bench_item
             for wire in wires:
                 if wire.peripheral_id == peripheral.peripheral_id:
                     self._workbench_bindings[(peripheral.peripheral_id, wire.terminal)] = (bench_item, wire.hdl_net)
+        self._rebuild_temporal_probes(project, workbench_items)
         self.workbench.ensure_scene_fits()
         self._update_connection_status()
+
+    def _output_condition(self, net: str | None, expected: bool) -> tuple[int, int, bool] | None:
+        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?", net or "")
+        if match is None:
+            return None
+        name, raw_bit = match.groups()
+        bit = int(raw_bit) if raw_bit else 0
+        if name not in self._output_widths or bit >= self._output_widths[name]:
+            return None
+        return self._output_indexes[name], bit, expected
+
+    def _rebuild_temporal_probes(self, project, workbench_items) -> None:
+        """Create output predicates from a peripheral's manifest metadata."""
+        probes: list[tuple[tuple[int, int, bool], ...]] = []
+        bindings: list[tuple[WorkbenchPeripheralItem, str]] = []
+
+        def add(peripheral_id: str, terminal: str, conditions: list[tuple[int, int, bool]]) -> None:
+            if conditions:
+                probes.append(tuple(conditions))
+                bindings.append((workbench_items[peripheral_id], terminal))
+
+        for peripheral in project.peripherals:
+            spec = spec_for(peripheral.kind)
+            temporal = spec.temporal
+            if temporal is None:
+                continue
+            if temporal["mode"] == "per_terminal":
+                for terminal in spec.terminals:
+                    if terminal.direction != "output":
+                        continue
+                    binding = self._workbench_bindings.get((peripheral.peripheral_id, terminal.name))
+                    condition = self._output_condition(binding[1] if binding else None, True)
+                    if condition is not None:
+                        add(peripheral.peripheral_id, terminal.name, [condition])
+                continue
+
+            common_terminal = str(temporal["common_terminal"])
+            common_type = str(peripheral.properties.get(str(temporal["polarity_property"]), "cathode"))
+            common_endpoint = peripheral.connections.get(
+                common_terminal, "GND" if common_type == "cathode" else "VCC"
+            )
+            if common_endpoint in SUPPLY_ENDPOINTS:
+                common_conditions = [] if common_endpoint == ("GND" if common_type == "cathode" else "VCC") else None
+            else:
+                binding = self._workbench_bindings.get((peripheral.peripheral_id, common_terminal))
+                condition = self._output_condition(binding[1] if binding else None, common_type == "anode")
+                common_conditions = [condition] if condition is not None else None
+            if common_conditions is None:
+                continue
+            for terminal in temporal.get("active_terminals", ()):
+                binding = self._workbench_bindings.get((peripheral.peripheral_id, str(terminal)))
+                # Segment current flows low for common-anode displays and high
+                # for common-cathode displays. The common enable is handled above.
+                condition = self._output_condition(binding[1] if binding else None, common_type == "cathode")
+                if condition is not None:
+                    add(peripheral.peripheral_id, str(terminal), [*common_conditions, condition])
+
+        self._temporal_probes = probes
+        self._temporal_bindings = bindings
+        self._temporal_terminals = {
+            (item.peripheral.peripheral_id, terminal) for item, terminal in bindings
+        }
+        self._temporal_models = [LedModel(_EXTERNAL_LIGHT_PERSISTENCE_SECONDS) for _ in bindings]
+        self.temporal_probes_changed.emit(self.temporal_probes())
+
+    def temporal_probes(self) -> list[tuple[tuple[int, int, bool], ...]]:
+        return list(self._temporal_probes)
 
     def _update_connection_status(self) -> None:
         """Summarize physical terminals and the subset currently present in HDL."""
@@ -535,6 +669,32 @@ class PeripheralsPanel(QWidget):
         for item in self._workbench_scene.items():
             if isinstance(item, WorkbenchPeripheralItem): item.set_editable(enabled)
 
+    def handle_shortcut_event(self, event, pressed: bool) -> bool:
+        """Route configured keyboard shortcuts as momentary external button presses."""
+        key = event.key()
+        if event.isAutoRepeat():
+            return key in self._active_shortcut_keys
+        if pressed:
+            sequence = QKeySequence(event.keyCombination())
+            matches: list[WorkbenchPeripheralItem] = []
+            for item in self._workbench_scene.items():
+                if not isinstance(item, WorkbenchPeripheralItem) or item.peripheral.kind != "button":
+                    continue
+                shortcut = str(item.peripheral.properties.get("shortcut", ""))
+                configured = QKeySequence.fromString(shortcut, QKeySequence.SequenceFormat.PortableText)
+                if shortcut and configured.matches(sequence) == QKeySequence.SequenceMatch.ExactMatch:
+                    matches.append(item)
+            if not matches:
+                return False
+            self._active_shortcut_keys[key] = matches
+            for item in matches:
+                item.set_button_pressed(f"key:{key}", True)
+            return True
+        matches = self._active_shortcut_keys.pop(key, [])
+        for item in matches:
+            item.set_button_pressed(f"key:{key}", False)
+        return bool(matches)
+
     def open_connections(self) -> None:
         """Show PCF and peripheral mappings in a compact, inspectable table."""
         ConnectionDialog(self._board, self._constraints(), self._resolved_wires, self).exec()
@@ -542,10 +702,11 @@ class PeripheralsPanel(QWidget):
     def _drive_input(self, peripheral_id, terminal, value):
         binding = self._workbench_bindings.get((peripheral_id, terminal))
         net = binding[1] if binding else None
-        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]", net or "")
+        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)\])?", net or "")
         if not match or match.group(1) not in self._input_widths:
             return
-        port, bit = match.group(1), int(match.group(2))
+        port, raw_bit = match.groups()
+        bit = int(raw_bit) if raw_bit else 0
         if bit >= self._input_widths[port]: return
         current = self._input_values.get(port, 0)
         current = current | (1 << bit) if value else current & ~(1 << bit)
@@ -634,7 +795,9 @@ class PeripheralsPanel(QWidget):
 
     def update_outputs(self, outputs: dict[str, int]) -> None:
         """Paint output peripherals from their actual HDL net resolved by the PCF."""
-        for (_peripheral_id, terminal), (item, net) in self._workbench_bindings.items():
+        for (peripheral_id, terminal), (item, net) in self._workbench_bindings.items():
+            if (peripheral_id, terminal) in self._temporal_terminals:
+                continue
             match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?", net or "")
             if match is None:
                 item.set_terminal(terminal, False)
@@ -645,12 +808,32 @@ class PeripheralsPanel(QWidget):
 
     def update_frame(self, frame) -> None:
         self.update_outputs(frame.outputs)
+        temporal = getattr(frame, "temporal", None)
+        if temporal is not None:
+            self._update_temporal_outputs(temporal)
         for item in self._workbench_scene.items():
             if not isinstance(item, WorkbenchPeripheralItem):
                 continue
             snapshot = frame.sinks.get(item.peripheral.peripheral_id) if getattr(frame, "sinks", None) else None
             if snapshot is not None or isinstance(getattr(item, "_renderer", None), VgaMonitorRenderer):
                 item.set_snapshot(snapshot)
+
+    def _update_temporal_outputs(self, temporal) -> None:
+        """Apply native duty-cycle summaries using the same visual persistence as board LEDs."""
+        if temporal.samples <= 0:
+            for item, terminal in self._temporal_bindings:
+                item.set_terminal_brightness(terminal, 0.0)
+            self._temporal_models = [LedModel(_EXTERNAL_LIGHT_PERSISTENCE_SECONDS) for _ in self._temporal_bindings]
+            return
+        for index, (item, terminal) in enumerate(self._temporal_bindings):
+            model = self._temporal_models[index]
+            edge_rate = temporal.edges[index] / temporal.elapsed_seconds if temporal.elapsed_seconds > 0 else 0.0
+            final_level = bool(temporal.ends[index])
+            high_samples = temporal.hits[index]
+            if edge_rate < _VISUAL_FUSION_EDGE_RATE_HZ:
+                high_samples = temporal.samples if final_level else 0
+            window = SignalWindow(final_level, final_level, high_samples, temporal.samples, temporal.edges[index])
+            item.set_terminal_brightness(terminal, model.advance({"anode": window}, temporal.elapsed_seconds))
 
     def drop_vga_images(self) -> None:
         for item in self._workbench_scene.items():

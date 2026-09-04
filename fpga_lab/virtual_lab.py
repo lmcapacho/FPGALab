@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtCore import QEvent, QMetaObject, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtWidgets import QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
 from .board import BoardDefinition, bundled_board_definition
 from .i18n import language_manager, t
@@ -38,6 +38,7 @@ class FPGAVirtualLab(QWidget):
     pause_requested = pyqtSignal()
     reset_requested = pyqtSignal()
     configure_vga_requested = pyqtSignal(object)
+    set_temporal_probes_requested = pyqtSignal(object)
     status_changed = pyqtSignal(str)
 
     def __init__(
@@ -71,6 +72,9 @@ class FPGAVirtualLab(QWidget):
         self._project_pcf = project_pcf
         self._lab_file = lab_file or LabWorkspace().ensure_default()
         self._build_ui()
+        self._application = QApplication.instance()
+        if self._application is not None:
+            self._application.installEventFilter(self)
 
         self._thread: QThread | None = None
         self._worker: SimulationWorker | None = None
@@ -85,10 +89,13 @@ class FPGAVirtualLab(QWidget):
             self.pause_requested.connect(self._worker.power_off)
             self.reset_requested.connect(self._worker.reset)
             self.configure_vga_requested.connect(self._worker.configure_vga_bindings)
+            self.set_temporal_probes_requested.connect(self._worker.set_temporal_probes)
             self._worker.state_changed.connect(self._paint_state)
             self._worker.failure.connect(self._show_failure)
             self._worker.stopped.connect(self._thread.quit)
             self._thread.finished.connect(self._worker.deleteLater)
+            self._peripherals.temporal_probes_changed.connect(self.set_temporal_probes_requested)
+            self.set_temporal_probes_requested.emit(self._peripherals.temporal_probes())
             self._thread.start()
 
     def _build_ui(self) -> None:
@@ -126,6 +133,7 @@ class FPGAVirtualLab(QWidget):
             self._project_pcf,
             self._lab_file,
             self._input_widths,
+            dict(self._simulation.profile.outputs) if self._simulation else {},
         )
         self._peripherals.input_changed.connect(self.set_input_requested)
         gpio_layout.addWidget(self._peripherals, 1)
@@ -149,14 +157,12 @@ class FPGAVirtualLab(QWidget):
         self._peripherals.workbench.set_zoom(zoom)
 
     def stop_simulation(self) -> None:
-        """Stop a clocked simulation from the main project toolbar."""
-        if self._has_clock is True:
-            self._pause()
+        """Power off a clocked or combinational model from the main toolbar."""
+        self._pause()
 
     def start_simulation(self) -> None:
-        """Start a clocked simulation after the project has been loaded."""
-        if self._has_clock is True:
-            self._play()
+        """Power on a clocked or combinational model after it is loaded."""
+        self._play()
 
     def _play(self) -> None:
         bindings = ()
@@ -173,10 +179,11 @@ class FPGAVirtualLab(QWidget):
                 "(Alhambra default). Use --clock-hz 25000000 or 25175000."
             ))
         self.configure_vga_requested.emit(bindings)
-        self.play_requested.emit()
+        if self._has_clock is True:
+            self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
         if not (bindings and self._clock_hz == 12_000_000):
-            self.status_changed.emit(t("Simulation running."))
+            self.status_changed.emit(t("Simulation running.") if self._has_clock is True else t("Combinational logic active."))
         self._peripherals.set_editable(False)
 
     def _pause(self) -> None:
@@ -234,8 +241,21 @@ class FPGAVirtualLab(QWidget):
         self.setWindowTitle(t("FPGALab · simulation stopped: {error}", error=error))
         self.status_changed.emit(t("Simulation error: {error}", error=error))
 
+    def eventFilter(self, watched, event) -> bool:
+        """Keep button shortcuts active while avoiding text-entry widgets."""
+        if event.type() not in {QEvent.Type.KeyPress, QEvent.Type.KeyRelease} or not self.isVisible():
+            return super().eventFilter(watched, event)
+        focused = QApplication.focusWidget()
+        if isinstance(focused, (QLineEdit, QComboBox, QKeySequenceEdit)):
+            return super().eventFilter(watched, event)
+        if self._peripherals.handle_shortcut_event(event, event.type() == QEvent.Type.KeyPress):
+            return True
+        return super().eventFilter(watched, event)
+
     def closeEvent(self, event) -> None:
         self._ignore_state = True
+        if self._application is not None:
+            self._application.removeEventFilter(self)
         if self._worker is not None:
             try:
                 self._worker.state_changed.disconnect(self._paint_state)

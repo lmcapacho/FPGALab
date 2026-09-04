@@ -24,10 +24,16 @@ class NullInputMixin:
         return
 
 
-def lamp(painter: QPainter, x: int, y: int, active: bool, color: str) -> None:
+def lamp(painter: QPainter, x: int, y: int, brightness: float, color: str) -> None:
     from PyQt6.QtCore import Qt
     from PyQt6.QtGui import QColor
 
+    brightness = max(0.0, min(float(brightness), 1.0))
+    off, on = QColor("#334155"), QColor(color)
     painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QColor(color) if active else QColor("#334155"))
+    painter.setBrush(QColor(
+        round(off.red() + (on.red() - off.red()) * brightness),
+        round(off.green() + (on.green() - off.green()) * brightness),
+        round(off.blue() + (on.blue() - off.blue()) * brightness),
+    ))
     painter.drawEllipse(x - 10, y - 10, 20, 20)

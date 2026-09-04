@@ -17,10 +17,27 @@ class SevenSegmentRenderer(NullInputMixin):
             "d": ((48, 156), (102, 156)), "e": ((42, 110), (42, 150)), "f": ((42, 58), (42, 98)),
             "g": ((48, 104), (102, 104)),
         }
-        active = state.get("active", {})
+        brightness = state.get("brightness", state.get("active", {}))
+        color = QColor(str(peripheral.properties.get("color", "#ff3b30")))
         for terminal, (start, end) in segments.items():
+            intensity = float(brightness.get(terminal, False))
             painter.setPen(QPen(
-                QColor("#f97316") if active.get(terminal, False) else QColor("#334155"),
+                _blend(QColor("#334155"), color, intensity),
                 9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
             ))
             painter.drawLine(*start, *end)
+            if intensity > 0.0:
+                halo = QColor(color); halo.setAlpha(round(85 * intensity))
+                painter.setPen(QPen(halo, 17, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                painter.drawLine(*start, *end)
+                core = color.lighter(145); core.setAlpha(round(210 * intensity))
+                painter.setPen(QPen(core, 5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                painter.drawLine(*start, *end)
+
+
+def _blend(off: QColor, on: QColor, brightness: float) -> QColor:
+    return QColor(
+        round(off.red() + (on.red() - off.red()) * brightness),
+        round(off.green() + (on.green() - off.green()) * brightness),
+        round(off.blue() + (on.blue() - off.blue()) * brightness),
+    )
