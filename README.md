@@ -2,7 +2,7 @@
 
 FPGALab is an interactive virtual FPGA laboratory for Verilog designs. It turns an Icestudio export into a native Verilator model and connects that model to a PyQt6 desktop interface, so learners can interact with a virtual board and peripherals without requiring physical hardware.
 
-The first supported board is **Alhambra II**. The architecture is board-profile driven, allowing additional boards and visual peripherals to be added over time.
+The first supported board is **Alhambra II**. Boards, workbench parts, and their visual renderers are separated from the simulation engine so the platform can grow without turning every new peripheral into a change across the whole application.
 
 A maintainer-oriented description of the peripheral catalog and VGA workbench (what changed, why, and how to extend it) is in [REWORK.md](REWORK.md).
 
@@ -30,23 +30,35 @@ Icestudio design (.ice)
         └── ice-build/<design>/main.pcf
         │
         ▼
-Project discovery + Verilog interface + PCF mapping
+Project discovery + VerilogInterface + BoardProfile
+        │                              │
+        │                              └── PCF maps HDL nets to board endpoints
+        ▼
+Verilator build cache ──► generated C++ wrapper + native capture code
         │
         ▼
-Verilator build cache ──► C++ simulation wrapper ──► shared library
-                                                          │
-                                                       ctypes
-                                                          │
-                                                          ▼
-                                                VerilatorSimulation
-                                                          │
-                                                 QThread + QTimer
-                                                          │
-                                                          ▼
-                                      Virtual board and peripheral workbench
+Per-design shared library (.so / .dll / .dylib)
+        │
+        ▼
+ctypes VerilatorSimulation
+        │
+        ▼
+SimulationWorker (QThread + QTimer)
+        │
+        ├── BoardView
+        │     └── board LEDs, switches, reset, SVG layout
+        │
+        └── Peripheral catalog + virtual workbench
+              │
+              ├── gpio_driven       → button/sensor writes FPGA inputs
+              ├── gpio_temporal     → LED, traffic light, display brightness
+              └── streaming_sink    → cycle-accurate VGA frame capture
+                    ▲
+                    │
+       lab JSON: terminal → board endpoint → FPGA pin → PCF HDL net
 ```
 
-The C++ wrapper exposes native getters, setters, clock stepping, and batched cycle execution. Python sends inputs to the model and receives sampled outputs; the GUI never has to refresh at the FPGA clock rate.
+The C++ wrapper exposes native getters, setters, clock stepping, batched cycle execution, temporal predicates, and streaming hooks. Python sends inputs to the model and receives compact frame summaries; the GUI never has to refresh at the FPGA clock rate.
 
 ## Requirements
 
@@ -125,7 +137,9 @@ FPGALab does not write Verilator artifacts into `ice-build`. Compiled models are
 
 The virtual FPGA advances according to elapsed host time and `--clock-hz` (12 MHz by default). The native wrapper batches many FPGA cycles in C++ for each visual frame, avoiding a Python-to-C boundary crossing per cycle.
 
-The interface is refreshed at `--ui-refresh-hz` (60 Hz by default). Fast signals are sampled independently at `--observation-hz` (1 MHz by default), allowing LEDs and other visual peripherals to represent duty cycle, transitions, and final state without depending on Qt timer phase.
+The interface is refreshed at `--ui-refresh-hz` (60 Hz by default). Board LEDs are observed independently at `--observation-hz` (1 MHz by default). External temporal peripherals define output predicates in their manifests; those predicates are evaluated on every virtual rising edge in C++ and delivered to the GUI as duty cycle, transition count, and final state for each visual frame.
+
+This lets a visual LED or seven-segment display show slow blinking, PWM brightness, and multiplexing without making Qt run at 12 MHz. A display common can be tied to `GND` or `VCC`, or driven by an FPGA pin for multiplexed designs.
 
 If the host cannot sustain the requested virtual frequency, use a lower `--clock-hz` value for a slower instructional mode.
 
@@ -150,15 +164,32 @@ Default locations are:
 
 Set `FPGALAB_WORKSPACE` to use a different workspace root.
 
-## Board assets and extensibility
+## Catalog, board assets, and extensibility
+
+Peripheral definitions live in a bundled catalog:
+
+```text
+fpga_lab/peripherals/<peripheral-id>/manifest.json
+fpga_lab/peripherals/renderers/<renderer>.py
+```
+
+The manifest declares terminals, directions, configuration properties, simulation class, and visual renderer. The generic configuration dialog is built from that schema. Adding a GPIO peripheral normally means adding a manifest, reusing or registering a renderer, and adding tests; it does not require a new closed list of component types in the workbench.
+
+The current simulation classes are:
+
+| Class | Purpose |
+| --- | --- |
+| `gpio_driven` | A workbench control drives an FPGA input, for example a button or sensor. |
+| `gpio_temporal` | An FPGA output is evaluated over virtual time, for example an LED, traffic light, or seven-segment display. |
+| `streaming_sink` | A native C++ sink consumes every virtual clock edge, currently used for VGA capture. |
 
 A board is described by reusable assets:
 
 - `fpga_lab/assets/boards/alhambra_ii.svg` — scalable board artwork
 - `fpga_lab/assets/board_layouts/alhambra_ii.json` — interactive controls, geometry, colours, and HDL signals
-- `boards/alhambra_ii.json` — physical endpoints and board capabilities
+- `fpga_lab/assets/board_definitions/alhambra_ii.json` — physical endpoints and board capabilities
 
-This separation makes it possible to calibrate controls visually, add new integrated controls, or introduce another FPGA board without changing the simulation engine.
+This separation makes it possible to calibrate controls visually, add new integrated controls, add a catalog peripheral, or introduce another FPGA board without changing the core simulation loop.
 
 ## Updates
 
