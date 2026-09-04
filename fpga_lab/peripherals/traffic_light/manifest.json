@@ -2,7 +2,7 @@
   "id": "traffic_light",
   "label": "Traffic light",
   "category": "output",
-  "simulation": { "class": "gpio_sampled" },
+  "simulation": { "class": "gpio_temporal", "temporal": { "mode": "per_terminal" } },
   "terminals": [
     { "name": "red", "direction": "output", "width": 1, "required": true },
     { "name": "yellow", "direction": "output", "width": 1, "required": true },

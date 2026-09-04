@@ -15,7 +15,7 @@ from .i18n import t
 from .profile import BoardProfile
 from .toolchain import resolve_verilator
 
-_CACHE_FORMAT = 3
+_CACHE_FORMAT = 4
 _NATIVE_DIR = Path(__file__).resolve().parent / "native"
 
 

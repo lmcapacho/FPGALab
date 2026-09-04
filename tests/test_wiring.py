@@ -19,6 +19,27 @@ def test_resolve_vga_6bit_lab():
     assert {wire.terminal for wire in wires} == {"hsync", "vsync", "r0", "r1", "g0", "g1", "b0", "b1"}
 
 
+def test_resolve_display_common_supply(tmp_path):
+    path = tmp_path / "display.lab.json"
+    path.write_text(
+        '''{
+  "peripherals": [{
+    "id": "display_1",
+    "type": "seven_segment",
+    "connections": {"a": "D0", "common": "GND"},
+    "properties": {"common": "cathode"}
+  }]
+}\n''',
+        encoding="utf-8",
+    )
+    board = BoardDefinition.load(bundled_board_definition())
+    wires = VirtualLabProject.load(path).resolve(board, [])
+    assert [(wire.terminal, wire.board_endpoint, wire.hdl_net) for wire in wires] == [
+        ("a", "D0", None),
+        ("common", "GND", None),
+    ]
+
+
 def test_unknown_type_fails(tmp_path):
     path = tmp_path / "bad.lab.json"
     path.write_text('{"peripherals":[{"id":"x","type":"nope","connections":{}}]}\n', encoding="utf-8")

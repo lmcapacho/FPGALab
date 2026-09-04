@@ -18,6 +18,7 @@ PERIPHERAL_TERMINALS = {
 PERIPHERAL_LABELS = {spec.id: spec.label for spec in _CATALOG.values()}
 _DRIVING_TERMINALS = {spec.id: spec.driving_terminals() for spec in _CATALOG.values()}
 _TERMINAL_DIRECTIONS = PERIPHERAL_TERMINALS
+SUPPLY_ENDPOINTS = frozenset({"GND", "VCC"})
 
 
 @dataclass(frozen=True)
@@ -65,8 +66,14 @@ class VirtualLabProject:
             if unknown:
                 raise ValueError(f"{peripheral.peripheral_id}: invalid terminals: {', '.join(sorted(unknown))}.")
             for terminal, endpoint in peripheral.connections.items():
+                terminal_spec = known_terminals[terminal]
+                if endpoint in SUPPLY_ENDPOINTS:
+                    if endpoint not in terminal_spec.supplies:
+                        raise ValueError(f"{peripheral.peripheral_id}.{terminal}: {endpoint} is not supported by this terminal.")
+                    resolved.append(ResolvedWire(peripheral.peripheral_id, terminal, endpoint, None))
+                    continue
                 board_pin = board.pin(endpoint)
-                expected_direction = known_terminals[terminal].direction
+                expected_direction = terminal_spec.direction
                 if expected_direction and board_pin.direction not in {expected_direction, "inout"}:
                     raise ValueError(f"{peripheral.peripheral_id}.{terminal}: {endpoint} does not support {expected_direction} direction.")
                 constraint = by_pin.get(board_pin.fpga_pin)

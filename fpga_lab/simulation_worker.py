@@ -26,12 +26,24 @@ class VgaSnapshot:
 
 
 @dataclass(frozen=True)
+class TemporalFrame:
+    """Native predicate summaries for declarative temporal peripherals."""
+
+    hits: tuple[int, ...] = ()
+    samples: int = 0
+    ends: tuple[bool, ...] = ()
+    edges: tuple[int, ...] = ()
+    elapsed_seconds: float = 0.0
+
+
+@dataclass(frozen=True)
 class SimulationFrame:
     led_brightness: tuple[float, ...]
     outputs: dict[str, int]
     sinks: dict[str, VgaSnapshot] = field(default_factory=dict)
     virtual_hz: float = 0.0
     cycles: int = 0
+    temporal: TemporalFrame = field(default_factory=TemporalFrame)
 
 
 class SimulationWorker(QObject):
@@ -65,6 +77,7 @@ class SimulationWorker(QObject):
         self._vga_bindings: tuple[VgaBinding, ...] = ()
         self._sink_id: int | None = None
         self._blank_next = False
+        self._temporal_probes: tuple[tuple[tuple[int, int, bool], ...], ...] = ()
 
     @pyqtSlot()
     def start(self) -> None:
@@ -95,6 +108,15 @@ class SimulationWorker(QObject):
         except Exception as exc:
             self.failure.emit(str(exc))
 
+    @pyqtSlot(object)
+    def set_temporal_probes(self, probes) -> None:
+        """Install generic output predicates configured by the workbench catalog."""
+        try:
+            self._temporal_probes = tuple(tuple(tuple(term) for term in probe) for probe in (probes or ()))
+            self._simulation.set_temporal_probes(list(self._temporal_probes))
+        except Exception as exc:
+            self.failure.emit(str(exc))
+
     @pyqtSlot()
     def play(self) -> None:
         if self._timer and not self._timer.isActive():
@@ -118,6 +140,7 @@ class SimulationWorker(QObject):
             led_brightness=tuple([0.0] * 8),
             outputs={},
             sinks=self._blank_sinks(),
+            temporal=TemporalFrame(),
         ))
 
     def _blank_sinks(self) -> dict[str, VgaSnapshot]:
@@ -170,6 +193,7 @@ class SimulationWorker(QObject):
             self._cycle_remainder = exact_cycles - cycles
             self._simulation.ticks(cycles)
             windows = self._simulation.observed_windows(cycles)
+            temporal_hits, temporal_samples, temporal_ends, temporal_edges = self._simulation.temporal_probe_window()
             virtual_elapsed = cycles / self._clock_hz if self._clock_hz else 0.0
             leds = []
             for index, model in enumerate(self._led_models):
@@ -187,6 +211,9 @@ class SimulationWorker(QObject):
                 sinks=self._keep_sinks(),
                 virtual_hz=virtual_hz,
                 cycles=cycles,
+                temporal=TemporalFrame(
+                    tuple(temporal_hits), temporal_samples, tuple(temporal_ends), tuple(temporal_edges), virtual_elapsed
+                ),
             ))
         except Exception as exc:
             if self._timer:
@@ -202,11 +229,15 @@ class SimulationWorker(QObject):
         self._simulation.streaming_reset()
         if was_running:
             self.play()
+        elif self._simulation.profile.clock_name is None:
+            self._run_frame()
 
     @pyqtSlot(str, int)
     def set_input(self, name: str, value: int) -> None:
         try:
             self._simulation.set_input(name, value)
+            if self._simulation.profile.clock_name is None:
+                self._run_frame()
         except Exception as exc:
             self.failure.emit(str(exc))
 

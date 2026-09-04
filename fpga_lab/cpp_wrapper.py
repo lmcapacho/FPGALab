@@ -27,11 +27,15 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
         f"        case {index}: return static_cast<uint64_t>(g_top->{name});"
         for index, name in enumerate(profile.outputs)
     )
+    output_bit_cases = "\n".join(
+        f"        case {index}: return bit < {width} ? static_cast<uint8_t>((g_top->{name} >> bit) & 1U) : 0;"
+        for index, (name, width) in enumerate(profile.outputs.items())
+    )
     if profile.clock_name is None:
         clock_init = ""
         clock_api = "void sim_set_clk(uint8_t) {}\nuint8_t sim_get_clk() { return 0; }"
         step_body = "g_top->eval();"
-        run_body = "g_top->eval();\n    sample_observed(true);\n    sample_observed(false);"
+        run_body = "g_top->eval();\n    sample_temporal();\n    sample_observed(true);\n    sample_observed(false);"
     else:
         clock = profile.clock_name
         clock_init = f"g_top->{clock} = 0;"
@@ -44,7 +48,7 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
             "uint64_t remaining = 0;\n"
             "    for (uint64_t cycle = 0; cycle < cycles; ++cycle) {\n"
             "        const bool observe = remaining == 0;\n"
-            f"        g_top->{clock} = 1; g_top->eval();\n"
+            f"        g_top->{clock} = 1; g_top->eval(); sample_temporal();\n"
             "        if (observe) sample_observed(cycle == 0);\n"
             "        if (g_sink_enabled) sim_streaming_on_posedge();\n"
             f"        g_top->{clock} = 0; g_top->eval();\n"
@@ -70,6 +74,44 @@ static uint64_t g_observed_high_halves[kObservedCount ? kObservedCount : 1] = {{
 static uint64_t g_observed_edges[kObservedCount ? kObservedCount : 1] = {{0}};
 static uint64_t g_observed_samples = 0;
 static uint64_t g_observation_divisor = 12;
+static constexpr uint32_t kTemporalProbeLimit = 128;
+static constexpr uint32_t kTemporalTermLimit = 8;
+static uint32_t g_temporal_term_count[kTemporalProbeLimit] = {{0}};
+static uint32_t g_temporal_output[kTemporalProbeLimit][kTemporalTermLimit] = {{0}};
+static uint8_t g_temporal_bit[kTemporalProbeLimit][kTemporalTermLimit] = {{0}};
+static uint8_t g_temporal_expected[kTemporalProbeLimit][kTemporalTermLimit] = {{0}};
+static uint64_t g_temporal_hits[kTemporalProbeLimit] = {{0}};
+static uint64_t g_temporal_edges[kTemporalProbeLimit] = {{0}};
+static uint8_t g_temporal_previous[kTemporalProbeLimit] = {{0}};
+static uint8_t g_temporal_end[kTemporalProbeLimit] = {{0}};
+static uint32_t g_temporal_probe_count = 0;
+static uint64_t g_temporal_samples = 0;
+
+static uint8_t output_bit(uint32_t output, uint8_t bit) {{
+    if (!g_top) return 0;
+    switch (output) {{
+{output_bit_cases}
+        default: return 0;
+    }}
+}}
+
+static void sample_temporal() {{
+    if (!g_temporal_probe_count) return;
+    ++g_temporal_samples;
+    for (uint32_t probe = 0; probe < g_temporal_probe_count; ++probe) {{
+        uint8_t active = 1;
+        for (uint32_t term = 0; term < g_temporal_term_count[probe]; ++term) {{
+            if (output_bit(g_temporal_output[probe][term], g_temporal_bit[probe][term]) != g_temporal_expected[probe][term]) {{
+                active = 0;
+                break;
+            }}
+        }}
+        if (active) ++g_temporal_hits[probe];
+        if (active != g_temporal_previous[probe]) ++g_temporal_edges[probe];
+        g_temporal_previous[probe] = active;
+        g_temporal_end[probe] = active;
+    }}
+}}
 
 static void sample_observed(bool first) {{
     ++g_observed_samples;
@@ -92,6 +134,11 @@ static void reset_observation() {{
         g_observed_end[index] = g_observed_previous[index];
         g_observed_high_halves[index] = 0;
         g_observed_edges[index] = 0;
+    }}
+    g_temporal_samples = 0;
+    for (uint32_t probe = 0; probe < g_temporal_probe_count; ++probe) {{
+        g_temporal_hits[probe] = 0;
+        g_temporal_edges[probe] = 0;
     }}
 }}
 
@@ -148,6 +195,24 @@ uint8_t sim_observed_start(uint32_t index) {{ return index < kObservedCount ? g_
 uint8_t sim_observed_end(uint32_t index) {{ return index < kObservedCount ? g_observed_end[index] : 0; }}
 uint64_t sim_observed_high_halves(uint32_t index) {{ return index < kObservedCount ? g_observed_high_halves[index] : 0; }}
 uint64_t sim_observed_edges(uint32_t index) {{ return index < kObservedCount ? g_observed_edges[index] : 0; }}
+
+uint32_t sim_temporal_probe_limit() {{ return kTemporalProbeLimit; }}
+uint32_t sim_temporal_term_limit() {{ return kTemporalTermLimit; }}
+uint32_t sim_temporal_probe_count() {{ return g_temporal_probe_count; }}
+void sim_set_temporal_probe_count(uint32_t count) {{ g_temporal_probe_count = count <= kTemporalProbeLimit ? count : 0; }}
+void sim_set_temporal_probe_term_count(uint32_t probe, uint32_t count) {{
+    if (probe < g_temporal_probe_count) g_temporal_term_count[probe] = count <= kTemporalTermLimit ? count : 0;
+}}
+void sim_set_temporal_probe_term(uint32_t probe, uint32_t term, uint32_t output, uint8_t bit, uint8_t expected) {{
+    if (probe >= g_temporal_probe_count || term >= g_temporal_term_count[probe]) return;
+    g_temporal_output[probe][term] = output;
+    g_temporal_bit[probe][term] = bit;
+    g_temporal_expected[probe][term] = expected ? 1 : 0;
+}}
+uint64_t sim_temporal_probe_samples() {{ return g_temporal_samples; }}
+uint64_t sim_temporal_probe_hits(uint32_t probe) {{ return probe < g_temporal_probe_count ? g_temporal_hits[probe] : 0; }}
+uint64_t sim_temporal_probe_edges(uint32_t probe) {{ return probe < g_temporal_probe_count ? g_temporal_edges[probe] : 0; }}
+uint8_t sim_temporal_probe_end(uint32_t probe) {{ return probe < g_temporal_probe_count ? g_temporal_end[probe] : 0; }}
 
 {setters}
 

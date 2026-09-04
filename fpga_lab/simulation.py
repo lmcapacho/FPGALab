@@ -92,6 +92,21 @@ class VerilatorSimulation:
         self._observed_end = self._function("sim_observed_end", ctypes.c_uint8, (ctypes.c_uint32,))
         self._observed_high_halves = self._function("sim_observed_high_halves", ctypes.c_uint64, (ctypes.c_uint32,))
         self._observed_edges = self._function("sim_observed_edges", ctypes.c_uint64, (ctypes.c_uint32,))
+        self._temporal_probe_limit = self._function("sim_temporal_probe_limit", ctypes.c_uint32)
+        self._temporal_term_limit = self._function("sim_temporal_term_limit", ctypes.c_uint32)
+        self._temporal_probe_count = self._function("sim_temporal_probe_count", ctypes.c_uint32)
+        self._set_temporal_probe_count = self._function("sim_set_temporal_probe_count", None, (ctypes.c_uint32,))
+        self._set_temporal_probe_term_count = self._function(
+            "sim_set_temporal_probe_term_count", None, (ctypes.c_uint32, ctypes.c_uint32)
+        )
+        self._set_temporal_probe_term = self._function(
+            "sim_set_temporal_probe_term", None,
+            (ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint8, ctypes.c_uint8),
+        )
+        self._temporal_probe_samples = self._function("sim_temporal_probe_samples", ctypes.c_uint64)
+        self._temporal_probe_hits = self._function("sim_temporal_probe_hits", ctypes.c_uint64, (ctypes.c_uint32,))
+        self._temporal_probe_edges = self._function("sim_temporal_probe_edges", ctypes.c_uint64, (ctypes.c_uint32,))
+        self._temporal_probe_end = self._function("sim_temporal_probe_end", ctypes.c_uint8, (ctypes.c_uint32,))
         self._set_clk = self._function("sim_set_clk", None, (ctypes.c_uint8,))
         self._get_clk = self._function("sim_get_clk", ctypes.c_uint8)
         self._setters = {
@@ -158,6 +173,28 @@ class VerilatorSimulation:
             )
             for index, (name, bit) in enumerate(observed_bits)
         }
+
+    def set_temporal_probes(self, probes: list[tuple[tuple[int, int, bool], ...]]) -> None:
+        """Configure output predicates without changing the HDL build cache key."""
+        if len(probes) > self._temporal_probe_limit():
+            raise ValueError(f"At most {self._temporal_probe_limit()} temporal probes are supported.")
+        if any(len(probe) > self._temporal_term_limit() for probe in probes):
+            raise ValueError(f"A temporal probe supports at most {self._temporal_term_limit()} terms.")
+        self._set_temporal_probe_count(len(probes))
+        for probe_index, probe in enumerate(probes):
+            self._set_temporal_probe_term_count(probe_index, len(probe))
+            for term_index, (output, bit, expected) in enumerate(probe):
+                self._set_temporal_probe_term(probe_index, term_index, output, bit, expected)
+
+    def temporal_probe_window(self) -> tuple[list[int], int, list[bool], list[int]]:
+        """Return duty, final level, and edge count for each configured predicate."""
+        count = int(self._temporal_probe_count())
+        return (
+            [int(self._temporal_probe_hits(index)) for index in range(count)],
+            int(self._temporal_probe_samples()),
+            [bool(self._temporal_probe_end(index)) for index in range(count)],
+            [int(self._temporal_probe_edges(index)) for index in range(count)],
+        )
 
     @property
     def clk(self) -> bool:

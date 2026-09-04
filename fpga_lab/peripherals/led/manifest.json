@@ -2,7 +2,7 @@
   "id": "led",
   "label": "LED",
   "category": "output",
-  "simulation": { "class": "gpio_sampled" },
+  "simulation": { "class": "gpio_temporal", "temporal": { "mode": "per_terminal" } },
   "terminals": [
     { "name": "anode", "direction": "output", "width": 1, "required": true }
   ],

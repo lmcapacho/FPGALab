@@ -9,8 +9,9 @@ from typing import Any
 RESERVED_PROPERTIES = frozenset({"position"})
 
 _VALID_DIRECTIONS = {"input", "output"}
-_VALID_SIM_CLASSES = {"gpio_sampled", "gpio_driven", "streaming_sink"}
-_VALID_PROP_TYPES = {"color", "color_map", "enum", "boolean", "string"}
+_VALID_SIM_CLASSES = {"gpio_sampled", "gpio_temporal", "gpio_driven", "streaming_sink"}
+_SUPPLY_ENDPOINTS = frozenset({"GND", "VCC"})
+_VALID_PROP_TYPES = {"color", "color_map", "enum", "boolean", "string", "key_sequence"}
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class TerminalSpec:
     direction: str
     width: int = 1
     required: bool = True
+    supplies: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,7 @@ class PeripheralSpec:
     visual: dict[str, Any]
     sink_kind: str | None = None
     color_depth: int | None = None
+    temporal: dict[str, Any] | None = None
 
     def terminal_map(self) -> dict[str, TerminalSpec]:
         return {terminal.name: terminal for terminal in self.terminals}
@@ -78,7 +81,10 @@ def parse_manifest(raw: dict[str, Any], *, source: str = "manifest.json") -> Per
         width = int(item.get("width", 1))
         if width < 1:
             raise ValueError(f"{source}: {identifier}.{name} width must be positive")
-        terminals.append(TerminalSpec(name, direction, width, bool(item.get("required", True))))
+        supplies = tuple(str(value) for value in item.get("supplies", ()))
+        if set(supplies) - _SUPPLY_ENDPOINTS:
+            raise ValueError(f"{source}: {identifier}.{name} has unsupported supplies {supplies!r}")
+        terminals.append(TerminalSpec(name, direction, width, bool(item.get("required", True)), supplies))
     names = [terminal.name for terminal in terminals]
     if len(names) != len(set(names)):
         raise ValueError(f"{source}: {identifier} has duplicate terminals")
@@ -105,6 +111,7 @@ def parse_manifest(raw: dict[str, Any], *, source: str = "manifest.json") -> Per
         visual=visual,
         sink_kind=simulation.get("sink_kind"),
         color_depth=_optional_color_depth(simulation, source, identifier),
+        temporal=_optional_temporal(simulation, source, identifier),
     )
 
 
@@ -118,3 +125,16 @@ def _optional_color_depth(simulation: dict[str, Any], source: str, identifier: s
     if depth not in {1, 2, 4}:
         raise ValueError(f"{source}: {identifier} simulation.color_depth must be 1, 2, or 4")
     return depth
+
+
+def _optional_temporal(simulation: dict[str, Any], source: str, identifier: str) -> dict[str, Any] | None:
+    """Read an optional declarative predicate layout for temporal outputs."""
+    temporal = simulation.get("temporal")
+    if temporal is None:
+        return None
+    if simulation.get("class") != "gpio_temporal" or not isinstance(temporal, dict):
+        raise ValueError(f"{source}: {identifier} temporal sampling requires simulation.class gpio_temporal")
+    mode = temporal.get("mode")
+    if mode not in {"per_terminal", "display_common"}:
+        raise ValueError(f"{source}: {identifier} has invalid temporal mode {mode!r}")
+    return dict(temporal)

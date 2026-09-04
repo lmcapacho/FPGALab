@@ -23,8 +23,25 @@ def test_traffic_light_and_seven_segment_properties():
     assert colors["type"] == "color_map"
     assert colors["default"]["red"] == "#ef4444"
     assert catalog["seven_segment"].properties["common"]["default"] == "cathode"
+    display = catalog["seven_segment"]
+    assert display.simulation_class == "gpio_temporal"
+    assert display.temporal == {
+        "mode": "display_common",
+        "common_terminal": "common",
+        "active_terminals": ["a", "b", "c", "d", "e", "f", "g"],
+        "polarity_property": "common",
+    }
+    assert display.terminal_map()["common"].supplies == ("GND", "VCC")
+    assert catalog["led"].simulation_class == "gpio_temporal"
+    assert catalog["traffic_light"].simulation_class == "gpio_temporal"
     assert "position" not in catalog["led"].properties
     assert "position" in RESERVED_PROPERTIES
+
+
+def test_button_shortcut_is_declared_by_its_manifest():
+    shortcut = load_catalog()["button"].properties["shortcut"]
+    assert shortcut["type"] == "key_sequence"
+    assert shortcut["default"] == ""
 
 
 def test_vga_components_have_fixed_pin_budgets():
