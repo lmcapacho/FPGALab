@@ -126,6 +126,23 @@ def test_switching_labs_rebuilds_the_workbench(tmp_path):
     panel.deleteLater()
 
 
+def test_workbench_zoom_is_optional_and_persisted_per_lab(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab = tmp_path / "lab.json"
+    lab.write_text(json.dumps({"peripherals": []}), encoding="utf-8")
+
+    panel = PeripheralsPanel(board, None, lab)
+    assert panel.workbench._zoom == 1.0
+    panel.workbench.set_zoom(0.8)
+    panel.deleteLater()
+
+    raw = json.loads(lab.read_text(encoding="utf-8"))
+    assert raw["workbench"]["zoom"] == 0.8
+    restored = PeripheralsPanel(board, None, lab)
+    assert restored.workbench._zoom == 0.8
+    restored.deleteLater()
+
+
 def test_conflicting_input_remains_open_and_clears_only_that_pin():
     board = BoardDefinition.load(bundled_board_definition())
     dialog = PeripheralConfigDialog(

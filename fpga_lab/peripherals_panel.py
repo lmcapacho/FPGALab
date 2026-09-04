@@ -495,6 +495,7 @@ class PeripheralsPanel(QWidget):
         self._temporal_terminals: set[tuple[str, str]] = set()
         self._temporal_models: list[LedModel] = []
         self._active_shortcut_keys: dict[int, list[WorkbenchPeripheralItem]] = {}
+        self._restoring_workbench_state = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 7, 8, 8)
         layout.setSpacing(5)
@@ -542,6 +543,7 @@ class PeripheralsPanel(QWidget):
         self._zoom_reset_button.clicked.connect(self.workbench.reset_zoom)
         self._zoom_in_button.clicked.connect(self.workbench.zoom_in)
         self.workbench.zoom_changed.connect(self._update_zoom_label)
+        self.workbench.zoom_changed.connect(self._persist_workbench_zoom)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
         self._workbench_bindings = {}; self._reload()
         language_manager.language_changed.connect(self._retranslate_ui)
@@ -600,7 +602,33 @@ class PeripheralsPanel(QWidget):
                     self._workbench_bindings[(peripheral.peripheral_id, wire.terminal)] = (bench_item, wire.hdl_net)
         self._rebuild_temporal_probes(project, workbench_items)
         self.workbench.ensure_scene_fits()
+        self._restore_workbench_zoom()
         self._update_connection_status()
+
+    def _restore_workbench_zoom(self) -> None:
+        """Load optional presentation state while remaining compatible with older Labs."""
+        try:
+            raw = json.loads(self._lab.read_text(encoding="utf-8"))
+            state = raw.get("workbench", {})
+            zoom = float(state.get("zoom", 1.0)) if isinstance(state, dict) else 1.0
+        except (OSError, ValueError, json.JSONDecodeError):
+            zoom = 1.0
+        self._restoring_workbench_state = True
+        try:
+            self.workbench.set_zoom(zoom)
+        finally:
+            self._restoring_workbench_state = False
+
+    def _persist_workbench_zoom(self, zoom: float) -> None:
+        """Store visual framing alongside the Lab rather than in global user preferences."""
+        if self._restoring_workbench_state:
+            return
+        raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        state = raw.setdefault("workbench", {})
+        if not isinstance(state, dict):
+            state = raw["workbench"] = {}
+        state["zoom"] = round(zoom, 4)
+        self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
 
     def _output_condition(self, net: str | None, expected: bool) -> tuple[int, int, bool] | None:
         match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?", net or "")
