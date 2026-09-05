@@ -188,8 +188,9 @@ class FPGAVirtualLab(QWidget):
                 "(Alhambra default). Use --clock-hz 25000000 or 25175000."
             ))
         self.configure_vga_requested.emit(bindings)
-        if self._has_clock is True:
-            self.play_requested.emit()
+        # Combinational designs still need periodic visual frames so static
+        # outputs can contribute to the peripheral persistence models.
+        self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
         if not (bindings and self._clock_hz == 12_000_000):
             self.status_changed.emit(t("Simulation running.") if self._has_clock is True else t("Combinational logic active."))

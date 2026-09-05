@@ -11,10 +11,26 @@ from PyQt6.QtWidgets import QApplication
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
 from fpga_lab.peripherals_panel import PeripheralConfigDialog, PeripheralsPanel
+from fpga_lab.virtual_lab import FPGAVirtualLab
 from fpga_lab.wiring import PeripheralInstance
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
+
+
+def test_combinational_lab_starts_visual_refresh(tmp_path):
+    """Static combinational outputs need visual frames after Run is pressed."""
+    lab_file = tmp_path / "lab.json"
+    lab_file.write_text('{"peripherals": []}', encoding="utf-8")
+    lab = FPGAVirtualLab(lab_file=lab_file)
+    requests: list[bool] = []
+    lab.play_requested.connect(lambda: requests.append(True))
+
+    lab.start_simulation()
+
+    assert requests == [True]
+    lab.close()
+    lab.deleteLater()
 
 
 def test_button_routes_a_scalar_pcf_net(tmp_path):
