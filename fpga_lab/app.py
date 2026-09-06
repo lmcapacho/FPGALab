@@ -238,11 +238,17 @@ class ApplicationController(QObject):
             self._window.set_status(t("Simulation toolchain is not ready."))
             QMessageBox.warning(self._window, t("Simulation toolchain"), str(error))
             return
-        message = t(
-            "Ready to compile.\n\nSource: {source}\nVerilator: {path}",
-            source=toolchain.source,
-            path=toolchain.executable,
-        )
+        details = [
+            t("Ready to compile."),
+            "",
+            t("Source: {source}", source=toolchain.source),
+        ]
+        if toolchain.suite_root is not None:
+            details.append(t("Toolchain root: {path}", path=toolchain.suite_root))
+        details.append(t("Verilator: {path}", path=toolchain.executable))
+        for name, path in toolchain.build_tools().items():
+            details.append(t("{tool}: {path}", tool=name, path=path))
+        message = "\n".join(details)
         self._window.set_status(t("Simulation toolchain is ready."))
         QMessageBox.information(self._window, t("Simulation toolchain"), message)
 

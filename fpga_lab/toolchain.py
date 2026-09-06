@@ -51,11 +51,8 @@ class VerilatorToolchain:
 
     def validate_build_prerequisites(self) -> None:
         """Ensure the native build tools required by Verilator are available."""
-        environment = self.environment()
-        compiler = "c++" if sys.platform == "darwin" else "g++"
-        missing = [command for command in ("make", compiler) if not _command_exists(command, environment)]
-        if sys.platform == "win32" and not _msys2_python_exists():
-            missing.append("python")
+        tools = self.build_tools()
+        missing = [name for name, path in tools.items() if path is None]
         if not missing:
             return
         if sys.platform == "win32":
@@ -72,6 +69,18 @@ class VerilatorToolchain:
             "Verilator was found, but the required build tools are missing: {tools}.",
             tools=", ".join(missing),
         ))
+
+    def build_tools(self) -> dict[str, Path | None]:
+        """Resolve the native executables that will be used for compilation."""
+        environment = self.environment()
+        compiler = "c++" if sys.platform == "darwin" else "g++"
+        tools: dict[str, Path | None] = {
+            "make": _resolve_command("make", environment),
+            compiler: _resolve_command(compiler, environment),
+        }
+        if sys.platform == "win32":
+            tools["python"] = _msys2_python()
+        return tools
 
     def activate_runtime(self) -> None:
         """Expose MinGW runtime DLL directories to the current Windows process."""
@@ -139,16 +148,22 @@ def _msys2_binary_directories() -> tuple[Path, ...]:
     return (root / "usr" / "bin", root / "ucrt64" / "bin", root / "mingw64" / "bin")
 
 
-def _msys2_python_exists() -> bool:
-    """Avoid the Windows Store alias; Verilator needs a real MSYS2 Python."""
-    return any((directory / "python.exe").is_file() for directory in _msys2_binary_directories())
+def _msys2_python() -> Path | None:
+    """Return a real MSYS2 Python instead of the Windows Store alias."""
+    return next(
+        (directory / "python.exe" for directory in _msys2_binary_directories() if (directory / "python.exe").is_file()),
+        None,
+    )
 
 
-def _command_exists(command: str, environment: dict[str, str]) -> bool:
-    """Check commands using the target platform's executable naming convention."""
+def _resolve_command(command: str, environment: dict[str, str]) -> Path | None:
+    """Resolve a command using the same PATH passed to the native build."""
     names = (f"{command}.exe", command) if sys.platform == "win32" else (command,)
     directories = [Path(item) for item in environment.get("PATH", "").split(os.pathsep) if item]
-    return any((directory / name).is_file() for directory in directories for name in names)
+    return next(
+        (directory / name for directory in directories for name in names if (directory / name).is_file()),
+        None,
+    )
 
 
 def _apio_suite_roots() -> tuple[Path, ...]:
