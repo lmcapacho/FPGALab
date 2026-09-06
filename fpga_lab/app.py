@@ -23,6 +23,7 @@ from .profile_policy import apply_led_observed
 from .project_pins import ProjectPinMap
 from .signals import signal_reference
 from .simulation import VerilatorSimulation
+from .simulation_settings import SimulationSettings, SimulationSettingsDialog
 from .toolchain import resolve_verilator
 from .verilog_interface import VerilogInterface
 from .update_controller import UpdateController
@@ -73,9 +74,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--ice", type=Path, help="Icestudio .ice file to open at startup.")
     parser.add_argument("--cache-dir", type=Path, help="Optional Verilator cache location.")
     parser.add_argument("--profile", type=Path, help="Manual profile (optional for Icestudio designs).")
-    parser.add_argument("--clock-hz", type=int, default=12_000_000, help="Target virtual clock frequency.")
-    parser.add_argument("--ui-refresh-hz", type=int, default=60, help="Maximum UI refresh frequency.")
-    parser.add_argument("--observation-hz", type=int, default=1_000_000, help="Peripheral temporal sampling rate.")
+    parser.add_argument("--clock-hz", type=int, help="Override the saved virtual clock frequency for this launch.")
+    parser.add_argument("--ui-refresh-hz", type=int, help="Override the saved UI refresh frequency for this launch.")
+    parser.add_argument("--observation-hz", type=int, help="Override the saved peripheral temporal sampling rate for this launch.")
     return parser.parse_args()
 
 
@@ -118,6 +119,11 @@ class ApplicationController(QObject):
         self._app = app
         self._window = window
         self._namespace = namespace
+        self._simulation_settings = SimulationSettings.load().with_overrides(
+            clock_hz=namespace.clock_hz,
+            ui_refresh_hz=namespace.ui_refresh_hz,
+            observation_hz=namespace.observation_hz,
+        )
         self._manual_profile = BoardProfile.load(namespace.profile) if namespace.profile else None
         self._build_worker: BuildWorker | None = None
         self._pending_run: PendingProjectRun | None = None
@@ -125,6 +131,7 @@ class ApplicationController(QObject):
         window.lab_selected.connect(self.switch_lab)
         window.stop_requested.connect(self.stop_simulation)
         window.toolchain_requested.connect(self.check_toolchain)
+        window.simulation_settings_requested.connect(self.configure_simulation)
         app.aboutToQuit.connect(self.shutdown)
 
     def switch_lab(self, lab_file: Path) -> None:
@@ -183,9 +190,9 @@ class ApplicationController(QObject):
         self._window.dismiss_busy()
         lab = FPGAVirtualLab(
             simulation,
-            self._namespace.clock_hz,
-            self._namespace.ui_refresh_hz,
-            self._namespace.observation_hz,
+            self._simulation_settings.clock_hz,
+            self._simulation_settings.ui_refresh_hz,
+            self._simulation_settings.observation_hz,
             project_pcf=pending.project.pcf,
             lab_file=self._window.selected_lab(),
             led_sources=pending.led_sources,
@@ -252,6 +259,15 @@ class ApplicationController(QObject):
         self._window.set_status(t("Simulation toolchain is ready."))
         QMessageBox.information(self._window, t("Simulation toolchain"), message)
 
+    def configure_simulation(self) -> None:
+        """Persist runtime rates selected in the graphical interface."""
+        dialog = SimulationSettingsDialog(self._simulation_settings, self._window)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        self._simulation_settings = dialog.values()
+        self._simulation_settings.save()
+        self._window.set_status(t("Simulation settings saved. They will apply on the next run."))
+
     def load_advanced_library(self, library: Path) -> None:
         profile = self._manual_profile or BoardProfile.load(bundled_profile())
         try:
@@ -261,9 +277,9 @@ class ApplicationController(QObject):
             return
         self._window.set_lab(FPGAVirtualLab(
             simulation,
-            self._namespace.clock_hz,
-            self._namespace.ui_refresh_hz,
-            self._namespace.observation_hz,
+            self._simulation_settings.clock_hz,
+            self._simulation_settings.ui_refresh_hz,
+            self._simulation_settings.observation_hz,
         ))
         self._window.set_simulation_running(False)
         self._window.set_status(t("Advanced library loaded. Select an .ice file to change design."))

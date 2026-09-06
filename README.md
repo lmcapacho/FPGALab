@@ -135,13 +135,13 @@ FPGALab does not write Verilator artifacts into `ice-build`. Compiled models are
 
 ## Virtual time and visual refresh
 
-The virtual FPGA advances according to elapsed host time and `--clock-hz` (12 MHz by default). The native wrapper batches many FPGA cycles in C++ for each visual frame, avoiding a Python-to-C boundary crossing per cycle.
+The virtual FPGA advances according to elapsed host time and the configured FPGA clock (12 MHz by default). The native wrapper batches many FPGA cycles in C++ for each visual frame, avoiding a Python-to-C boundary crossing per cycle.
 
-The interface is refreshed at `--ui-refresh-hz` (60 Hz by default). Board LEDs are observed independently at `--observation-hz` (1 MHz by default). External temporal peripherals define output predicates in their manifests; those predicates are evaluated on every virtual rising edge in C++ and delivered to the GUI as duty cycle, transition count, and final state for each visual frame.
+The Simulation Settings button in the bottom toolbar configures the virtual FPGA clock, interface refresh rate (60 Hz by default), and temporal sampling rate (1 MHz by default). These preferences are stored in the platform's standard FPGALab user settings and apply on the next run. External temporal peripherals define output predicates in their manifests; those predicates are evaluated on every virtual rising edge in C++ and delivered to the GUI as duty cycle, transition count, and final state for each visual frame.
 
 This lets a visual LED or seven-segment display show slow blinking, PWM brightness, and multiplexing without making Qt run at 12 MHz. A display common can be tied to `GND` or `VCC`, or driven by an FPGA pin for multiplexed designs.
 
-If the host cannot sustain the requested virtual frequency, use a lower `--clock-hz` value for a slower instructional mode.
+If the host cannot sustain the requested virtual frequency, select a lower FPGA clock in Simulation Settings.
 
 VGA 640×480 labs should be run at `--clock-hz 25000000` or `25175000`. FPGALab does not raise the clock automatically; a 12 MHz default with a VGA monitor on the workbench produces a status-bar warning.
 
@@ -217,9 +217,9 @@ macOS releases provide separate `macos-x86_64.zip` (Intel) and `macos-arm64.zip`
 --library PATH             Prebuilt simulation library (advanced mode)
 --profile PATH             Manual board profile (advanced mode)
 --cache-dir PATH           Override the Verilator build cache
---clock-hz INTEGER         Target virtual clock frequency
---ui-refresh-hz INTEGER    Maximum GUI refresh frequency
---observation-hz INTEGER   Signal sampling frequency
+--clock-hz INTEGER         Override the saved virtual clock for this launch
+--ui-refresh-hz INTEGER    Override the saved GUI refresh rate for this launch
+--observation-hz INTEGER   Override the saved sampling rate for this launch
 ```
 
 ## Project status
