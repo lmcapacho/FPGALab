@@ -214,6 +214,8 @@ class FPGALabMainWindow(QMainWindow):
         self._busy_dialog: QProgressDialog | None = None
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
+        self._requested_clock_hz: float | None = None
+        self._achieved_clock_hz: float | None = None
 
         root = QWidget(self)
         layout = QVBoxLayout(root)
@@ -246,6 +248,9 @@ class FPGALabMainWindow(QMainWindow):
         self._stop_button.setFixedSize(34, 24)
         self._stop_button.setEnabled(False)
         self._stop_button.clicked.connect(self._request_stop)
+        self._clock_status = QLabel()
+        self._clock_status.setStyleSheet("color:#cbd5e1; padding:0 8px;")
+        self._status_bar.addPermanentWidget(self._clock_status)
         self._status_bar.addPermanentWidget(self._update_button)
         self._status_bar.addPermanentWidget(self._toolchain_button)
         self._status_bar.addPermanentWidget(self._simulation_settings_button)
@@ -302,6 +307,7 @@ class FPGALabMainWindow(QMainWindow):
         self._simulation_settings_button.setToolTip(t("Simulation settings"))
         self._run_button.setToolTip(t("Run selected project"))
         self._stop_button.setToolTip(t("Stop simulation"))
+        self._refresh_clock_status()
         self._placeholder.setText(t("Select an Icestudio design (.ice) to start."))
         if not self._status_bar.currentMessage():
             self._status_bar.showMessage(t("Select a design to start."))
@@ -414,6 +420,28 @@ class FPGALabMainWindow(QMainWindow):
     def set_status(self, message: str) -> None:
         self._status_bar.showMessage(message)
 
+    def set_clock_performance(
+        self,
+        requested_hz: float | None,
+        achieved_hz: float | None = None,
+    ) -> None:
+        """Update the permanent virtual-clock indicator without hiding messages."""
+        self._requested_clock_hz = requested_hz
+        self._achieved_clock_hz = achieved_hz
+        self._refresh_clock_status()
+
+    def _refresh_clock_status(self) -> None:
+        if self._requested_clock_hz is None:
+            self._clock_status.setText(t("Combinational design"))
+            return
+        requested = _format_frequency(self._requested_clock_hz)
+        actual = _format_frequency(self._achieved_clock_hz) if self._achieved_clock_hz is not None else "—"
+        self._clock_status.setText(t(
+            "Clock: {requested} · Actual: {actual}",
+            requested=requested,
+            actual=actual,
+        ))
+
     def show_busy(self, message: str) -> None:
         """Show an explicit, non-cancellable operation notice over the lab."""
         self.set_status(message)
@@ -453,3 +481,12 @@ class FPGALabMainWindow(QMainWindow):
         if self._active_lab is not None:
             self._active_lab.close()
         super().closeEvent(event)
+
+
+def _format_frequency(frequency_hz: float) -> str:
+    """Format clock rates compactly while keeping useful precision."""
+    if frequency_hz >= 1_000_000:
+        return f"{frequency_hz / 1_000_000:.3f} MHz"
+    if frequency_hz >= 1_000:
+        return f"{frequency_hz / 1_000:.3f} kHz"
+    return f"{frequency_hz:.0f} Hz"

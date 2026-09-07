@@ -40,6 +40,7 @@ class FPGAVirtualLab(QWidget):
     configure_vga_requested = pyqtSignal(object)
     set_temporal_probes_requested = pyqtSignal(object)
     status_changed = pyqtSignal(str)
+    clock_performance_changed = pyqtSignal(float, float)
 
     def __init__(
         self,
@@ -152,6 +153,10 @@ class FPGAVirtualLab(QWidget):
         """Return the current workbench zoom before this hosted lab is replaced."""
         return self._peripherals.workbench._zoom
 
+    def requested_clock_hz(self) -> float | None:
+        """Return the active clock target, or none for combinational HDL."""
+        return float(self._clock_hz) if self._has_clock is True else None
+
     def set_workbench_zoom(self, zoom: float) -> None:
         """Restore the user's workbench framing after rebuilding a design."""
         self._peripherals.workbench.set_zoom(zoom)
@@ -238,6 +243,8 @@ class FPGAVirtualLab(QWidget):
         for index, state in enumerate(frame.led_brightness):
             self._board_view.set_led_brightness(f"LED{index}", float(state))
         self._peripherals.update_frame(frame)
+        if self._has_clock is True and frame.virtual_hz > 0.0:
+            self.clock_performance_changed.emit(float(self._clock_hz), frame.virtual_hz)
         for snapshot in frame.sinks.values():
             if snapshot.seq and frame.virtual_hz:
                 self.status_changed.emit(t(

@@ -62,6 +62,8 @@ class VerilatorCompiler:
         decoder = native / "vga_decoder.cpp"
 
         library = shared_library_name(f"V{request.top_module}_shared")
+        cxx_flags = f"-O3 -DNDEBUG -fPIC -march=native -DVL_TIME_CONTEXT -I{native}"
+        linker_flags = shared_library_linker_flag()
         # --exe writes a Makefile.  Building it in a separate process is
         # important on Windows: Verilator is native while Make runs in MSYS2.
         args = [
@@ -70,9 +72,8 @@ class VerilatorCompiler:
             "--exe", str(wrapper), str(streaming), str(decoder),
             # The wrapper owns a VerilatedContext.  VL_TIME_CONTEXT prevents
             # MinGW from requiring the legacy sc_time_stamp() callback.
-            "-CFLAGS", f"-O3 -fPIC -march=native -DVL_TIME_CONTEXT -I{native}", "-LDFLAGS", "-shared", "-o", library,
-            "-CFLAGS", "-O3 -fPIC -march=native -DVL_TIME_CONTEXT",
-            "-LDFLAGS", shared_library_linker_flag(), "-o", library,
+            "-CFLAGS", cxx_flags,
+            "-LDFLAGS", linker_flags, "-o", library,
         ]
         return obj_dir / library, args
 

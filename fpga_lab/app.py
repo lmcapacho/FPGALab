@@ -133,6 +133,7 @@ class ApplicationController(QObject):
         window.toolchain_requested.connect(self.check_toolchain)
         window.simulation_settings_requested.connect(self.configure_simulation)
         app.aboutToQuit.connect(self.shutdown)
+        window.set_clock_performance(self._simulation_settings.clock_hz)
 
     def switch_lab(self, lab_file: Path) -> None:
         """Apply the selected laboratory to the visible workbench immediately."""
@@ -200,6 +201,10 @@ class ApplicationController(QObject):
         )
         self._window.set_lab(lab)
         lab.status_changed.connect(self._window.set_status)
+        lab.clock_performance_changed.connect(self._window.set_clock_performance)
+        self._window.set_clock_performance(
+            self._simulation_settings.clock_hz if pending.profile.clock_name is not None else None
+        )
         lab.start_simulation()
         self._window.set_simulation_running(True)
         self._window.set_project_path(pending.project.ice_file)
@@ -234,6 +239,9 @@ class ApplicationController(QObject):
         if isinstance(active_lab, FPGAVirtualLab):
             active_lab.stop_simulation()
         self._window.set_simulation_running(False)
+        active_lab = self._window.active_lab()
+        if isinstance(active_lab, FPGAVirtualLab):
+            self._window.set_clock_performance(active_lab.requested_clock_hz())
         self._window.set_status(t("Simulation stopped."))
 
     def check_toolchain(self) -> None:
@@ -281,6 +289,9 @@ class ApplicationController(QObject):
             self._simulation_settings.ui_refresh_hz,
             self._simulation_settings.observation_hz,
         ))
+        self._window.set_clock_performance(
+            self._simulation_settings.clock_hz if profile.clock_name is not None else None
+        )
         self._window.set_simulation_running(False)
         self._window.set_status(t("Advanced library loaded. Select an .ice file to change design."))
 

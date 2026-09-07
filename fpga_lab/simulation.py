@@ -55,6 +55,36 @@ class VgaStats:
     synced: bool
 
 
+TemporalCondition = tuple[int, int, bool]
+CompiledTemporalProbe = tuple[tuple[int, ...], tuple[int, ...], bool]
+
+
+def compile_temporal_probes(
+    probes: list[tuple[TemporalCondition, ...]],
+) -> tuple[tuple[tuple[int, int], ...], tuple[CompiledTemporalProbe, ...]]:
+    """Deduplicate signal reads and compile declarative predicates to bit masks."""
+    sources = tuple(dict.fromkeys((output, bit) for probe in probes for output, bit, _ in probe))
+    source_indexes = {source: index for index, source in enumerate(sources)}
+    word_count = (len(sources) + 63) // 64
+    compiled: list[CompiledTemporalProbe] = []
+    for probe in probes:
+        masks = [0] * word_count
+        expected_values = [0] * word_count
+        assigned: dict[int, bool] = {}
+        possible = True
+        for output, bit, expected in probe:
+            source = source_indexes[(output, bit)]
+            if source in assigned and assigned[source] != expected:
+                possible = False
+            assigned[source] = expected
+            word, offset = divmod(source, 64)
+            masks[word] |= 1 << offset
+            if expected:
+                expected_values[word] |= 1 << offset
+        compiled.append((tuple(masks), tuple(expected_values), possible))
+    return sources, tuple(compiled)
+
+
 class VerilatorSimulation:
     """One Verilator model instance, used from a single thread.
 
@@ -93,15 +123,23 @@ class VerilatorSimulation:
         self._observed_high_halves = self._function("sim_observed_high_halves", ctypes.c_uint64, (ctypes.c_uint32,))
         self._observed_edges = self._function("sim_observed_edges", ctypes.c_uint64, (ctypes.c_uint32,))
         self._temporal_probe_limit = self._function("sim_temporal_probe_limit", ctypes.c_uint32)
-        self._temporal_term_limit = self._function("sim_temporal_term_limit", ctypes.c_uint32)
+        self._temporal_source_limit = self._function("sim_temporal_source_limit", ctypes.c_uint32)
+        self._temporal_word_limit = self._function("sim_temporal_word_limit", ctypes.c_uint32)
         self._temporal_probe_count = self._function("sim_temporal_probe_count", ctypes.c_uint32)
-        self._set_temporal_probe_count = self._function("sim_set_temporal_probe_count", None, (ctypes.c_uint32,))
-        self._set_temporal_probe_term_count = self._function(
-            "sim_set_temporal_probe_term_count", None, (ctypes.c_uint32, ctypes.c_uint32)
+        self._set_temporal_source_count = self._function(
+            "sim_set_temporal_source_count", None, (ctypes.c_uint32,)
         )
-        self._set_temporal_probe_term = self._function(
-            "sim_set_temporal_probe_term", None,
-            (ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint8, ctypes.c_uint8),
+        self._set_temporal_source = self._function(
+            "sim_set_temporal_source", None,
+            (ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint8),
+        )
+        self._set_temporal_probe_count = self._function("sim_set_temporal_probe_count", None, (ctypes.c_uint32,))
+        self._set_temporal_probe_word = self._function(
+            "sim_set_temporal_probe_word", None,
+            (ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint64, ctypes.c_uint64),
+        )
+        self._set_temporal_probe_possible = self._function(
+            "sim_set_temporal_probe_possible", None, (ctypes.c_uint32, ctypes.c_uint8),
         )
         self._temporal_probe_samples = self._function("sim_temporal_probe_samples", ctypes.c_uint64)
         self._temporal_probe_hits = self._function("sim_temporal_probe_hits", ctypes.c_uint64, (ctypes.c_uint32,))
@@ -178,13 +216,20 @@ class VerilatorSimulation:
         """Configure output predicates without changing the HDL build cache key."""
         if len(probes) > self._temporal_probe_limit():
             raise ValueError(f"At most {self._temporal_probe_limit()} temporal probes are supported.")
-        if any(len(probe) > self._temporal_term_limit() for probe in probes):
-            raise ValueError(f"A temporal probe supports at most {self._temporal_term_limit()} terms.")
+        sources, compiled = compile_temporal_probes(probes)
+        if len(sources) > self._temporal_source_limit():
+            raise ValueError(f"At most {self._temporal_source_limit()} temporal sources are supported.")
+        word_limit = int(self._temporal_word_limit())
+        self._set_temporal_source_count(len(sources))
+        for source_index, (output, bit) in enumerate(sources):
+            self._set_temporal_source(source_index, output, bit)
         self._set_temporal_probe_count(len(probes))
-        for probe_index, probe in enumerate(probes):
-            self._set_temporal_probe_term_count(probe_index, len(probe))
-            for term_index, (output, bit, expected) in enumerate(probe):
-                self._set_temporal_probe_term(probe_index, term_index, output, bit, expected)
+        for probe_index, (masks, expected, possible) in enumerate(compiled):
+            if len(masks) > word_limit:
+                raise ValueError(f"A temporal probe requires more than {word_limit} words.")
+            self._set_temporal_probe_possible(probe_index, possible)
+            for word, (mask, value) in enumerate(zip(masks, expected)):
+                self._set_temporal_probe_word(probe_index, word, mask, value)
 
     def temporal_probe_window(self) -> tuple[list[int], int, list[bool], list[int]]:
         """Return duty, final level, and edge count for each configured predicate."""

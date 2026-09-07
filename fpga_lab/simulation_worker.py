@@ -46,6 +46,11 @@ class SimulationFrame:
     temporal: TemporalFrame = field(default_factory=TemporalFrame)
 
 
+def effective_virtual_hz(cycles: int, wall_elapsed: float) -> float:
+    """Return virtual cycles advanced per second of real elapsed time."""
+    return cycles / wall_elapsed if cycles > 0 and wall_elapsed > 0.0 else 0.0
+
+
 class SimulationWorker(QObject):
     """Maintain the virtual clock and publish state only at visual frequency."""
 
@@ -72,6 +77,9 @@ class SimulationWorker(QObject):
         self._timer: QTimer | None = None
         self._last_frame_time = 0.0
         self._cycle_remainder = 0.0
+        self._performance_cycles = 0
+        self._performance_wall_seconds = 0.0
+        self._measured_virtual_hz = 0.0
         self._led_models = [LedModel() for _ in range(8)]
         self._led_sources = led_sources or {index: (f"LED{index}", 0) for index in range(8)}
         self._vga_bindings: tuple[VgaBinding, ...] = ()
@@ -122,6 +130,9 @@ class SimulationWorker(QObject):
         if self._timer and not self._timer.isActive():
             self._last_frame_time = perf_counter()
             self._cycle_remainder = 0.0
+            self._performance_cycles = 0
+            self._performance_wall_seconds = 0.0
+            self._measured_virtual_hz = 0.0
             self._blank_next = False
             self._timer.start()
 
@@ -186,7 +197,8 @@ class SimulationWorker(QObject):
     def _run_frame(self) -> None:
         try:
             now = perf_counter()
-            elapsed = min(now - self._last_frame_time, 0.100)
+            wall_elapsed = max(0.0, now - self._last_frame_time)
+            elapsed = min(wall_elapsed, 0.100)
             self._last_frame_time = now
             exact_cycles = elapsed * self._clock_hz + self._cycle_remainder
             cycles = int(exact_cycles)
@@ -204,12 +216,19 @@ class SimulationWorker(QObject):
                 name: self._simulation.get_output(name)
                 for name in self._simulation.profile.outputs
             }
-            virtual_hz = cycles / elapsed if elapsed else 0.0
+            self._performance_cycles += cycles
+            self._performance_wall_seconds += wall_elapsed
+            if self._performance_wall_seconds >= 1.0:
+                self._measured_virtual_hz = effective_virtual_hz(
+                    self._performance_cycles, self._performance_wall_seconds
+                )
+                self._performance_cycles = 0
+                self._performance_wall_seconds = 0.0
             self.state_changed.emit(SimulationFrame(
                 led_brightness=tuple(leds),
                 outputs=outputs,
                 sinks=self._keep_sinks(),
-                virtual_hz=virtual_hz,
+                virtual_hz=self._measured_virtual_hz,
                 cycles=cycles,
                 temporal=TemporalFrame(
                     tuple(temporal_hits), temporal_samples, tuple(temporal_ends), tuple(temporal_edges), virtual_elapsed

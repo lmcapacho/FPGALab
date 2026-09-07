@@ -48,8 +48,8 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
             "uint64_t remaining = 0;\n"
             "    for (uint64_t cycle = 0; cycle < cycles; ++cycle) {\n"
             "        const bool observe = remaining == 0;\n"
-            f"        g_top->{clock} = 1; g_top->eval(); sample_temporal();\n"
-            "        if (observe) sample_observed(cycle == 0);\n"
+            f"        g_top->{clock} = 1; g_top->eval();\n"
+            "        if (observe) { sample_temporal(); sample_observed(cycle == 0); }\n"
             "        if (g_sink_enabled) sim_streaming_on_posedge();\n"
             f"        g_top->{clock} = 0; g_top->eval();\n"
             "        if (observe) {\n"
@@ -75,11 +75,14 @@ static uint64_t g_observed_edges[kObservedCount ? kObservedCount : 1] = {{0}};
 static uint64_t g_observed_samples = 0;
 static uint64_t g_observation_divisor = 12;
 static constexpr uint32_t kTemporalProbeLimit = 128;
-static constexpr uint32_t kTemporalTermLimit = 8;
-static uint32_t g_temporal_term_count[kTemporalProbeLimit] = {{0}};
-static uint32_t g_temporal_output[kTemporalProbeLimit][kTemporalTermLimit] = {{0}};
-static uint8_t g_temporal_bit[kTemporalProbeLimit][kTemporalTermLimit] = {{0}};
-static uint8_t g_temporal_expected[kTemporalProbeLimit][kTemporalTermLimit] = {{0}};
+static constexpr uint32_t kTemporalSourceLimit = 256;
+static constexpr uint32_t kTemporalWordLimit = (kTemporalSourceLimit + 63) / 64;
+static uint32_t g_temporal_source_output[kTemporalSourceLimit] = {{0}};
+static uint8_t g_temporal_source_bit[kTemporalSourceLimit] = {{0}};
+static uint64_t g_temporal_mask[kTemporalProbeLimit][kTemporalWordLimit] = {{0}};
+static uint64_t g_temporal_expected[kTemporalProbeLimit][kTemporalWordLimit] = {{0}};
+static uint8_t g_temporal_possible[kTemporalProbeLimit] = {{0}};
+static uint32_t g_temporal_source_count = 0;
 static uint64_t g_temporal_hits[kTemporalProbeLimit] = {{0}};
 static uint64_t g_temporal_edges[kTemporalProbeLimit] = {{0}};
 static uint8_t g_temporal_previous[kTemporalProbeLimit] = {{0}};
@@ -97,13 +100,19 @@ static uint8_t output_bit(uint32_t output, uint8_t bit) {{
 
 static void sample_temporal() {{
     if (!g_temporal_probe_count) return;
+    uint64_t values[kTemporalWordLimit] = {{0}};
+    for (uint32_t source = 0; source < g_temporal_source_count; ++source) {{
+        if (output_bit(g_temporal_source_output[source], g_temporal_source_bit[source])) {{
+            values[source >> 6] |= uint64_t{{1}} << (source & 63);
+        }}
+    }}
+    const uint32_t word_count = (g_temporal_source_count + 63) / 64;
     ++g_temporal_samples;
     for (uint32_t probe = 0; probe < g_temporal_probe_count; ++probe) {{
-        uint8_t active = 1;
-        for (uint32_t term = 0; term < g_temporal_term_count[probe]; ++term) {{
-            if (output_bit(g_temporal_output[probe][term], g_temporal_bit[probe][term]) != g_temporal_expected[probe][term]) {{
+        uint8_t active = g_temporal_possible[probe];
+        for (uint32_t word = 0; active && word < word_count; ++word) {{
+            if ((values[word] & g_temporal_mask[probe][word]) != g_temporal_expected[probe][word]) {{
                 active = 0;
-                break;
             }}
         }}
         if (active) ++g_temporal_hits[probe];
@@ -197,17 +206,34 @@ uint64_t sim_observed_high_halves(uint32_t index) {{ return index < kObservedCou
 uint64_t sim_observed_edges(uint32_t index) {{ return index < kObservedCount ? g_observed_edges[index] : 0; }}
 
 uint32_t sim_temporal_probe_limit() {{ return kTemporalProbeLimit; }}
-uint32_t sim_temporal_term_limit() {{ return kTemporalTermLimit; }}
+uint32_t sim_temporal_source_limit() {{ return kTemporalSourceLimit; }}
+uint32_t sim_temporal_word_limit() {{ return kTemporalWordLimit; }}
 uint32_t sim_temporal_probe_count() {{ return g_temporal_probe_count; }}
-void sim_set_temporal_probe_count(uint32_t count) {{ g_temporal_probe_count = count <= kTemporalProbeLimit ? count : 0; }}
-void sim_set_temporal_probe_term_count(uint32_t probe, uint32_t count) {{
-    if (probe < g_temporal_probe_count) g_temporal_term_count[probe] = count <= kTemporalTermLimit ? count : 0;
+void sim_set_temporal_source_count(uint32_t count) {{
+    g_temporal_source_count = count <= kTemporalSourceLimit ? count : 0;
 }}
-void sim_set_temporal_probe_term(uint32_t probe, uint32_t term, uint32_t output, uint8_t bit, uint8_t expected) {{
-    if (probe >= g_temporal_probe_count || term >= g_temporal_term_count[probe]) return;
-    g_temporal_output[probe][term] = output;
-    g_temporal_bit[probe][term] = bit;
-    g_temporal_expected[probe][term] = expected ? 1 : 0;
+void sim_set_temporal_source(uint32_t source, uint32_t output, uint8_t bit) {{
+    if (source >= g_temporal_source_count) return;
+    g_temporal_source_output[source] = output;
+    g_temporal_source_bit[source] = bit;
+}}
+void sim_set_temporal_probe_count(uint32_t count) {{
+    g_temporal_probe_count = count <= kTemporalProbeLimit ? count : 0;
+    for (uint32_t probe = 0; probe < g_temporal_probe_count; ++probe) {{
+        g_temporal_possible[probe] = 1;
+        for (uint32_t word = 0; word < kTemporalWordLimit; ++word) {{
+            g_temporal_mask[probe][word] = 0;
+            g_temporal_expected[probe][word] = 0;
+        }}
+    }}
+}}
+void sim_set_temporal_probe_word(uint32_t probe, uint32_t word, uint64_t mask, uint64_t expected) {{
+    if (probe >= g_temporal_probe_count || word >= kTemporalWordLimit) return;
+    g_temporal_mask[probe][word] = mask;
+    g_temporal_expected[probe][word] = expected & mask;
+}}
+void sim_set_temporal_probe_possible(uint32_t probe, uint8_t possible) {{
+    if (probe < g_temporal_probe_count) g_temporal_possible[probe] = possible ? 1 : 0;
 }}
 uint64_t sim_temporal_probe_samples() {{ return g_temporal_samples; }}
 uint64_t sim_temporal_probe_hits(uint32_t probe) {{ return probe < g_temporal_probe_count ? g_temporal_hits[probe] : 0; }}

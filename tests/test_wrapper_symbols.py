@@ -16,9 +16,10 @@ def test_wrapper_keeps_getters_and_adds_streaming_hook():
     assert "uint64_t sim_get_gpio_out" in source
     assert "sim_read_output" in source
     assert "sim_set_temporal_probe_count" in source
-    assert "sim_set_temporal_probe_term" in source
+    assert "sim_set_temporal_source" in source
+    assert "sim_set_temporal_probe_word" in source
     assert "sim_temporal_probe_hits" in source
-    assert "sample_temporal();" in source
+    assert "if (observe) { sample_temporal(); sample_observed(cycle == 0); }" in source
     assert "if (g_sink_enabled) sim_streaming_on_posedge();" in source
     assert "sim_streaming_reset();" in source
     assert source.index("case 0: return static_cast<uint64_t>(g_top->LED0);") < source.index(
