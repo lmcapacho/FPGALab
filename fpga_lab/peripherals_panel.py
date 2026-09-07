@@ -256,6 +256,7 @@ class WorkbenchView(QGraphicsView):
         self._duplicate_selected = duplicate_selected
         self._zoom = 1.0
         self._panning = False
+        self._editing_enabled = True
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
@@ -320,18 +321,26 @@ class WorkbenchView(QGraphicsView):
     def reset_zoom(self) -> None:
         self.set_zoom(1.0)
 
+    def set_editable(self, enabled: bool) -> None:
+        """Allow navigation while blocking destructive keyboard actions."""
+        self._editing_enabled = enabled
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_0 and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.reset_zoom()
             event.accept()
             return
-        if event.key() == Qt.Key.Key_D and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        if (
+            self._editing_enabled
+            and event.key() == Qt.Key.Key_D
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
             if selected:
                 self._duplicate_selected(selected[0].peripheral)
                 event.accept()
                 return
-        if event.key() in {Qt.Key.Key_Delete, Qt.Key.Key_Backspace}:
+        if self._editing_enabled and event.key() in {Qt.Key.Key_Delete, Qt.Key.Key_Backspace}:
             selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
             if selected:
                 self._delete_selected(selected[0].peripheral)
@@ -731,6 +740,7 @@ class PeripheralsPanel(QWidget):
     def set_editable(self, enabled):
         self._editing_enabled = enabled
         self.kind.setEnabled(enabled); self._add_button.setEnabled(enabled)
+        self.workbench.set_editable(enabled)
         for item in self._workbench_scene.items():
             if isinstance(item, WorkbenchPeripheralItem): item.set_editable(enabled)
 

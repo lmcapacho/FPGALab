@@ -61,6 +61,7 @@ class FPGAVirtualLab(QWidget):
         self._bounce_timers: list[QTimer] = []
         self._simulation = simulation
         self._clock_hz = clock_hz
+        self._running = False
         self._ignore_state = False
         self._board_name = simulation.profile.board_name if simulation else "Alhambra II"
         self._available_inputs = frozenset(simulation.profile.inputs) if simulation else frozenset()
@@ -195,15 +196,20 @@ class FPGAVirtualLab(QWidget):
         self.configure_vga_requested.emit(bindings)
         # Combinational designs still need periodic visual frames so static
         # outputs can contribute to the peripheral persistence models.
+        self._running = True
         self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
+        self._edit_layout_button.setEnabled(False)
         if not (bindings and self._clock_hz == 12_000_000):
             self.status_changed.emit(t("Simulation running.") if self._has_clock is True else t("Combinational logic active."))
         self._peripherals.set_editable(False)
 
     def _pause(self) -> None:
+        # Ignore frames already queued by the worker before Stop was pressed.
+        self._running = False
         self.pause_requested.emit()
         self._board_view.set_led_brightness("PWR", 0.0)
+        self._edit_layout_button.setEnabled(True)
         self.status_changed.emit(t("Simulation stopped."))
         self._peripherals.set_editable(True)
 
@@ -243,7 +249,7 @@ class FPGAVirtualLab(QWidget):
         for index, state in enumerate(frame.led_brightness):
             self._board_view.set_led_brightness(f"LED{index}", float(state))
         self._peripherals.update_frame(frame)
-        if self._has_clock is True and frame.virtual_hz > 0.0:
+        if self._running and self._has_clock is True and frame.virtual_hz > 0.0:
             self.clock_performance_changed.emit(float(self._clock_hz), frame.virtual_hz)
         for snapshot in frame.sinks.values():
             if snapshot.seq and frame.virtual_hz:
@@ -255,6 +261,7 @@ class FPGAVirtualLab(QWidget):
                 break
 
     def _show_failure(self, error: str) -> None:
+        self._running = False
         self.setWindowTitle(t("FPGALab · simulation stopped: {error}", error=error))
         self.status_changed.emit(t("Simulation error: {error}", error=error))
 

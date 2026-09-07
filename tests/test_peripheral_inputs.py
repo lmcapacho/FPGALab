@@ -7,15 +7,46 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
 from fpga_lab.peripherals_panel import PeripheralConfigDialog, PeripheralsPanel
+from fpga_lab.lab_workspace import LabWorkspace
+from fpga_lab.main_window import FPGALabMainWindow
+from fpga_lab.simulation_worker import SimulationFrame
 from fpga_lab.virtual_lab import FPGAVirtualLab
 from fpga_lab.wiring import PeripheralInstance
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
+
+
+def test_model_changing_controls_are_locked_while_running(tmp_path):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+
+    window.set_simulation_running(True)
+
+    assert window._run_button.isEnabled() is False
+    assert window._stop_button.isEnabled() is True
+    assert window._browse_button.isEnabled() is False
+    assert window._recent.isEnabled() is False
+    assert window._lab_button.isEnabled() is False
+    assert window._simulation_settings_button.isEnabled() is False
+    assert window._language.isEnabled() is True
+    assert window._toolchain_button.isEnabled() is True
+
+    window.set_simulation_running(False)
+
+    assert window._run_button.isEnabled() is True
+    assert window._stop_button.isEnabled() is False
+    assert window._browse_button.isEnabled() is True
+    assert window._recent.isEnabled() is True
+    assert window._lab_button.isEnabled() is True
+    assert window._simulation_settings_button.isEnabled() is True
+    window.close()
+    window.deleteLater()
 
 
 def test_combinational_lab_starts_visual_refresh(tmp_path):
@@ -29,6 +60,27 @@ def test_combinational_lab_starts_visual_refresh(tmp_path):
     lab.start_simulation()
 
     assert requests == [True]
+    lab.close()
+    lab.deleteLater()
+
+
+def test_stopped_lab_ignores_queued_clock_measurements(tmp_path):
+    lab_file = tmp_path / "lab.json"
+    lab_file.write_text('{"peripherals": []}', encoding="utf-8")
+    lab = FPGAVirtualLab(lab_file=lab_file)
+    lab._has_clock = True
+    measurements: list[tuple[float, float]] = []
+    lab.clock_performance_changed.connect(
+        lambda requested, achieved: measurements.append((requested, achieved))
+    )
+    frame = SimulationFrame(led_brightness=(0.0,) * 8, outputs={}, virtual_hz=8_000_000)
+
+    lab._running = True
+    lab._paint_state(frame)
+    lab.stop_simulation()
+    lab._paint_state(frame)
+
+    assert measurements == [(12_000_000.0, 8_000_000.0)]
     lab.close()
     lab.deleteLater()
 

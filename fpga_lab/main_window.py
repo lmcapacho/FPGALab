@@ -400,11 +400,20 @@ class FPGALabMainWindow(QMainWindow):
         """Keep the run controls mutually exclusive and visually unambiguous."""
         self._run_button.setEnabled(not running)
         self._stop_button.setEnabled(running)
+        self._set_configuration_controls_enabled(not running)
 
     def set_project_loading(self, loading: bool) -> None:
-        """Disable run controls while a background build owns the selected project."""
+        """Freeze model-changing controls while a background build owns the project."""
         self._run_button.setEnabled(not loading)
         self._stop_button.setEnabled(False)
+        self._set_configuration_controls_enabled(not loading)
+
+    def _set_configuration_controls_enabled(self, enabled: bool) -> None:
+        """Block actions that would replace or reconfigure the active model."""
+        self._browse_button.setEnabled(enabled)
+        self._recent.setEnabled(enabled)
+        self._lab_button.setEnabled(enabled)
+        self._simulation_settings_button.setEnabled(enabled)
 
     def selected_project(self) -> Path | None:
         text = self._path.text().strip()
