@@ -36,12 +36,16 @@ class BuildWorker(QThread):
     completed = pyqtSignal(object)
     failed = pyqtSignal(str)
 
-    def __init__(self, cache_dir: Path | None, project: IcestudioProject, profile: BoardProfile, top_module: str, parent=None):
+    def __init__(
+        self, cache_dir: Path | None, project: IcestudioProject, profile: BoardProfile,
+        top_module: str, optimization_mode: str, parent=None,
+    ):
         super().__init__(parent)
         self._cache_dir = cache_dir
         self._project = project
         self._profile = profile
         self._top_module = top_module
+        self._optimization_mode = optimization_mode
 
     def run(self) -> None:
         try:
@@ -49,6 +53,7 @@ class BuildWorker(QThread):
                 self._project,
                 self._profile,
                 top_module=self._top_module,
+                optimization_mode=self._optimization_mode,
             )
         except Exception as error:
             self.failed.emit(str(error))
@@ -173,7 +178,10 @@ class ApplicationController(QObject):
         self._pending_run = PendingProjectRun(project, profile, interface.module_name, led_sources, input_sources)
         self._window.set_project_loading(True)
         # The worker must outlive the window while a native build is running.
-        self._build_worker = BuildWorker(self._namespace.cache_dir, project, profile, interface.module_name)
+        self._build_worker = BuildWorker(
+            self._namespace.cache_dir, project, profile, interface.module_name,
+            self._simulation_settings.verilator_optimization,
+        )
         self._build_worker.completed.connect(self._complete_build)
         self._build_worker.failed.connect(self._build_failed)
         self._build_worker.finished.connect(self._dispose_build_worker)
@@ -210,8 +218,16 @@ class ApplicationController(QObject):
         self._window.set_project_path(pending.project.ice_file)
         self._window.remember_project(pending.project.ice_file)
         source = t("cache") if artifact.reused else t("new build")
+        compatibility = t("compatibility optimization enabled") if artifact.compatibility_mode else t("standard optimization")
         run_state = t("simulation started") if pending.profile.clock_name is not None else t("combinational logic active")
-        self._window.set_status(t("{name}: {state} ({source}, module {module}).", name=pending.project.ice_file.name, state=run_state, source=source, module=pending.module_name))
+        self._window.set_status(t(
+            "{name}: {state} ({source}, module {module}, {optimization}).",
+            name=pending.project.ice_file.name,
+            state=run_state,
+            source=source,
+            module=pending.module_name,
+            optimization=compatibility,
+        ))
         self._pending_run = None
 
     def _build_failed(self, error: str) -> None:

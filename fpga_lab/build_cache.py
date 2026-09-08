@@ -9,7 +9,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from .compiler import BuildRequest, VerilatorCompiler
+from .compiler import BuildRequest, VerilatorCompiler, verilator_optimization_flags
 from .ice_project import IcestudioProject
 from .i18n import t
 from .profile import BoardProfile
@@ -30,6 +30,7 @@ class CachedBuild:
     directory: Path
     library: Path
     reused: bool
+    compatibility_mode: bool = False
 
 
 class VerilatorBuildCache:
@@ -71,14 +72,20 @@ class VerilatorBuildCache:
             return None
         if data.get("fingerprint") != fingerprint or data.get("format") != _CACHE_FORMAT:
             return None
-        return CachedBuild(fingerprint, directory, library, True)
+        return CachedBuild(fingerprint, directory, library, True, bool(data.get("compatibility_mode", False)))
 
     def build_or_reuse(
-        self, project: IcestudioProject, profile: BoardProfile, *, top_module: str = "top", verilator: str | None = None
+        self, project: IcestudioProject, profile: BoardProfile, *, top_module: str = "top",
+        verilator: str | None = None, optimization_mode: str = "automatic",
     ) -> CachedBuild:
         toolchain = resolve_verilator(verilator)
         toolchain.activate_runtime()
+        compatibility_flags = verilator_optimization_flags(project.main_v, optimization_mode)
         fingerprint = self.fingerprint(project, profile, top_module, str(toolchain.executable))
+        if compatibility_flags:
+            fingerprint = hashlib.sha256(
+                f"{fingerprint}\0{' '.join(compatibility_flags)}".encode()
+            ).hexdigest()
         if cached := self.lookup(fingerprint, top_module):
             return cached
         toolchain.validate_build_prerequisites()
@@ -94,6 +101,7 @@ class VerilatorBuildCache:
                 str(toolchain.executable),
                 toolchain.environment(),
                 toolchain.make_variables(),
+                compatibility_flags,
             )
             library = VerilatorCompiler().build(request)
             final = self.root / fingerprint
@@ -111,10 +119,17 @@ class VerilatorBuildCache:
                 "pcf": str(project.pcf) if project.pcf else None,
                 "top_module": top_module,
                 "library": str(library.relative_to(staging)),
+                "compatibility_mode": bool(compatibility_flags),
             }
             (staging / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
             staging.rename(final)
-            return CachedBuild(fingerprint, final, final / library.relative_to(staging), False)
+            return CachedBuild(
+                fingerprint,
+                final,
+                final / library.relative_to(staging),
+                False,
+                bool(compatibility_flags),
+            )
         except Exception:
             # Keep staging only until it is promoted; clean failures for future retries.
             if staging.exists():

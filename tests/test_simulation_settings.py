@@ -9,7 +9,10 @@ from fpga_lab.simulation_settings import SimulationSettings
 
 def test_simulation_settings_round_trip(tmp_path):
     store = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
-    expected = SimulationSettings(clock_hz=25_175_000, ui_refresh_hz=75, observation_hz=2_000_000)
+    expected = SimulationSettings(
+        clock_hz=25_175_000, ui_refresh_hz=75, observation_hz=2_000_000,
+        verilator_optimization="compatibility",
+    )
 
     expected.save(store)
 
@@ -21,6 +24,7 @@ def test_simulation_settings_use_safe_defaults_for_invalid_values(tmp_path):
     store.setValue(SimulationSettings.CLOCK_KEY, 0)
     store.setValue(SimulationSettings.UI_REFRESH_KEY, "invalid")
     store.setValue(SimulationSettings.OBSERVATION_KEY, -1)
+    store.setValue(SimulationSettings.VERILATOR_OPTIMIZATION_KEY, "turbo")
 
     assert SimulationSettings.load(store) == SimulationSettings()
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -16,6 +17,41 @@ from .profile import BoardProfile
 
 class VerilatorBuildError(RuntimeError):
     """Verilator failure including its captured diagnostic output."""
+
+
+_CONTINUOUS_ASSIGNMENT = re.compile(
+    r"^\s*assign\s+([A-Za-z_$][A-Za-z0-9_$]*(?:\s*\[[^\]]+\])?)\s*=",
+    re.MULTILINE,
+)
+
+
+def verilator_compatibility_flags(verilog: Path) -> tuple[str, ...]:
+    """Avoid a Verilator DFG pathological case caused by repeated net drivers.
+
+    Some Icestudio label fan-outs are emitted as several equivalent continuous
+    assignments to the same net. Verilator 5.047 can spend an unbounded amount
+    of time optimizing that graph, while disabling only DFG handles it quickly.
+    """
+    source = verilog.read_text(encoding="utf-8", errors="replace")
+    targets: set[str] = set()
+    for match in _CONTINUOUS_ASSIGNMENT.finditer(source):
+        target = re.sub(r"\s+", "", match.group(1))
+        if target in targets:
+            return ("-fno-dfg",)
+        targets.add(target)
+    return ()
+
+
+def verilator_optimization_flags(verilog: Path, mode: str) -> tuple[str, ...]:
+    """Resolve a user-facing optimization mode to Verilator arguments."""
+    normalized = mode.casefold()
+    if normalized == "compatibility":
+        return ("-fno-dfg",)
+    if normalized == "standard":
+        return ()
+    if normalized == "automatic":
+        return verilator_compatibility_flags(verilog)
+    raise ValueError(f"Unknown Verilator optimization mode: {mode}")
 
 
 def shared_library_name(stem: str = "Vtop_shared") -> str:
@@ -40,6 +76,7 @@ class BuildRequest:
     verilator: str = "verilator"
     environment: dict[str, str] | None = None
     make_variables: tuple[str, ...] = ()
+    verilator_flags: tuple[str, ...] = ()
 
 
 class VerilatorCompiler:
@@ -69,6 +106,7 @@ class VerilatorCompiler:
         args = [
             "--cc", str(verilog), "--top-module", request.top_module, "--prefix", f"V{request.top_module}",
             "--Mdir", str(obj_dir), "-O3", "-Wno-fatal",
+            *request.verilator_flags,
             "--exe", str(wrapper), str(streaming), str(decoder),
             # The wrapper owns a VerilatedContext.  VL_TIME_CONTEXT prevents
             # MinGW from requiring the legacy sc_time_stamp() callback.

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QSpinBox, QVBoxLayout
+from PyQt6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QSpinBox, QVBoxLayout
 
 from .i18n import t
 
@@ -17,10 +17,13 @@ class SimulationSettings:
     clock_hz: int = 12_000_000
     ui_refresh_hz: int = 60
     observation_hz: int = 1_000_000
+    verilator_optimization: str = "automatic"
 
     CLOCK_KEY = "simulation/clock_hz"
     UI_REFRESH_KEY = "simulation/ui_refresh_hz"
     OBSERVATION_KEY = "simulation/observation_hz"
+    VERILATOR_OPTIMIZATION_KEY = "simulation/verilator_optimization"
+    VERILATOR_OPTIMIZATION_MODES = ("automatic", "standard", "compatibility")
 
     @classmethod
     def load(cls, settings: QSettings | None = None) -> "SimulationSettings":
@@ -30,6 +33,10 @@ class SimulationSettings:
             clock_hz=_positive_setting(store, cls.CLOCK_KEY, defaults.clock_hz),
             ui_refresh_hz=_positive_setting(store, cls.UI_REFRESH_KEY, defaults.ui_refresh_hz),
             observation_hz=_positive_setting(store, cls.OBSERVATION_KEY, defaults.observation_hz),
+            verilator_optimization=_choice_setting(
+                store, cls.VERILATOR_OPTIMIZATION_KEY, defaults.verilator_optimization,
+                cls.VERILATOR_OPTIMIZATION_MODES,
+            ),
         )
 
     def save(self, settings: QSettings | None = None) -> None:
@@ -37,6 +44,7 @@ class SimulationSettings:
         store.setValue(self.CLOCK_KEY, self.clock_hz)
         store.setValue(self.UI_REFRESH_KEY, self.ui_refresh_hz)
         store.setValue(self.OBSERVATION_KEY, self.observation_hz)
+        store.setValue(self.VERILATOR_OPTIMIZATION_KEY, self.verilator_optimization)
         store.sync()
 
     def with_overrides(
@@ -74,9 +82,22 @@ class SimulationSettingsDialog(QDialog):
         self._clock_hz = _rate_field(values.clock_hz, 1_000_000_000)
         self._ui_refresh_hz = _rate_field(values.ui_refresh_hz, 240)
         self._observation_hz = _rate_field(values.observation_hz, 1_000_000_000)
+        self._verilator_optimization = QComboBox()
+        for label, mode in (
+            (t("Automatic (recommended)"), "automatic"),
+            (t("Standard"), "standard"),
+            (t("Compatibility"), "compatibility"),
+        ):
+            self._verilator_optimization.addItem(label, mode)
+        selected_mode = self._verilator_optimization.findData(values.verilator_optimization)
+        self._verilator_optimization.setCurrentIndex(max(0, selected_mode))
+        self._verilator_optimization.setToolTip(t(
+            "Automatic detects HDL patterns that require Verilator compatibility mode."
+        ))
         form.addRow(t("Virtual FPGA clock:"), self._clock_hz)
         form.addRow(t("Interface refresh rate:"), self._ui_refresh_hz)
         form.addRow(t("Temporal sampling rate:"), self._observation_hz)
+        form.addRow(t("Verilator optimization:"), self._verilator_optimization)
         layout.addLayout(form)
 
         note = QLabel(t(
@@ -103,6 +124,7 @@ class SimulationSettingsDialog(QDialog):
             clock_hz=self._clock_hz.value(),
             ui_refresh_hz=self._ui_refresh_hz.value(),
             observation_hz=self._observation_hz.value(),
+            verilator_optimization=str(self._verilator_optimization.currentData()),
         )
 
     def _restore_defaults(self) -> None:
@@ -110,6 +132,9 @@ class SimulationSettingsDialog(QDialog):
         self._clock_hz.setValue(defaults.clock_hz)
         self._ui_refresh_hz.setValue(defaults.ui_refresh_hz)
         self._observation_hz.setValue(defaults.observation_hz)
+        self._verilator_optimization.setCurrentIndex(
+            self._verilator_optimization.findData(defaults.verilator_optimization)
+        )
 
 
 def _rate_field(value: int, maximum: int) -> QSpinBox:
@@ -127,3 +152,8 @@ def _positive_setting(settings: QSettings, key: str, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return value if value > 0 else default
+
+
+def _choice_setting(settings: QSettings, key: str, default: str, choices: tuple[str, ...]) -> str:
+    value = str(settings.value(key, default)).casefold()
+    return value if value in choices else default
