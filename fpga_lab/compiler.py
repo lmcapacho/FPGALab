@@ -147,10 +147,18 @@ class VerilatorCompiler:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=environment,
+            creationflags=_subprocess_creation_flags(),
         )
         if completed.returncode:
             output = completed.stdout.strip() or "Verilator did not provide diagnostic output."
             raise VerilatorBuildError(output)
+
+
+def _subprocess_creation_flags() -> int:
+    """Keep native build tools hidden behind the FPGALab progress UI on Windows."""
+    if sys.platform == "win32":
+        return int(getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+    return 0
 
 
 def _write_if_changed(path: Path, content: str) -> None:

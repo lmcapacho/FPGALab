@@ -1,8 +1,11 @@
 from pathlib import Path
+from subprocess import CompletedProcess
+
+import fpga_lab.compiler as compiler_module
 
 from fpga_lab.compiler import (
     BuildRequest, VerilatorCompiler, _generated_file_state, _restore_unchanged_timestamps,
-    verilator_compatibility_flags, verilator_optimization_flags,
+    _subprocess_creation_flags, verilator_compatibility_flags, verilator_optimization_flags,
 )
 from fpga_lab.profile import BoardProfile
 
@@ -61,3 +64,26 @@ def test_unchanged_generated_files_keep_their_make_timestamp(tmp_path):
     _restore_unchanged_timestamps(state)
 
     assert generated.stat().st_mtime_ns == original_time
+
+
+def test_windows_build_processes_do_not_open_a_console(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_run(command, **options):
+        captured.update(options)
+        return CompletedProcess(command, 0, "")
+
+    monkeypatch.setattr(compiler_module.sys, "platform", "win32")
+    monkeypatch.setattr(compiler_module.subprocess, "CREATE_NO_WINDOW", 0x08000000, raising=False)
+    monkeypatch.setattr(compiler_module.subprocess, "run", fake_run)
+
+    VerilatorCompiler._run(["make"], cwd=tmp_path, environment=None)
+
+    assert _subprocess_creation_flags() == 0x08000000
+    assert captured["creationflags"] == 0x08000000
+
+
+def test_non_windows_build_processes_keep_default_creation_flags(monkeypatch):
+    monkeypatch.setattr(compiler_module.sys, "platform", "linux")
+
+    assert _subprocess_creation_flags() == 0
