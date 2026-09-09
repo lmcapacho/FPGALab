@@ -4,6 +4,7 @@ from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QImage, QPainter
 
 from ...i18n import t
+from ...theme import color
 from ...wiring import PeripheralInstance
 
 PIXEL_WIDTH = 640
@@ -61,14 +62,14 @@ class VgaMonitorRenderer:
             PIXEL_WIDTH,
             PIXEL_HEIGHT,
         )
-        painter.fillRect(screen, QColor("#020617"))
+        painter.fillRect(screen, color("canvas"))
         if self._image is not None and not self._image.isNull():
             painter.drawImage(screen.topLeft(), self._image)
         overlay = self._overlay_text(state, snapshot)
         if overlay:
-            painter.setPen(QColor("#fbbf24"))
+            painter.setPen(color("warning"))
             painter.drawText(screen.adjusted(6, 6, -6, -6), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, overlay)
-        painter.setPen(QColor("#64748b"))
+        painter.setPen(color("border_strong"))
         painter.drawText(
             QRect(int(rect.left()) + CHROME_LEFT, int(rect.bottom()) - CHROME_BOTTOM + 2, PIXEL_WIDTH, CHROME_BOTTOM - 4),
             Qt.AlignmentFlag.AlignLeft,

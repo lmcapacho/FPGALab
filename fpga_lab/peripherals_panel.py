@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from PyQt6.QtCore import QPointF, QTimer, Qt, pyqtSignal
 import re
-from PyQt6.QtGui import QBrush, QColor, QKeySequence, QPainter, QPen
+from PyQt6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPalette, QPen
 from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from .board import BoardDefinition
 from .constraints import PcfParser
@@ -16,6 +16,7 @@ from .peripherals.renderers import renderer_for
 from .peripherals.renderers.vga_monitor import VgaMonitorRenderer
 from .temporal import LedModel, SignalWindow
 from .wiring import PERIPHERAL_LABELS, SUPPLY_ENDPOINTS, PeripheralInstance, VirtualLabProject
+from .theme import color, style_button
 
 
 _EXTERNAL_LIGHT_PERSISTENCE_SECONDS = 0.030
@@ -35,14 +36,22 @@ class SegmentDisplay(QFrame):
         for name, (row, column) in self._POSITIONS.items():
             segment = QLabel("━" if name in {"a", "d", "g"} else "┃")
             segment.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            segment.setStyleSheet("color:#475569; font: bold 12px monospace;")
+            font = QFont("monospace", 12, QFont.Weight.Bold)
+            segment.setFont(font)
+            self._set_color(segment, color("segment_off"))
             grid.addWidget(segment, row, column)
             self._segments[name] = segment
 
     def set_segment(self, name, active):
         segment = self._segments.get(name)
         if segment is not None:
-            segment.setStyleSheet("color:#ff9d26; font: bold 12px monospace;" if active else "color:#475569; font: bold 12px monospace;")
+            self._set_color(segment, QColor("#ff9d26") if active else color("segment_off"))
+
+    @staticmethod
+    def _set_color(label: QLabel, value: QColor) -> None:
+        label_palette = label.palette()
+        label_palette.setColor(QPalette.ColorRole.WindowText, value)
+        label.setPalette(label_palette)
 
 
 class PeripheralConfigDialog(QDialog):
@@ -84,14 +93,16 @@ class PeripheralConfigDialog(QDialog):
             form.addRow(t(str(schema.get("label", name))), self._property_widget(name, schema, peripheral.properties))
         layout.addLayout(form)
         self._error_label = QLabel()
+        self._error_label.setObjectName("errorText")
         self._error_label.setWordWrap(True)
-        self._error_label.setStyleSheet("color:#fca5a5; font-size:11px;")
         self._error_label.setVisible(False)
         layout.addWidget(self._error_label)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText(t("Save"))
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
         delete = buttons.addButton(t("Delete"), QDialogButtonBox.ButtonRole.DestructiveRole)
+        style_button(delete, "danger")
+        style_button(buttons.button(QDialogButtonBox.StandardButton.Save), "primary")
         delete.clicked.connect(self._request_delete)
         buttons.accepted.connect(self.save_requested.emit)
         buttons.rejected.connect(self.reject)
@@ -378,6 +389,21 @@ class WorkbenchView(QGraphicsView):
     def reset_zoom(self) -> None:
         self.set_zoom(1.0)
 
+    def fit_contents(self) -> None:
+        """Fit all workbench parts in the viewport using the regular persisted zoom."""
+        bounds = self.scene().itemsBoundingRect()
+        if bounds.isEmpty():
+            self.reset_zoom()
+            return
+        margin = 24.0
+        fitted = bounds.adjusted(-margin, -margin, margin, margin)
+        viewport = self.viewport().size()
+        if fitted.width() <= 0 or fitted.height() <= 0:
+            return
+        zoom = min(viewport.width() / fitted.width(), viewport.height() / fitted.height())
+        self.set_zoom(zoom)
+        self.centerOn(bounds.center())
+
     def set_editable(self, enabled: bool) -> None:
         """Allow navigation while blocking destructive keyboard actions."""
         self._editing_enabled = enabled
@@ -523,13 +549,13 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     def paint(self, painter: QPainter, option, widget=None):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         button_active = self._peripheral.kind == "button" and self._pressed
-        border = QColor("#22c55e") if button_active else (
-            QColor("#64748b") if not self.isSelected() else QColor("#38bdf8")
+        border = color("success") if button_active else (
+            color("border_strong") if not self.isSelected() else color("accent")
         )
         painter.setPen(QPen(border, 2))
-        painter.setBrush(QBrush(QColor("#14532d") if button_active else QColor("#172033")))
+        painter.setBrush(QBrush(color("success_surface") if button_active else color("surface_raised")))
         painter.drawRoundedRect(self.rect(), 10, 10)
-        painter.setPen(QColor("#e2e8f0"))
+        painter.setPen(color("text"))
         painter.drawText(self.rect().adjusted(10, 7, -8, -42), Qt.AlignmentFlag.AlignLeft, self._peripheral.peripheral_id)
         self._renderer.paint(painter, self.rect(), self._peripheral, {
             "active": self._active,
@@ -596,13 +622,14 @@ class PeripheralsPanel(QWidget):
         catalog_header.addWidget(self._catalog_title)
         catalog_header.addStretch(1)
         self._connection_status = QLabel()
-        self._connection_status.setStyleSheet("color:#93c5fd; font-size:11px;")
+        self._connection_status.setObjectName("infoText")
         catalog_header.addWidget(self._connection_status)
         layout.addLayout(catalog_header)
         catalog = QHBoxLayout(); catalog.setSpacing(6); self.kind = QComboBox()
         for key, spec in load_catalog().items():
             self.kind.addItem(t(spec.label), key)
         self._add_button = QPushButton(); self._add_button.clicked.connect(self._add)
+        style_button(self._add_button, "primary")
         self.kind.setMaximumWidth(310)
         self._add_button.setFixedWidth(86)
         catalog.addWidget(self.kind)
@@ -610,7 +637,7 @@ class PeripheralsPanel(QWidget):
         catalog.addStretch(1)
         layout.addLayout(catalog)
         self.status = QLabel()
-        self.status.setStyleSheet("color:#93c5fd; font-size:11px;")
+        self.status.setObjectName("infoText")
         self.status.setVisible(False)
         self._status_timer = QTimer(self)
         self._status_timer.setSingleShot(True)
@@ -620,12 +647,18 @@ class PeripheralsPanel(QWidget):
         self._workbench_hint = QLabel()
         workbench_header.addWidget(self._workbench_hint)
         workbench_header.addStretch(1)
-        self._zoom_out_button = QPushButton("−")
+        self._zoom_out_button = QPushButton()
         self._zoom_reset_button = QPushButton()
-        self._zoom_in_button = QPushButton("+")
-        self._undo_button = QPushButton("↶")
-        self._redo_button = QPushButton("↷")
-        for button in (self._zoom_out_button, self._zoom_reset_button, self._zoom_in_button):
+        self._zoom_in_button = QPushButton()
+        self._zoom_fit_button = QPushButton()
+        self._undo_button = QPushButton()
+        self._redo_button = QPushButton()
+        style_button(self._undo_button, "icon", "undo")
+        style_button(self._redo_button, "icon", "redo")
+        style_button(self._zoom_out_button, "icon", "zoom-out")
+        style_button(self._zoom_in_button, "icon", "zoom-in")
+        style_button(self._zoom_fit_button, "icon", "fit")
+        for button in (self._zoom_out_button, self._zoom_reset_button, self._zoom_in_button, self._zoom_fit_button):
             button.setFixedWidth(32)
         self._zoom_reset_button.setFixedWidth(48)
         workbench_header.addWidget(self._undo_button)
@@ -634,6 +667,7 @@ class PeripheralsPanel(QWidget):
         workbench_header.addWidget(self._zoom_out_button)
         workbench_header.addWidget(self._zoom_reset_button)
         workbench_header.addWidget(self._zoom_in_button)
+        workbench_header.addWidget(self._zoom_fit_button)
         layout.addLayout(workbench_header)
         self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 680, 540); self.workbench = WorkbenchView(self._workbench_scene, self._delete_many, self._duplicate_many, self._save_positions, self.undo, self.redo)
         self._undo_button.clicked.connect(self.undo)
@@ -641,6 +675,7 @@ class PeripheralsPanel(QWidget):
         self._zoom_out_button.clicked.connect(self.workbench.zoom_out)
         self._zoom_reset_button.clicked.connect(self.workbench.reset_zoom)
         self._zoom_in_button.clicked.connect(self.workbench.zoom_in)
+        self._zoom_fit_button.clicked.connect(self.workbench.fit_contents)
         self.workbench.zoom_changed.connect(self._update_zoom_label)
         self.workbench.zoom_changed.connect(self._persist_workbench_zoom)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
@@ -662,6 +697,7 @@ class PeripheralsPanel(QWidget):
         self._zoom_out_button.setToolTip(t("Zoom out"))
         self._zoom_reset_button.setToolTip(t("Reset zoom"))
         self._zoom_in_button.setToolTip(t("Zoom in"))
+        self._zoom_fit_button.setToolTip(t("Fit all parts"))
         self._update_zoom_label(self.workbench._zoom)
         self._update_connection_status()
         for item in self._workbench_scene.items():

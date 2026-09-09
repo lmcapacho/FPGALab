@@ -5,6 +5,7 @@ from PyQt6.QtGui import QColor, QPainter, QPen
 
 from .base import NullInputMixin
 from ...wiring import PeripheralInstance
+from ...theme import color as theme_color
 
 
 class SevenSegmentRenderer(NullInputMixin):
@@ -22,7 +23,7 @@ class SevenSegmentRenderer(NullInputMixin):
         for terminal, (start, end) in segments.items():
             intensity = float(brightness.get(terminal, False))
             painter.setPen(QPen(
-                _blend(QColor("#334155"), color, intensity),
+                _blend(theme_color("segment_off"), color, intensity),
                 9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
             ))
             painter.drawLine(*start, *end)

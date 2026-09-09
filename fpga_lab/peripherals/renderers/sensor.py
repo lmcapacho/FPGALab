@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPainter
 
 from ...i18n import t
+from ...theme import color
 from ...wiring import PeripheralInstance
 
 
@@ -13,7 +14,7 @@ class SensorRenderer:
 
     def paint(self, painter: QPainter, rect, peripheral: PeripheralInstance, state) -> None:
         value = bool(state.get("sensor_value"))
-        painter.setPen(QColor("#f8fafc") if value else QColor("#94a3b8"))
+        painter.setPen(color("text") if value else color("text_muted"))
         label = t("Sensor: 1") if value else t("Sensor: 0")
         painter.drawText(rect.adjusted(10, 29, -8, -8), Qt.AlignmentFlag.AlignCenter, label)
 

@@ -11,6 +11,7 @@ from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
 from .board_layout import BoardLayout, BoardLayoutElement
+from .theme import color
 
 
 class BoardLedItem(QGraphicsRectItem):
@@ -19,7 +20,7 @@ class BoardLedItem(QGraphicsRectItem):
         self._color = QColor(element.color)
         self._calibrating = False
         self._intensity = 0.0
-        self.setPen(QPen(QColor("#475569"), 1.5))
+        self.setPen(QPen(color("border_strong"), 1.5))
         self.set_brightness(0.0)
 
     def set_brightness(self, brightness: float) -> None:
@@ -39,7 +40,7 @@ class BoardLedItem(QGraphicsRectItem):
             painter.setBrush(core)
             painter.drawRoundedRect(rect.adjusted(0.25, 0.25, -0.25, -0.25), 0.7, 0.7)
         if self._calibrating:
-            painter.setPen(QPen(QColor("#f43f5e"), 0.5))
+            painter.setPen(QPen(color("danger"), 0.5))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(self.rect())
 
@@ -47,7 +48,7 @@ class BoardLedItem(QGraphicsRectItem):
     def set_calibration(self, enabled: bool) -> None:
         self._calibrating = enabled
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, enabled)
-        self.setPen(QPen(QColor("#f43f5e"), 0.5) if enabled else QPen(Qt.PenStyle.NoPen))
+        self.setPen(QPen(color("danger"), 0.5) if enabled else QPen(Qt.PenStyle.NoPen))
 
 
 class BoardButtonItem(QGraphicsRectItem):
@@ -97,7 +98,7 @@ class BoardView(QGraphicsView):
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
-        self.setBackgroundBrush(QColor("#0f172a"))
+        self.setBackgroundBrush(color("canvas"))
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._leds: dict[str, BoardLedItem] = {}

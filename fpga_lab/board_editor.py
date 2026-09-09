@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 
 from .board_layout import BoardLayout, BoardLayoutElement
 from .i18n import t
+from .theme import color, style_button
 
 
 class EditableItem(QGraphicsRectItem):
@@ -25,7 +26,7 @@ class EditableItem(QGraphicsRectItem):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
     def paint(self, painter: QPainter, _option, _widget=None) -> None:
-        painter.setPen(QPen(QColor("#f43f5e") if self.isSelected() else QColor("#facc15"), 0.65))
+        painter.setPen(QPen(color("danger") if self.isSelected() else color("warning"), 0.65))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(self.rect())
 
@@ -63,7 +64,7 @@ class BoardLayoutEditor(QDialog):
         self._canvas.setScene(self._scene)
         self._canvas.key_handler = self._move_selected_key
         self._canvas.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self._canvas.setBackgroundBrush(QColor("#0f172a"))
+        self._canvas.setBackgroundBrush(color("canvas"))
         self._items: dict[str, EditableItem] = {}
         self._elements = {element.id: element for element in layout.elements}
         artwork = QGraphicsSvgItem(str(layout.svg))
@@ -103,16 +104,18 @@ class BoardLayoutEditor(QDialog):
         add_switch = QPushButton("+ Switch")
         add_switch.clicked.connect(lambda: self._add_component("button"))
         side.addWidget(add_switch)
-        color = QPushButton(t("Change color"))
-        color.clicked.connect(self._change_color)
-        side.addWidget(color)
+        color_button = QPushButton(t("Change color"))
+        color_button.clicked.connect(self._change_color)
+        side.addWidget(color_button)
         delete = QPushButton(t("Delete selected"))
+        style_button(delete, "danger")
         delete.clicked.connect(self._delete_selected)
         side.addWidget(delete)
         fit = QPushButton(t("Fit canvas"))
         fit.clicked.connect(self.fit_to_canvas)
         side.addWidget(fit)
         save = QPushButton(t("Save JSON"))
+        style_button(save, "primary")
         save.clicked.connect(self.save)
         side.addWidget(save)
         side.addStretch()

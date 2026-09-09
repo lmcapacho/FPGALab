@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 from .i18n import language_manager, t
 from .lab_workspace import LabWorkspace
 from .recent_projects import RecentProjects
+from .theme import Metrics, style_button
 
 
 def _style_lab_icon_button(button: QPushButton, icon_name: str) -> None:
@@ -56,6 +57,7 @@ class LabNameDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText(action)
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
+        style_button(buttons.button(QDialogButtonBox.StandardButton.Ok), "primary")
         buttons.accepted.connect(self._accept_if_named)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -280,16 +282,6 @@ class FPGALabMainWindow(QMainWindow):
     def __init__(self, workspace: LabWorkspace, parent=None):
         super().__init__(parent)
         self.setMinimumSize(1000, 680)
-        self.setStyleSheet("""
-            QMainWindow, QWidget { background:#0f172a; color:#e2e8f0; font-family:Inter,Arial,sans-serif; }
-            QFrame#panel { background:#172033; border:1px solid #334155; border-radius:10px; }
-            QStatusBar { background:#172033; color:#fbbf24; border-top:1px solid #334155; font-weight:600; }
-            QPushButton#runButton { background:#166534; border:1px solid #22c55e; color:#f0fdf4; font-weight:700; border-radius:5px; }
-            QPushButton#runButton:hover { background:#15803d; }
-            QPushButton#stopButton { background:#991b1b; border:1px solid #f87171; color:#fef2f2; font-weight:700; border-radius:5px; }
-            QPushButton#stopButton:hover { background:#b91c1c; }
-            QPushButton#runButton:disabled, QPushButton#stopButton:disabled { background:#1e293b; border-color:#334155; color:#64748b; }
-        """)
         self._recent_projects = RecentProjects()
         self._workspace = workspace
         self._selected_lab = self._workspace.last_selected()
@@ -302,37 +294,37 @@ class FPGALabMainWindow(QMainWindow):
 
         root = QWidget(self)
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(Metrics.SPACE_MD, Metrics.SPACE_SM, Metrics.SPACE_MD, Metrics.SPACE_SM)
+        layout.setSpacing(Metrics.SPACE_SM)
         layout.addWidget(self._project_bar())
         self._content = QStackedWidget()
         self._placeholder = QLabel()
-        self._placeholder.setStyleSheet("color:#94a3b8; font-size:16px; padding:32px;")
+        self._placeholder.setObjectName("emptyState")
         self._placeholder.setWordWrap(True)
         self._content.addWidget(self._placeholder)
         layout.addWidget(self._content, 1)
         self.setCentralWidget(root)
 
-        self._update_button = QPushButton("↻")
-        self._update_button.setFixedSize(34, 24)
+        self._update_button = QPushButton()
+        style_button(self._update_button, "icon", "refresh")
         self._update_button.clicked.connect(self.update_requested.emit)
-        self._toolchain_button = QPushButton("🛠")
-        self._toolchain_button.setFixedSize(34, 24)
+        self._toolchain_button = QPushButton()
+        style_button(self._toolchain_button, "icon", "tools")
         self._toolchain_button.clicked.connect(self.toolchain_requested.emit)
-        self._simulation_settings_button = QPushButton("⚙")
-        self._simulation_settings_button.setFixedSize(34, 24)
+        self._simulation_settings_button = QPushButton()
+        style_button(self._simulation_settings_button, "icon", "settings")
         self._simulation_settings_button.clicked.connect(self.simulation_settings_requested.emit)
-        self._run_button = QPushButton("▶")
-        self._run_button.setObjectName("runButton")
-        self._run_button.setFixedSize(34, 24)
+        self._run_button = QPushButton()
+        style_button(self._run_button, "success", "play")
+        self._run_button.setFixedSize(Metrics.ICON_BUTTON_WIDTH, Metrics.CONTROL_HEIGHT)
         self._run_button.clicked.connect(self._request_project)
-        self._stop_button = QPushButton("■")
-        self._stop_button.setObjectName("stopButton")
-        self._stop_button.setFixedSize(34, 24)
+        self._stop_button = QPushButton()
+        style_button(self._stop_button, "danger", "stop")
+        self._stop_button.setFixedSize(Metrics.ICON_BUTTON_WIDTH, Metrics.CONTROL_HEIGHT)
         self._stop_button.setEnabled(False)
         self._stop_button.clicked.connect(self._request_stop)
         self._clock_status = QLabel()
-        self._clock_status.setStyleSheet("color:#cbd5e1; padding:0 8px;")
+        self._clock_status.setObjectName("clockStatus")
         self._status_bar.addPermanentWidget(self._clock_status)
         self._status_bar.addPermanentWidget(self._update_button)
         self._status_bar.addPermanentWidget(self._toolchain_button)
@@ -347,8 +339,8 @@ class FPGALabMainWindow(QMainWindow):
         frame = QFrame()
         frame.setObjectName("panel")
         layout = QHBoxLayout(frame)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(6)
+        layout.setContentsMargins(Metrics.SPACE_LG, Metrics.SPACE_SM, Metrics.SPACE_LG, Metrics.SPACE_SM)
+        layout.setSpacing(Metrics.SPACE_SM)
         self._project_label = QLabel()
         self._path = QLineEdit()
         self._path.setReadOnly(True)

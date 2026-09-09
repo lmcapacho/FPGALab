@@ -18,15 +18,7 @@ from .sink_bind import collect_vga_bindings
 from .simulation import VerilatorSimulation
 from .simulation_worker import SimulationFrame, SimulationWorker
 from .wiring import VirtualLabProject
-
-_QSS = """
-QWidget { background: #0f172a; color: #e2e8f0; font-family: Inter, Arial, sans-serif; }
-QFrame#board { background: #1e3a2f; border: 2px solid #4ade80; border-radius: 22px; }
-QFrame#panel { background: #172033; border: 1px solid #334155; border-radius: 14px; }
-QPushButton#switch { background: #334155; border: 1px solid #64748b; border-radius: 10px; padding: 11px; font-weight: 700; }
-QPushButton#switch:pressed { background: #22c55e; color: #052e16; }
-QLabel#caption { color: #94a3b8; font-size: 11px; }
-"""
+from .theme import Metrics, style_button
 
 
 class FPGAVirtualLab(QWidget):
@@ -57,7 +49,6 @@ class FPGAVirtualLab(QWidget):
         super().__init__(parent)
         self.setWindowTitle(t("FPGALab · Virtual FPGA Lab"))
         self.setMinimumSize(800, 520)
-        self.setStyleSheet(_QSS)
         self._bounce_timers: list[QTimer] = []
         self._simulation = simulation
         self._clock_hz = clock_hz
@@ -106,17 +97,18 @@ class FPGAVirtualLab(QWidget):
         root = QHBoxLayout()
         root.setContentsMargins(0, 0, 0, 0)
         outer.addLayout(root)
-        board_panel = QFrame(objectName="board")
+        board_panel = QFrame(objectName="boardPanel")
         board_panel.setMinimumWidth(300)
         board_layout = QVBoxLayout(board_panel)
+        board_layout.setContentsMargins(Metrics.SPACE_MD, Metrics.SPACE_MD, Metrics.SPACE_MD, Metrics.SPACE_MD)
         board_header = QHBoxLayout()
         self._board_title = QLabel()
-        self._board_title.setStyleSheet("font-size: 20px; font-weight: 800; color:#bbf7d0;")
-        self._connections_button = QPushButton("🔌")
-        self._connections_button.setFixedSize(30, 28)
+        self._board_title.setObjectName("boardTitle")
+        self._connections_button = QPushButton()
+        style_button(self._connections_button, "icon", "connections")
         self._connections_button.clicked.connect(lambda: self._peripherals.open_connections())
-        self._edit_layout_button = QPushButton("⚙")
-        self._edit_layout_button.setFixedSize(30, 28)
+        self._edit_layout_button = QPushButton()
+        style_button(self._edit_layout_button, "icon", "edit")
         self._edit_layout_button.clicked.connect(self._open_layout_editor)
         board_header.addWidget(self._board_title)
         board_header.addStretch()
@@ -130,6 +122,7 @@ class FPGAVirtualLab(QWidget):
         controls = QVBoxLayout()
         gpio_panel = QFrame(objectName="panel")
         gpio_layout = QVBoxLayout(gpio_panel)
+        gpio_layout.setContentsMargins(0, 0, 0, 0)
         self._peripherals = PeripheralsPanel(
             BoardDefinition.load(bundled_board_definition()),
             self._project_pcf,

@@ -235,6 +235,30 @@ def test_workbench_zoom_is_optional_and_persisted_per_lab(tmp_path):
     restored.deleteLater()
 
 
+def test_fit_contents_uses_and_persists_the_regular_workbench_zoom(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab = tmp_path / "fit.lab"
+    lab.write_text(json.dumps({
+        "peripherals": [
+            {"id": "led_1", "type": "led", "connections": {}, "properties": {"position": [10, 10]}},
+            {"id": "led_2", "type": "led", "connections": {}, "properties": {"position": [500, 350]}},
+        ],
+    }), encoding="utf-8")
+    panel = PeripheralsPanel(board, None, lab)
+    panel.resize(760, 520)
+    panel.show()
+    _APPLICATION.processEvents()
+    panel.workbench.set_zoom(2.0)
+
+    panel.workbench.fit_contents()
+
+    raw = json.loads(lab.read_text(encoding="utf-8"))
+    assert 0.4 <= panel.workbench._zoom < 2.0
+    assert raw["workbench"]["zoom"] == round(panel.workbench._zoom, 4)
+    panel.close()
+    panel.deleteLater()
+
+
 def test_workbench_uses_rubber_band_selection_and_persists_group_positions(tmp_path):
     board = BoardDefinition.load(bundled_board_definition())
     lab = tmp_path / "group.lab"

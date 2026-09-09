@@ -7,6 +7,7 @@ from typing import Any, Protocol
 from PyQt6.QtGui import QPainter
 
 from ...wiring import PeripheralInstance
+from ...theme import color as theme_color
 
 
 class WorkbenchRenderer(Protocol):
@@ -29,7 +30,7 @@ def lamp(painter: QPainter, x: int, y: int, brightness: float, color: str) -> No
     from PyQt6.QtGui import QColor
 
     brightness = max(0.0, min(float(brightness), 1.0))
-    off, on = QColor("#334155"), QColor(color)
+    off, on = theme_color("segment_off"), QColor(color)
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(QColor(
         round(off.red() + (on.red() - off.red()) * brightness),

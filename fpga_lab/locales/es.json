@@ -83,6 +83,7 @@
   "FPGALab · layout saved; restart the view to reload it": "FPGALab · layout guardado; reinicie la vista para recargarlo",
   "FPGALab · simulation stopped: {error}": "FPGALab · simulación detenida: {error}",
   "Fit canvas": "Ajustar al lienzo",
+  "Fit all parts": "Ajustar todos los componentes",
   "HDL signal": "Señal HDL",
   "GND (fixed)": "GND (fijo)",
   "HDL net (PCF)": "Red HDL (PCF)",
