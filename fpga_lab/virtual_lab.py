@@ -162,6 +162,14 @@ class FPGAVirtualLab(QWidget):
         """Restore the user's workbench framing after rebuilding a design."""
         self._peripherals.workbench.set_zoom(zoom)
 
+    def workbench_history(self):
+        """Return the active Lab editing history before replacing this widget."""
+        return self._peripherals.history_state()
+
+    def restore_workbench_history(self, state) -> None:
+        """Restore editing history after attaching a newly compiled simulation."""
+        self._peripherals.restore_history_state(state)
+
     def set_lab_file(self, lab_file: str | Path) -> None:
         """Load another laboratory without rebuilding the active HDL model."""
         self._lab_file = Path(lab_file)

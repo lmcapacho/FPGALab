@@ -8,7 +8,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QGraphicsView, QMessageBox
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
 from fpga_lab.peripherals_panel import PeripheralConfigDialog, PeripheralsPanel
@@ -233,6 +233,102 @@ def test_workbench_zoom_is_optional_and_persisted_per_lab(tmp_path):
     restored = PeripheralsPanel(board, None, lab)
     assert restored.workbench._zoom == 0.8
     restored.deleteLater()
+
+
+def test_workbench_uses_rubber_band_selection_and_persists_group_positions(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab = tmp_path / "group.lab"
+    lab.write_text(json.dumps({
+        "peripherals": [
+            {"id": "led_1", "type": "led", "connections": {}, "properties": {"position": [10, 10]}},
+            {"id": "led_2", "type": "led", "connections": {}, "properties": {"position": [80, 10]}},
+        ],
+    }), encoding="utf-8")
+    panel = PeripheralsPanel(board, None, lab)
+
+    assert panel.workbench.dragMode() == QGraphicsView.DragMode.RubberBandDrag
+    panel._save_positions([("led_1", 35.25, 42.75), ("led_2", 105.25, 42.75)])
+
+    raw = json.loads(lab.read_text(encoding="utf-8"))
+    positions = {item["id"]: item["properties"]["position"] for item in raw["peripherals"]}
+    assert positions == {"led_1": [35.2, 42.8], "led_2": [105.2, 42.8]}
+    panel.deleteLater()
+
+
+def test_group_movement_can_be_undone_and_redone(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab = tmp_path / "history.lab"
+    lab.write_text(json.dumps({
+        "peripherals": [
+            {"id": "led_1", "type": "led", "connections": {}, "properties": {"position": [10, 10]}},
+            {"id": "led_2", "type": "led", "connections": {}, "properties": {"position": [80, 10]}},
+        ],
+    }), encoding="utf-8")
+    panel = PeripheralsPanel(board, None, lab)
+
+    panel._save_positions([("led_1", 30, 40), ("led_2", 100, 40)])
+    panel.undo()
+    undone = json.loads(lab.read_text(encoding="utf-8"))
+    panel.redo()
+    redone = json.loads(lab.read_text(encoding="utf-8"))
+
+    assert [item["properties"]["position"] for item in undone["peripherals"]] == [[10, 10], [80, 10]]
+    assert [item["properties"]["position"] for item in redone["peripherals"]] == [[30, 40], [100, 40]]
+    panel.deleteLater()
+
+
+def test_multiple_selected_peripherals_are_deleted_as_one_undoable_action(tmp_path, monkeypatch):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab = tmp_path / "delete-group.lab"
+    lab.write_text(json.dumps({
+        "peripherals": [
+            {"id": "led_1", "type": "led", "connections": {}, "properties": {}},
+            {"id": "led_2", "type": "led", "connections": {}, "properties": {}},
+        ],
+    }), encoding="utf-8")
+    panel = PeripheralsPanel(board, None, lab)
+    peripherals = [
+        item.peripheral for item in panel._workbench_scene.items()
+        if hasattr(item, "peripheral")
+    ]
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
+    )
+
+    panel._delete_many(peripherals)
+    deleted = json.loads(lab.read_text(encoding="utf-8"))
+    panel.undo()
+    restored = json.loads(lab.read_text(encoding="utf-8"))
+
+    assert deleted["peripherals"] == []
+    assert {item["id"] for item in restored["peripherals"]} == {"led_1", "led_2"}
+    assert panel._history_index == 0
+    panel.deleteLater()
+
+
+def test_workbench_history_survives_a_lab_widget_replacement(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab = tmp_path / "replacement.lab"
+    lab.write_text(json.dumps({
+        "peripherals": [
+            {"id": "led_1", "type": "led", "connections": {}, "properties": {"position": [10, 10]}},
+        ],
+    }), encoding="utf-8")
+    original = PeripheralsPanel(board, None, lab)
+    original._save_positions([("led_1", 70, 80)])
+
+    replacement = PeripheralsPanel(board, None, lab)
+    replacement.restore_history_state(original.history_state())
+    replacement.set_editable(False)
+    replacement.set_editable(True)
+    replacement.undo()
+
+    raw = json.loads(lab.read_text(encoding="utf-8"))
+    assert raw["peripherals"][0]["properties"]["position"] == [10, 10]
+    original.deleteLater()
+    replacement.deleteLater()
 
 
 def test_conflicting_input_remains_open_and_clears_only_that_pin():

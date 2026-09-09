@@ -192,6 +192,11 @@ class ApplicationController(QObject):
         pending = self._pending_run
         if pending is None:
             return
+        previous_lab = self._window.active_lab()
+        workbench_history = (
+            previous_lab.workbench_history()
+            if isinstance(previous_lab, FPGAVirtualLab) else None
+        )
         try:
             simulation = VerilatorSimulation(artifact.library, pending.profile)
         except Exception as error:
@@ -208,6 +213,8 @@ class ApplicationController(QObject):
             led_sources=pending.led_sources,
             input_sources=pending.input_sources,
         )
+        if workbench_history is not None:
+            lab.restore_workbench_history(workbench_history)
         self._window.set_lab(lab)
         lab.status_changed.connect(self._window.set_status)
         lab.clock_performance_changed.connect(self._window.set_clock_performance)

@@ -1,5 +1,6 @@
 """Panel for registering peripherals and GPIO without visible wiring."""
 from __future__ import annotations
+import copy
 import json
 from pathlib import Path
 from PyQt6.QtCore import QPointF, QTimer, Qt, pyqtSignal
@@ -250,10 +251,13 @@ class WorkbenchView(QGraphicsView):
 
     zoom_changed = pyqtSignal(float)
 
-    def __init__(self, scene, delete_selected, duplicate_selected, parent=None):
+    def __init__(self, scene, delete_selected, duplicate_selected, persist_positions, undo, redo, parent=None):
         super().__init__(scene, parent)
         self._delete_selected = delete_selected
         self._duplicate_selected = duplicate_selected
+        self._persist_positions = persist_positions
+        self._undo = undo
+        self._redo = redo
         self._zoom = 1.0
         self._panning = False
         self._editing_enabled = True
@@ -261,6 +265,7 @@ class WorkbenchView(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
 
@@ -278,6 +283,16 @@ class WorkbenchView(QGraphicsView):
     def mousePressEvent(self, event):
         self.setFocus()
         if (
+            self._editing_enabled
+            and event.button() == Qt.MouseButton.LeftButton
+            and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+        ):
+            item = self.itemAt(event.position().toPoint())
+            if isinstance(item, WorkbenchPeripheralItem):
+                item.setSelected(not item.isSelected())
+                event.accept()
+                return
+        if (
             event.button() == Qt.MouseButton.LeftButton
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
@@ -290,8 +305,50 @@ class WorkbenchView(QGraphicsView):
         super().mouseReleaseEvent(event)
         if self._panning and event.button() == Qt.MouseButton.LeftButton:
             self._panning = False
-            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.setDragMode(
+                QGraphicsView.DragMode.RubberBandDrag
+                if self._editing_enabled else QGraphicsView.DragMode.NoDrag
+            )
             self.setCursor(Qt.CursorShape.ArrowCursor)
+            return
+        if self._editing_enabled and event.button() == Qt.MouseButton.LeftButton:
+            updates = [
+                update
+                for item in self.scene().items()
+                if isinstance(item, WorkbenchPeripheralItem)
+                if (update := item.take_position_update()) is not None
+            ]
+            if updates:
+                self._persist_positions(updates)
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        if self._panning or not self._editing_enabled:
+            return
+        selected = [
+            item for item in self.scene().selectedItems()
+            if isinstance(item, WorkbenchPeripheralItem)
+        ]
+        if len(selected) < 2:
+            return
+        left = min(item.sceneBoundingRect().left() for item in selected)
+        top = min(item.sceneBoundingRect().top() for item in selected)
+        right = max(item.sceneBoundingRect().right() for item in selected)
+        bottom = max(item.sceneBoundingRect().bottom() for item in selected)
+        bounds = self.scene().sceneRect()
+        dx = (
+            bounds.left() - left if left < bounds.left()
+            else bounds.right() - right if right > bounds.right()
+            else 0.0
+        )
+        dy = (
+            bounds.top() - top if top < bounds.top()
+            else bounds.bottom() - bottom if bottom > bounds.bottom()
+            else 0.0
+        )
+        if dx or dy:
+            for item in selected:
+                item.moveBy(dx, dy)
 
     def wheelEvent(self, event):
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
@@ -324,10 +381,26 @@ class WorkbenchView(QGraphicsView):
     def set_editable(self, enabled: bool) -> None:
         """Allow navigation while blocking destructive keyboard actions."""
         self._editing_enabled = enabled
+        if not self._panning:
+            self.setDragMode(
+                QGraphicsView.DragMode.RubberBandDrag
+                if enabled else QGraphicsView.DragMode.NoDrag
+            )
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_0 and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.reset_zoom()
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_Z and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                self._redo()
+            else:
+                self._undo()
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_Y and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._redo()
             event.accept()
             return
         if (
@@ -337,13 +410,13 @@ class WorkbenchView(QGraphicsView):
         ):
             selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
             if selected:
-                self._duplicate_selected(selected[0].peripheral)
+                self._duplicate_selected([item.peripheral for item in selected])
                 event.accept()
                 return
         if self._editing_enabled and event.key() in {Qt.Key.Key_Delete, Qt.Key.Key_Backspace}:
             selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
             if selected:
-                self._delete_selected(selected[0].peripheral)
+                self._delete_selected([item.peripheral for item in selected])
                 event.accept()
                 return
         super().keyPressEvent(event)
@@ -382,6 +455,9 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and self.scene() is not None:
+            selected_group = self.isSelected() and len(self.scene().selectedItems()) > 1
+            if selected_group:
+                return value
             bounds = self.scene().sceneRect(); rect = self.rect()
             return QPointF(max(bounds.left(), min(value.x(), bounds.right() - rect.width())), max(bounds.top(), min(value.y(), bounds.bottom() - rect.height())))
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged and self._editable:
@@ -397,6 +473,13 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         if self._drag_dirty:
             self._moved(self._peripheral.peripheral_id, self._last_position.x(), self._last_position.y())
             self._drag_dirty = False
+
+    def take_position_update(self) -> tuple[str, float, float] | None:
+        """Return one pending position and mark it persisted by the view batch."""
+        if not self._drag_dirty:
+            return None
+        self._drag_dirty = False
+        return self._peripheral.peripheral_id, self._last_position.x(), self._last_position.y()
 
     def set_terminal(self, terminal, active):
         self.set_terminal_brightness(terminal, 1.0 if active else 0.0)
@@ -475,8 +558,6 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         if self._peripheral.kind == "button":
             self.set_button_pressed("mouse", False)
         self._renderer.mouse_release(self._peripheral, event.pos(), self._input_changed)
-        if self._editable:
-            self._persist_position()
 
 
 class PeripheralsPanel(QWidget):
@@ -505,6 +586,8 @@ class PeripheralsPanel(QWidget):
         self._temporal_models: list[LedModel] = []
         self._active_shortcut_keys: dict[int, list[WorkbenchPeripheralItem]] = {}
         self._restoring_workbench_state = False
+        self._history: list[tuple[dict[str, object], dict[str, object], str]] = []
+        self._history_index = 0
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 7, 8, 8)
         layout.setSpacing(5)
@@ -540,14 +623,21 @@ class PeripheralsPanel(QWidget):
         self._zoom_out_button = QPushButton("−")
         self._zoom_reset_button = QPushButton()
         self._zoom_in_button = QPushButton("+")
+        self._undo_button = QPushButton("↶")
+        self._redo_button = QPushButton("↷")
         for button in (self._zoom_out_button, self._zoom_reset_button, self._zoom_in_button):
             button.setFixedWidth(32)
         self._zoom_reset_button.setFixedWidth(48)
+        workbench_header.addWidget(self._undo_button)
+        workbench_header.addWidget(self._redo_button)
+        workbench_header.addSpacing(4)
         workbench_header.addWidget(self._zoom_out_button)
         workbench_header.addWidget(self._zoom_reset_button)
         workbench_header.addWidget(self._zoom_in_button)
         layout.addLayout(workbench_header)
-        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 680, 540); self.workbench = WorkbenchView(self._workbench_scene, self._delete, self._duplicate)
+        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 680, 540); self.workbench = WorkbenchView(self._workbench_scene, self._delete_many, self._duplicate_many, self._save_positions, self.undo, self.redo)
+        self._undo_button.clicked.connect(self.undo)
+        self._redo_button.clicked.connect(self.redo)
         self._zoom_out_button.clicked.connect(self.workbench.zoom_out)
         self._zoom_reset_button.clicked.connect(self.workbench.reset_zoom)
         self._zoom_in_button.clicked.connect(self.workbench.zoom_in)
@@ -555,6 +645,7 @@ class PeripheralsPanel(QWidget):
         self.workbench.zoom_changed.connect(self._persist_workbench_zoom)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
         self._workbench_bindings = {}; self._reload()
+        self._update_history_actions()
         language_manager.language_changed.connect(self._retranslate_ui)
         self._retranslate_ui()
     def _retranslate_ui(self) -> None:
@@ -565,7 +656,9 @@ class PeripheralsPanel(QWidget):
         self._add_button.setText(t("Add"))
         self._add_button.setToolTip(t("Add a peripheral"))
         self._workbench_hint.setText(t("Virtual workbench"))
-        self._workbench_hint.setToolTip(t("Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms. Ctrl+drag pans. Ctrl+0 resets zoom."))
+        self._workbench_hint.setToolTip(t("Drag empty space to select multiple parts. Shift+click changes the selection. Drag a selected part to move the group. Ctrl+drag pans."))
+        self._undo_button.setToolTip(t("Undo (Ctrl+Z)"))
+        self._redo_button.setToolTip(t("Redo (Ctrl+Y or Ctrl+Shift+Z)"))
         self._zoom_out_button.setToolTip(t("Zoom out"))
         self._zoom_reset_button.setToolTip(t("Reset zoom"))
         self._zoom_in_button.setToolTip(t("Zoom in"))
@@ -588,6 +681,9 @@ class PeripheralsPanel(QWidget):
         self._input_values.clear()
         self._active_shortcut_keys.clear()
         self._lab = next_lab
+        self._history.clear()
+        self._history_index = 0
+        self._update_history_actions()
         self._status_timer.stop()
         self.status.setVisible(False)
         self._reload()
@@ -741,6 +837,7 @@ class PeripheralsPanel(QWidget):
         self._editing_enabled = enabled
         self.kind.setEnabled(enabled); self._add_button.setEnabled(enabled)
         self.workbench.set_editable(enabled)
+        self._update_history_actions()
         for item in self._workbench_scene.items():
             if isinstance(item, WorkbenchPeripheralItem): item.set_editable(enabled)
 
@@ -788,24 +885,89 @@ class PeripheralsPanel(QWidget):
         self._input_values[port] = current; self.input_changed.emit(port, current)
 
     def _save_position(self, peripheral_id, x, y):
+        self._save_positions([(peripheral_id, x, y)])
+
+    def _save_positions(self, updates: list[tuple[str, float, float]]) -> None:
+        """Persist one completed drag as a single Lab document update."""
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        previous = json.loads(json.dumps(raw))
+        positions = {
+            peripheral_id: [round(x, 1), round(y, 1)]
+            for peripheral_id, x, y in updates
+        }
         for item in raw.get("peripherals", []):
-            if item["id"] == peripheral_id:
-                item.setdefault("properties", {})["position"] = [round(x, 1), round(y, 1)]
-                break
+            if item["id"] in positions:
+                item.setdefault("properties", {})["position"] = positions[item["id"]]
         self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+        message = t("Moved {count} peripheral(s)", count=len(updates))
+        self._record_history(previous, raw, message)
+        self.changed.emit(message)
 
     def _commit(self, raw, message):
+        previous = json.loads(self._lab.read_text(encoding="utf-8"))
         try:
             VirtualLabProject.from_raw(raw).resolve(self._board, self._constraints())
         except Exception as exc:
             self._show_configuration_error(str(exc))
             return False
         self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+        self._record_history(previous, raw, message)
         self._show_status(message)
         self._reload()
         self.changed.emit(message)
         return True
+
+    def _record_history(self, before: dict[str, object], after: dict[str, object], message: str) -> None:
+        """Record one complete Lab mutation, dropping any abandoned redo branch."""
+        if before == after:
+            return
+        del self._history[self._history_index:]
+        self._history.append((before, json.loads(json.dumps(after)), message))
+        if len(self._history) > 50:
+            del self._history[0]
+        self._history_index = len(self._history)
+        self._update_history_actions()
+
+    def undo(self) -> None:
+        if not self._editing_enabled or self._history_index == 0:
+            return
+        before, _, message = self._history[self._history_index - 1]
+        self._history_index -= 1
+        self._restore_history_document(before, t("Undid: {action}", action=message))
+
+    def redo(self) -> None:
+        if not self._editing_enabled or self._history_index >= len(self._history):
+            return
+        _, after, message = self._history[self._history_index]
+        self._history_index += 1
+        self._restore_history_document(after, t("Redid: {action}", action=message))
+
+    def _restore_history_document(self, raw: dict[str, object], message: str) -> None:
+        self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+        self._reload()
+        self._show_status(message)
+        self.changed.emit(message)
+        self._update_history_actions()
+
+    def _update_history_actions(self) -> None:
+        if not hasattr(self, "_undo_button"):
+            return
+        self._undo_button.setEnabled(self._editing_enabled and self._history_index > 0)
+        self._redo_button.setEnabled(self._editing_enabled and self._history_index < len(self._history))
+
+    def history_state(self) -> tuple[list[tuple[dict[str, object], dict[str, object], str]], int]:
+        """Return a detached session history before the simulation rebuilds the Lab widget."""
+        return copy.deepcopy(self._history), self._history_index
+
+    def restore_history_state(
+        self,
+        state: tuple[list[tuple[dict[str, object], dict[str, object], str]], int],
+    ) -> None:
+        """Restore history belonging to the same Lab after a widget replacement."""
+        history, index = state
+        self._history = copy.deepcopy(history[-50:])
+        self._history_index = max(0, min(int(index), len(self._history)))
+        self._update_history_actions()
 
     def _show_configuration_error(self, message: str) -> None:
         """Keep validation failures visible instead of hiding them below the catalog."""
@@ -816,7 +978,7 @@ class PeripheralsPanel(QWidget):
         dialog = PeripheralConfigDialog(peripheral, self._board, self._assigned_endpoints, self)
         dialog.save_requested.connect(lambda: self._save_configuration(dialog, peripheral))
         result = dialog.exec()
-        if result == 2: self._delete(peripheral); return
+        if result == 2: self._delete_many([peripheral]); return
         if result != QDialog.DialogCode.Accepted: return
 
     def _save_configuration(self, dialog: PeripheralConfigDialog, peripheral) -> None:
@@ -857,36 +1019,64 @@ class PeripheralsPanel(QWidget):
         return match.group("endpoint") if match else None
 
     def _delete(self, peripheral):
-        answer = QMessageBox.question(self, t("Delete peripheral"), t("Delete {identifier}?", identifier=peripheral.peripheral_id))
+        self._delete_many([peripheral])
+
+    def _delete_many(self, peripherals) -> None:
+        identifiers = {peripheral.peripheral_id for peripheral in peripherals}
+        if not identifiers:
+            return
+        prompt = (
+            t("Delete {identifier}?", identifier=next(iter(identifiers)))
+            if len(identifiers) == 1
+            else t("Delete {count} selected peripherals?", count=len(identifiers))
+        )
+        answer = QMessageBox.question(self, t("Delete peripheral"), prompt)
         if answer != QMessageBox.StandardButton.Yes: return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
-        raw["peripherals"] = [item for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
-        self._commit(raw, t("{identifier} deleted", identifier=peripheral.peripheral_id))
+        raw["peripherals"] = [item for item in raw.get("peripherals", []) if item["id"] not in identifiers]
+        message = (
+            t("{identifier} deleted", identifier=next(iter(identifiers)))
+            if len(identifiers) == 1
+            else t("{count} peripherals deleted", count=len(identifiers))
+        )
+        self._commit(raw, message)
 
     def _duplicate(self, peripheral) -> None:
         """Duplicate a selected visual part without copying electrical connections."""
+        self._duplicate_many([peripheral])
+
+    def _duplicate_many(self, peripherals) -> None:
+        """Duplicate one selection in a single undoable Lab mutation."""
         if not self._editing_enabled:
             return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         existing = {item["id"] for item in raw.get("peripherals", [])}
-        index = 1
-        while f"{peripheral.kind}_{index}" in existing:
-            index += 1
-        properties = dict(peripheral.properties)
-        position = properties.get("position", [16, 16])
-        properties["position"] = [round(float(position[0]) + 24, 1), round(float(position[1]) + 24, 1)]
-        duplicate = {
-            "id": f"{peripheral.kind}_{index}",
-            "type": peripheral.kind,
-            "connections": {},
-            "properties": properties,
-        }
-        raw.setdefault("peripherals", []).append(duplicate)
-        if self._commit(raw, t("{identifier} duplicated", identifier=duplicate["id"])):
+        duplicate_ids: list[str] = []
+        for peripheral in peripherals:
+            index = 1
+            while f"{peripheral.kind}_{index}" in existing:
+                index += 1
+            identifier = f"{peripheral.kind}_{index}"
+            existing.add(identifier)
+            properties = dict(peripheral.properties)
+            position = properties.get("position", [16, 16])
+            properties["position"] = [round(float(position[0]) + 24, 1), round(float(position[1]) + 24, 1)]
+            raw.setdefault("peripherals", []).append({
+                "id": identifier,
+                "type": peripheral.kind,
+                "connections": {},
+                "properties": properties,
+            })
+            duplicate_ids.append(identifier)
+        message = (
+            t("{identifier} duplicated", identifier=duplicate_ids[0])
+            if len(duplicate_ids) == 1
+            else t("{count} peripherals duplicated", count=len(duplicate_ids))
+        )
+        if duplicate_ids and self._commit(raw, message):
             for item in self._workbench_scene.items():
-                if isinstance(item, WorkbenchPeripheralItem) and item.peripheral.peripheral_id == duplicate["id"]:
+                if isinstance(item, WorkbenchPeripheralItem) and item.peripheral.peripheral_id in duplicate_ids:
                     item.setSelected(True)
-                    break
 
     def update_outputs(self, outputs: dict[str, int]) -> None:
         """Paint output peripherals from their actual HDL net resolved by the PCF."""
