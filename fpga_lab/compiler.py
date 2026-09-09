@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import shutil
@@ -93,7 +94,7 @@ class VerilatorCompiler:
         obj_dir = build_dir / "obj_dir"
         obj_dir.mkdir(parents=True, exist_ok=True)
         wrapper = build_dir / "sim_main.cpp"
-        wrapper.write_text(render_cpp_wrapper(request.profile, f"V{request.top_module}"), encoding="utf-8")
+        _write_if_changed(wrapper, render_cpp_wrapper(request.profile, f"V{request.top_module}"))
         native = Path(__file__).resolve().parent / "native"
         streaming = native / "sim_streaming.cpp"
         decoder = native / "vga_decoder.cpp"
@@ -117,11 +118,13 @@ class VerilatorCompiler:
 
     def build(self, request: BuildRequest) -> Path:
         target, args = self.prepare(request)
+        generated_state = _generated_file_state(target.parent, f"V{request.top_module}")
         self._run(
             [request.verilator, *args],
             cwd=request.build_dir.resolve(),
             environment=request.environment,
         )
+        _restore_unchanged_timestamps(generated_state)
         make = shutil.which("make", path=(request.environment or os.environ).get("PATH"))
         if make is None:
             raise RuntimeError("Verilator generated its Makefile but GNU Make was not found.")
@@ -148,6 +151,43 @@ class VerilatorCompiler:
         if completed.returncode:
             output = completed.stdout.strip() or "Verilator did not provide diagnostic output."
             raise VerilatorBuildError(output)
+
+
+def _write_if_changed(path: Path, content: str) -> None:
+    """Preserve timestamps so Make can reuse an unchanged generated wrapper."""
+    try:
+        if path.read_text(encoding="utf-8") == content:
+            return
+    except FileNotFoundError:
+        pass
+    path.write_text(content, encoding="utf-8")
+
+
+def _generated_file_state(directory: Path, prefix: str) -> dict[Path, tuple[bytes, int, int]]:
+    """Capture hashes and timestamps of generated sources used by Make."""
+    binary_suffixes = {".o", ".a", ".so", ".dll", ".dylib"}
+    state: dict[Path, tuple[bytes, int, int]] = {}
+    for path in directory.glob(f"{prefix}*"):
+        if not path.is_file() or path.suffix in binary_suffixes:
+            continue
+        metadata = path.stat()
+        state[path] = (_file_digest(path), metadata.st_atime_ns, metadata.st_mtime_ns)
+    return state
+
+
+def _restore_unchanged_timestamps(state: dict[Path, tuple[bytes, int, int]]) -> None:
+    """Undo timestamp-only Verilator rewrites so Make sees unchanged sources."""
+    for path, (digest, access_time, modification_time) in state.items():
+        if path.is_file() and _file_digest(path) == digest:
+            os.utime(path, ns=(access_time, modification_time))
+
+
+def _file_digest(path: Path) -> bytes:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.digest()
 
 
 def main() -> None:

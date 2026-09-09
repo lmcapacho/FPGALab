@@ -1,7 +1,8 @@
 from pathlib import Path
 
 from fpga_lab.compiler import (
-    BuildRequest, VerilatorCompiler, verilator_compatibility_flags, verilator_optimization_flags,
+    BuildRequest, VerilatorCompiler, _generated_file_state, _restore_unchanged_timestamps,
+    verilator_compatibility_flags, verilator_optimization_flags,
 )
 from fpga_lab.profile import BoardProfile
 
@@ -48,3 +49,15 @@ def test_compatibility_flags_are_passed_to_verilator(tmp_path, monkeypatch):
     _, arguments = VerilatorCompiler().prepare(request)
 
     assert "-fno-dfg" in arguments
+
+
+def test_unchanged_generated_files_keep_their_make_timestamp(tmp_path):
+    generated = tmp_path / "Vmain.cpp"
+    generated.write_text("unchanged", encoding="utf-8")
+    state = _generated_file_state(tmp_path, "Vmain")
+    original_time = generated.stat().st_mtime_ns
+    generated.write_text("unchanged", encoding="utf-8")
+
+    _restore_unchanged_timestamps(state)
+
+    assert generated.stat().st_mtime_ns == original_time

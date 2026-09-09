@@ -124,6 +124,7 @@ class ApplicationController(QObject):
         self._app = app
         self._window = window
         self._namespace = namespace
+        VerilatorBuildCache(namespace.cache_dir).maintain()
         self._simulation_settings = SimulationSettings.load().with_overrides(
             clock_hz=namespace.clock_hz,
             ui_refresh_hz=namespace.ui_refresh_hz,
@@ -217,7 +218,7 @@ class ApplicationController(QObject):
         self._window.set_simulation_running(True)
         self._window.set_project_path(pending.project.ice_file)
         self._window.remember_project(pending.project.ice_file)
-        source = t("cache") if artifact.reused else t("new build")
+        source = t("cache") if artifact.reused else t("incremental build") if artifact.incremental else t("new build")
         compatibility = t("compatibility optimization enabled") if artifact.compatibility_mode else t("standard optimization")
         run_state = t("simulation started") if pending.profile.clock_name is not None else t("combinational logic active")
         self._window.set_status(t(
@@ -279,6 +280,12 @@ class ApplicationController(QObject):
         details.append(t("Verilator: {path}", path=toolchain.executable))
         for name, path in toolchain.build_tools().items():
             details.append(t("{tool}: {path}", tool=name, path=path))
+        cache = VerilatorBuildCache(self._namespace.cache_dir)
+        details.append(t(
+            "Build cache: {used} of {limit} (managed automatically)",
+            used=_format_storage(cache.usage_bytes()),
+            limit=_format_storage(cache.budget_bytes()),
+        ))
         message = "\n".join(details)
         self._window.set_status(t("Simulation toolchain is ready."))
         QMessageBox.information(self._window, t("Simulation toolchain"), message)
@@ -310,6 +317,16 @@ class ApplicationController(QObject):
         )
         self._window.set_simulation_running(False)
         self._window.set_status(t("Advanced library loaded. Select an .ice file to change design."))
+
+
+def _format_storage(size: int) -> str:
+    """Format cache sizes compactly for the toolchain diagnostic."""
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024.0 or unit == "GB":
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024.0
+    return f"{value:.1f} GB"
 
 
 def main() -> None:
