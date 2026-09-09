@@ -167,6 +167,8 @@ Set `FPGALAB_WORKSPACE` to use a different workspace root.
 
 The most recently selected lab is remembered in the platform's standard FPGALab user settings and is restored when the application starts.
 
+Use **Import…** and **Export…** in the Lab manager to share portable `*.lab` files. Their content is JSON, but the user-facing extension is simply `.lab`. Existing `*.lab.json` files remain supported. An imported Lab is validated and copied into the local workspace without overwriting an existing Lab. Lab files contain no machine-specific paths, so they can be shared alongside the corresponding Icestudio `.ice` design.
+
 ## Catalog, board assets, and extensibility
 
 Peripheral definitions live in a bundled catalog:

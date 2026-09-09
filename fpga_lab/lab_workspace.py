@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,7 +42,8 @@ class LabWorkspace:
     def ensure_default(self) -> Path:
         """Ensure the visible workspace and a starter lab exist."""
         self.labs_dir.mkdir(parents=True, exist_ok=True)
-        default = self.labs_dir / "my-first-lab.lab.json"
+        legacy_default = self.labs_dir / "my-first-lab.lab.json"
+        default = legacy_default if legacy_default.exists() else self.labs_dir / "my-first-lab.lab"
         if not default.exists():
             self._write_lab(default, "My first lab")
         return default
@@ -49,7 +51,8 @@ class LabWorkspace:
     def labs(self) -> list[LabDescriptor]:
         self.ensure_default()
         result = []
-        for path in sorted(self.labs_dir.glob("*.lab.json")):
+        paths = set(self.labs_dir.glob("*.lab")) | set(self.labs_dir.glob("*.lab.json"))
+        for path in sorted(paths):
             result.append(LabDescriptor(self._display_name(path), path))
         return result
 
@@ -72,7 +75,7 @@ class LabWorkspace:
     def delete(self, lab: str | Path) -> bool:
         """Delete one user-created lab without allowing the built-in starter lab to vanish."""
         target = Path(lab).resolve()
-        if target.name == "my-first-lab.lab.json" or target.parent != self.labs_dir.resolve():
+        if self.is_starter_lab(target) or target.parent != self.labs_dir.resolve():
             return False
         if not target.is_file():
             return False
@@ -97,8 +100,8 @@ class LabWorkspace:
         raw = json.loads(source.read_text(encoding="utf-8"))
         original_name = (
             "My First Lab"
-            if source.name == "my-first-lab.lab.json"
-            else str(raw.get("metadata", {}).get("name") or source.stem.removesuffix(".lab"))
+            if self.is_starter_lab(source)
+            else str(raw.get("metadata", {}).get("name") or self._name_from_path(source))
         )
         name = f"{self.base_name(original_name)} Copy"
         target = self._available_path(name)
@@ -106,10 +109,42 @@ class LabWorkspace:
         target.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
         return LabDescriptor(name, target)
 
+    def import_lab(self, source: str | Path) -> LabDescriptor:
+        """Validate and copy a portable Lab into this workspace without overwriting one."""
+        self.ensure_default()
+        source_path = Path(source).expanduser().resolve()
+        if not source_path.is_file():
+            raise ValueError("The selected Lab file does not exist.")
+        try:
+            raw = json.loads(source_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise ValueError("The selected file is not a valid FPGALab Lab.") from error
+        self._validate_lab_document(raw)
+        metadata = raw.setdefault("metadata", {})
+        name = str(metadata.get("name") or self._name_from_path(source_path)).strip()
+        name = name or "Imported Lab"
+        target = self._available_path(name)
+        if target.stem != self._lab_stem(name):
+            name = self._unique_display_name(name)
+        metadata["name"] = name
+        target.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+        return LabDescriptor(name, target)
+
+    def export_lab(self, lab: str | Path, destination: str | Path) -> Path:
+        """Export one Lab as a portable JSON document."""
+        source = self._existing_lab_path(lab)
+        target = Path(destination).expanduser()
+        if target.suffix.casefold() != ".lab":
+            target = target.with_name(f"{target.name}.lab")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if source.resolve() != target.resolve():
+            shutil.copyfile(source, target)
+        return target.resolve()
+
     def rename(self, lab: str | Path, name: str) -> LabDescriptor:
         """Rename one user-created lab while preserving its configuration content."""
         source = self._existing_lab_path(lab)
-        if source.name == "my-first-lab.lab.json":
+        if self.is_starter_lab(source):
             raise ValueError("The starter Lab cannot be renamed.")
         cleaned_name = name.strip()
         if not cleaned_name:
@@ -127,13 +162,65 @@ class LabWorkspace:
         return LabDescriptor(cleaned_name, target)
 
     def _available_path(self, name: str, exclude: Path | None = None) -> Path:
-        stem = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "lab"
-        candidate = self.labs_dir / f"{stem}.lab.json"
+        stem = self._lab_stem(name)
+        candidate = self.labs_dir / f"{stem}.lab"
+        legacy_candidate = self.labs_dir / f"{stem}.lab.json"
         suffix = 2
-        while candidate.exists() and candidate.resolve() != (exclude.resolve() if exclude else None):
-            candidate = self.labs_dir / f"{stem}-{suffix}.lab.json"
+        excluded = exclude.resolve() if exclude else None
+        while any(
+            path.exists() and path.resolve() != excluded
+            for path in (candidate, legacy_candidate)
+        ):
+            candidate = self.labs_dir / f"{stem}-{suffix}.lab"
+            legacy_candidate = self.labs_dir / f"{stem}-{suffix}.lab.json"
             suffix += 1
         return candidate
+
+    def _unique_display_name(self, name: str) -> str:
+        existing = {descriptor.name.casefold() for descriptor in self.labs()}
+        suffix = 2
+        candidate = f"{name} {suffix}"
+        while candidate.casefold() in existing:
+            suffix += 1
+            candidate = f"{name} {suffix}"
+        return candidate
+
+    @staticmethod
+    def _lab_stem(name: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "lab"
+
+    @staticmethod
+    def _name_from_path(path: Path) -> str:
+        name = path.name
+        return name[:-9] if name.casefold().endswith(".lab.json") else path.stem
+
+    @staticmethod
+    def is_starter_lab(path: str | Path) -> bool:
+        return Path(path).name in {"my-first-lab.lab", "my-first-lab.lab.json"}
+
+    @staticmethod
+    def _validate_lab_document(raw: object) -> None:
+        if not isinstance(raw, dict):
+            raise ValueError("A FPGALab Lab must be a JSON object.")
+        metadata = raw.get("metadata", {})
+        peripherals = raw.get("peripherals", [])
+        if not isinstance(metadata, dict) or not isinstance(peripherals, list):
+            raise ValueError("The Lab metadata or peripheral list is invalid.")
+        identifiers: set[str] = set()
+        for peripheral in peripherals:
+            if not isinstance(peripheral, dict):
+                raise ValueError("Every peripheral in a Lab must be an object.")
+            identifier = peripheral.get("id")
+            kind = peripheral.get("type")
+            connections = peripheral.get("connections", {})
+            properties = peripheral.get("properties", {})
+            if not isinstance(identifier, str) or not identifier.strip() or not isinstance(kind, str) or not kind.strip():
+                raise ValueError("Every peripheral must have a valid id and type.")
+            if identifier in identifiers:
+                raise ValueError("Multiple peripherals use the same id.")
+            if not isinstance(connections, dict) or not isinstance(properties, dict):
+                raise ValueError("Peripheral connections and properties must be objects.")
+            identifiers.add(identifier)
 
     def _existing_lab_path(self, lab: str | Path) -> Path:
         target = Path(lab).resolve()
@@ -150,9 +237,9 @@ class LabWorkspace:
     def _display_name(path: Path) -> str:
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
-            return str(raw.get("metadata", {}).get("name") or path.name.removesuffix(".lab.json"))
+            return str(raw.get("metadata", {}).get("name") or LabWorkspace._name_from_path(path))
         except (OSError, json.JSONDecodeError):
-            return path.name.removesuffix(".lab.json")
+            return LabWorkspace._name_from_path(path)
 
     @staticmethod
     def _write_lab(path: Path, name: str) -> None:

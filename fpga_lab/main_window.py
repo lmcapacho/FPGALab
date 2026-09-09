@@ -5,12 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -29,6 +31,13 @@ from PyQt6.QtWidgets import (
 from .i18n import language_manager, t
 from .lab_workspace import LabWorkspace
 from .recent_projects import RecentProjects
+
+
+def _style_lab_icon_button(button: QPushButton, icon_name: str) -> None:
+    """Apply a compact bundled icon without coupling Lab management to the global theme."""
+    icon_path = Path(__file__).resolve().parent / "assets" / "icons" / "ui" / f"{icon_name}.svg"
+    button.setIcon(QIcon(str(icon_path)))
+    button.setFixedSize(32, 28)
 
 
 class LabNameDialog(QDialog):
@@ -61,10 +70,13 @@ class LabNameDialog(QDialog):
 class LabManagerDialog(QDialog):
     """Search, select, create, and delete reusable labs from one compact view."""
 
+    active_lab_changed = pyqtSignal(Path)
+
     def __init__(self, workspace: LabWorkspace, selected_lab: Path, parent=None):
         super().__init__(parent)
         self._workspace = workspace
         self._selected_lab = selected_lab.resolve()
+        self._active_lab_path = selected_lab.resolve()
         self.setWindowTitle(t("Laboratories"))
         self.setMinimumSize(460, 360)
         layout = QVBoxLayout(self)
@@ -75,20 +87,36 @@ class LabManagerDialog(QDialog):
         self._list = QListWidget()
         self._list.itemDoubleClicked.connect(lambda _: self.accept())
         self._list.itemSelectionChanged.connect(self._update_actions)
-        management_actions = QHBoxLayout()
+        management_actions = QGridLayout()
         self._new_button = QPushButton(t("New Lab"))
         self._new_button.clicked.connect(self._create_lab)
-        self._duplicate_button = QPushButton(t("Duplicate"))
+        self._import_button = QPushButton()
+        _style_lab_icon_button(self._import_button, "import")
+        self._import_button.setToolTip(t("Import Lab from file"))
+        self._import_button.clicked.connect(self._import_lab)
+        self._duplicate_button = QPushButton()
+        _style_lab_icon_button(self._duplicate_button, "duplicate")
+        self._duplicate_button.setToolTip(t("Duplicate selected Lab"))
         self._duplicate_button.clicked.connect(self._duplicate_lab)
-        self._rename_button = QPushButton(t("Rename"))
+        self._rename_button = QPushButton()
+        _style_lab_icon_button(self._rename_button, "rename")
+        self._rename_button.setToolTip(t("Rename selected Lab"))
         self._rename_button.clicked.connect(self._rename_lab)
-        self._delete_button = QPushButton(t("Delete"))
+        self._export_button = QPushButton()
+        _style_lab_icon_button(self._export_button, "export")
+        self._export_button.setToolTip(t("Export selected Lab"))
+        self._export_button.clicked.connect(self._export_lab)
+        self._delete_button = QPushButton()
+        _style_lab_icon_button(self._delete_button, "delete")
+        self._delete_button.setToolTip(t("Delete selected Lab"))
         self._delete_button.clicked.connect(self._delete_lab)
-        management_actions.addWidget(self._new_button)
-        management_actions.addWidget(self._duplicate_button)
-        management_actions.addWidget(self._rename_button)
-        management_actions.addWidget(self._delete_button)
-        management_actions.addStretch(1)
+        management_actions.addWidget(self._new_button, 0, 0)
+        management_actions.setColumnStretch(1, 1)
+        management_actions.addWidget(self._import_button, 0, 2)
+        management_actions.addWidget(self._duplicate_button, 0, 3)
+        management_actions.addWidget(self._rename_button, 0, 4)
+        management_actions.addWidget(self._export_button, 0, 5)
+        management_actions.addWidget(self._delete_button, 0, 6)
         layout.addLayout(management_actions)
         layout.addWidget(self._list, 1)
         selection_actions = QHBoxLayout()
@@ -114,7 +142,7 @@ class LabManagerDialog(QDialog):
         for descriptor in self._workspace.labs():
             if filter_text and filter_text not in descriptor.name.casefold():
                 continue
-            name = t("My First Lab") if descriptor.path.name == "my-first-lab.lab.json" else descriptor.name
+            name = t("My First Lab") if LabWorkspace.is_starter_lab(descriptor.path) else descriptor.name
             item = QListWidgetItem(LabWorkspace.base_name(name))
             item.setData(Qt.ItemDataRole.UserRole, descriptor.path)
             item.setToolTip(name)
@@ -128,8 +156,9 @@ class LabManagerDialog(QDialog):
 
     def _update_actions(self) -> None:
         selected = self.selected_lab()
-        is_user_lab = selected is not None and selected.name != "my-first-lab.lab.json"
+        is_user_lab = selected is not None and not LabWorkspace.is_starter_lab(selected)
         self._duplicate_button.setEnabled(selected is not None)
+        self._export_button.setEnabled(selected is not None)
         self._rename_button.setEnabled(is_user_lab)
         self._delete_button.setEnabled(is_user_lab)
 
@@ -149,6 +178,53 @@ class LabManagerDialog(QDialog):
         self._selected_lab = descriptor.path.resolve()
         self._refresh()
 
+    def _import_lab(self) -> None:
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            t("Import Lab"),
+            "",
+            t("FPGALab Labs (*.lab *.lab.json *.json)"),
+        )
+        if not filename:
+            return
+        try:
+            descriptor = self._workspace.import_lab(filename)
+        except ValueError as error:
+            QMessageBox.warning(self, t("Import Lab"), t(str(error)))
+            return
+        self._selected_lab = descriptor.path.resolve()
+        self._refresh()
+        QMessageBox.information(
+            self,
+            t("Import Lab"),
+            t("Lab imported: {name}", name=LabWorkspace.base_name(descriptor.name)),
+        )
+
+    def _export_lab(self) -> None:
+        selected = self.selected_lab()
+        if selected is None:
+            return
+        current_name = self._list.currentItem().text()
+        suggested = f"{LabWorkspace._lab_stem(current_name)}.lab"
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            t("Export Lab"),
+            suggested,
+            t("FPGALab Labs (*.lab)"),
+        )
+        if not filename:
+            return
+        try:
+            exported = self._workspace.export_lab(selected, filename)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, t("Export Lab"), str(error))
+            return
+        QMessageBox.information(
+            self,
+            t("Export Lab"),
+            t("Lab exported to:\n{path}", path=exported),
+        )
+
     def _rename_lab(self) -> None:
         selected = self.selected_lab()
         if selected is None:
@@ -167,6 +243,9 @@ class LabManagerDialog(QDialog):
             return
         descriptor = self._workspace.rename(selected, dialog.name_field.text())
         self._selected_lab = descriptor.path.resolve()
+        if selected.resolve() == self._active_lab_path:
+            self._active_lab_path = descriptor.path.resolve()
+            self.active_lab_changed.emit(self._active_lab_path)
         self._refresh()
 
     def _delete_lab(self) -> None:
@@ -180,8 +259,12 @@ class LabManagerDialog(QDialog):
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
+        deleting_active = selected.resolve() == self._active_lab_path
         if self._workspace.delete(selected):
-            self._selected_lab = self._workspace.last_selected().resolve()
+            self._selected_lab = self._workspace.ensure_default().resolve() if deleting_active else self._workspace.last_selected().resolve()
+            if deleting_active:
+                self._active_lab_path = self._selected_lab
+                self.active_lab_changed.emit(self._active_lab_path)
             self._refresh()
 
 class FPGALabMainWindow(QMainWindow):
@@ -323,7 +406,7 @@ class FPGALabMainWindow(QMainWindow):
         current_name = current.stem.removesuffix(".lab")
         for descriptor in self._workspace.labs():
             display_name = descriptor.name
-            if descriptor.path.name == "my-first-lab.lab.json":
+            if LabWorkspace.is_starter_lab(descriptor.path):
                 display_name = t("My First Lab")
             if descriptor.path.resolve() == current:
                 current_name = self._button_lab_name(display_name)
@@ -341,6 +424,7 @@ class FPGALabMainWindow(QMainWindow):
 
     def _open_lab_manager(self) -> None:
         dialog = LabManagerDialog(self._workspace, self._selected_lab, self)
+        dialog.active_lab_changed.connect(lambda path: self._set_selected_lab(path, notify=True))
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         if path := dialog.selected_lab():

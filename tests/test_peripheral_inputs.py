@@ -8,18 +8,42 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
 from fpga_lab.peripherals_panel import PeripheralConfigDialog, PeripheralsPanel
 from fpga_lab.lab_workspace import LabWorkspace
-from fpga_lab.main_window import FPGALabMainWindow
+from fpga_lab.main_window import FPGALabMainWindow, LabManagerDialog
 from fpga_lab.simulation_worker import SimulationFrame
 from fpga_lab.virtual_lab import FPGAVirtualLab
 from fpga_lab.wiring import PeripheralInstance
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
+
+
+def test_deleting_the_active_lab_immediately_selects_the_starter_lab(tmp_path, monkeypatch):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    workspace = LabWorkspace(tmp_path / "workspace", settings)
+    active = workspace.create("Active")
+    workspace.remember_selected(active.path)
+    dialog = LabManagerDialog(workspace, active.path)
+    replacements: list[object] = []
+    dialog.active_lab_changed.connect(replacements.append)
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
+    )
+
+    dialog._delete_lab()
+
+    starter = workspace.ensure_default().resolve()
+    assert active.path.exists() is False
+    assert replacements == [starter]
+    assert dialog.selected_lab().resolve() == starter
+    dialog.close()
+    dialog.deleteLater()
 
 
 def test_model_changing_controls_are_locked_while_running(tmp_path):
