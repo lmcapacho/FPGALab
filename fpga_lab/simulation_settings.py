@@ -8,6 +8,7 @@ from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QSpinBox, QVBoxLayout
 
 from .i18n import t
+from .theme import Metrics, style_button
 
 
 @dataclass(frozen=True)
@@ -69,9 +70,11 @@ class SimulationSettingsDialog(QDialog):
     def __init__(self, values: SimulationSettings, parent=None):
         super().__init__(parent)
         self.setWindowTitle(t("Simulation settings"))
-        self.setMinimumWidth(460)
+        self.setMinimumSize(540, 360)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(Metrics.SPACE_LG, Metrics.SPACE_LG, Metrics.SPACE_LG, Metrics.SPACE_LG)
+        layout.setSpacing(Metrics.SPACE_LG)
         description = QLabel(t(
             "These values apply the next time a simulation starts. They do not require rebuilding unchanged HDL."
         ))
@@ -79,6 +82,9 @@ class SimulationSettingsDialog(QDialog):
         layout.addWidget(description)
 
         form = QFormLayout()
+        form.setHorizontalSpacing(Metrics.SPACE_LG)
+        form.setVerticalSpacing(Metrics.SPACE_SM)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self._clock_hz = _rate_field(values.clock_hz, 1_000_000_000)
         self._ui_refresh_hz = _rate_field(values.ui_refresh_hz, 240)
         self._observation_hz = _rate_field(values.observation_hz, 1_000_000_000)
@@ -114,6 +120,7 @@ class SimulationSettingsDialog(QDialog):
         buttons.button(QDialogButtonBox.StandardButton.RestoreDefaults).setText(t("Restore defaults"))
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
         buttons.button(QDialogButtonBox.StandardButton.Save).setText(t("Save"))
+        style_button(buttons.button(QDialogButtonBox.StandardButton.Save), "primary")
         buttons.button(QDialogButtonBox.StandardButton.RestoreDefaults).clicked.connect(self._restore_defaults)
         buttons.rejected.connect(self.reject)
         buttons.accepted.connect(self.accept)

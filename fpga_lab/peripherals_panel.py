@@ -287,8 +287,8 @@ class WorkbenchView(QGraphicsView):
     def ensure_scene_fits(self) -> None:
         """Keep the scene large enough for 640×480 VGA items and the viewport."""
         bounds = self.scene().itemsBoundingRect()
-        width = max(float(self.viewport().width()), bounds.right() + 24.0, 680.0)
-        height = max(float(self.viewport().height()), bounds.bottom() + 24.0, 540.0)
+        width = max(float(self.viewport().width()), bounds.right() + 24.0)
+        height = max(float(self.viewport().height()), bounds.bottom() + 24.0)
         self.scene().setSceneRect(0, 0, width, height)
 
     def mousePressEvent(self, event):
@@ -617,35 +617,26 @@ class PeripheralsPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 7, 8, 8)
         layout.setSpacing(5)
-        catalog_header = QHBoxLayout()
+        catalog_header = QHBoxLayout(); catalog_header.setSpacing(6)
         self._catalog_title = QLabel()
         catalog_header.addWidget(self._catalog_title)
-        catalog_header.addStretch(1)
-        self._connection_status = QLabel()
-        self._connection_status.setObjectName("infoText")
-        catalog_header.addWidget(self._connection_status)
-        layout.addLayout(catalog_header)
-        catalog = QHBoxLayout(); catalog.setSpacing(6); self.kind = QComboBox()
+        self.kind = QComboBox()
         for key, spec in load_catalog().items():
             self.kind.addItem(t(spec.label), key)
         self._add_button = QPushButton(); self._add_button.clicked.connect(self._add)
         style_button(self._add_button, "primary")
         self.kind.setMaximumWidth(310)
         self._add_button.setFixedWidth(86)
-        catalog.addWidget(self.kind)
-        catalog.addWidget(self._add_button)
-        catalog.addStretch(1)
-        layout.addLayout(catalog)
-        self.status = QLabel()
-        self.status.setObjectName("infoText")
-        self.status.setVisible(False)
-        self._status_timer = QTimer(self)
-        self._status_timer.setSingleShot(True)
-        self._status_timer.timeout.connect(lambda: self.status.setVisible(False))
-        layout.addWidget(self.status)
+        catalog_header.addWidget(self.kind)
+        catalog_header.addWidget(self._add_button)
+        catalog_header.addStretch(1)
+        layout.addLayout(catalog_header)
         workbench_header = QHBoxLayout(); workbench_header.setSpacing(4)
         self._workbench_hint = QLabel()
         workbench_header.addWidget(self._workbench_hint)
+        self._connection_status = QLabel()
+        self._connection_status.setObjectName("infoText")
+        workbench_header.addWidget(self._connection_status)
         workbench_header.addStretch(1)
         self._zoom_out_button = QPushButton()
         self._zoom_reset_button = QPushButton()
@@ -660,7 +651,7 @@ class PeripheralsPanel(QWidget):
         style_button(self._zoom_fit_button, "icon", "fit")
         for button in (self._zoom_out_button, self._zoom_reset_button, self._zoom_in_button, self._zoom_fit_button):
             button.setFixedWidth(32)
-        self._zoom_reset_button.setFixedWidth(48)
+        self._zoom_reset_button.setFixedWidth(60)
         workbench_header.addWidget(self._undo_button)
         workbench_header.addWidget(self._redo_button)
         workbench_header.addSpacing(4)
@@ -669,7 +660,7 @@ class PeripheralsPanel(QWidget):
         workbench_header.addWidget(self._zoom_in_button)
         workbench_header.addWidget(self._zoom_fit_button)
         layout.addLayout(workbench_header)
-        self._workbench_scene = QGraphicsScene(self); self._workbench_scene.setSceneRect(0, 0, 680, 540); self.workbench = WorkbenchView(self._workbench_scene, self._delete_many, self._duplicate_many, self._save_positions, self.undo, self.redo)
+        self._workbench_scene = QGraphicsScene(self); self.workbench = WorkbenchView(self._workbench_scene, self._delete_many, self._duplicate_many, self._save_positions, self.undo, self.redo)
         self._undo_button.clicked.connect(self.undo)
         self._redo_button.clicked.connect(self.redo)
         self._zoom_out_button.clicked.connect(self.workbench.zoom_out)
@@ -720,8 +711,6 @@ class PeripheralsPanel(QWidget):
         self._history.clear()
         self._history_index = 0
         self._update_history_actions()
-        self._status_timer.stop()
-        self.status.setVisible(False)
         self._reload()
 
     def _reload(self):
@@ -864,10 +853,9 @@ class PeripheralsPanel(QWidget):
         self._zoom_reset_button.setText(f"{round(zoom * 100)}%")
 
     def _show_status(self, message: str, timeout_ms: int = 3500) -> None:
-        """Show concise, temporary feedback without reserving permanent panel space."""
-        self.status.setText(message)
-        self.status.setVisible(True)
-        self._status_timer.start(timeout_ms)
+        """Forward concise feedback to the application's shared status bar."""
+        del timeout_ms
+        self.changed.emit(message)
 
     def set_editable(self, enabled):
         self._editing_enabled = enabled
@@ -950,7 +938,6 @@ class PeripheralsPanel(QWidget):
         self._record_history(previous, raw, message)
         self._show_status(message)
         self._reload()
-        self.changed.emit(message)
         return True
 
     def _record_history(self, before: dict[str, object], after: dict[str, object], message: str) -> None:
@@ -982,7 +969,6 @@ class PeripheralsPanel(QWidget):
         self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
         self._reload()
         self._show_status(message)
-        self.changed.emit(message)
         self._update_history_actions()
 
     def _update_history_actions(self) -> None:

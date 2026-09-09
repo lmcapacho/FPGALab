@@ -131,6 +131,7 @@ class FPGAVirtualLab(QWidget):
             dict(self._simulation.profile.outputs) if self._simulation else {},
         )
         self._peripherals.input_changed.connect(self.set_input_requested)
+        self._peripherals.changed.connect(self.status_changed.emit)
         gpio_layout.addWidget(self._peripherals, 1)
         controls.addWidget(gpio_panel, 1)
         root.addLayout(controls, 3)

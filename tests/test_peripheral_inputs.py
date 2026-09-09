@@ -11,6 +11,7 @@ from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication, QGraphicsView, QMessageBox
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
+from fpga_lab.i18n import t
 from fpga_lab.peripherals_panel import PeripheralConfigDialog, PeripheralsPanel
 from fpga_lab.lab_workspace import LabWorkspace
 from fpga_lab.main_window import FPGALabMainWindow, LabManagerDialog
@@ -69,6 +70,23 @@ def test_model_changing_controls_are_locked_while_running(tmp_path):
     assert window._recent.isEnabled() is True
     assert window._lab_button.isEnabled() is True
     assert window._simulation_settings_button.isEnabled() is True
+    window.close()
+    window.deleteLater()
+
+
+def test_recent_projects_uses_a_placeholder_instead_of_a_fake_entry(tmp_path, monkeypatch):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+    project = tmp_path / "example.ice"
+    project.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(window._recent_projects, "paths", lambda: [project])
+
+    window._refresh_recent()
+
+    assert window._recent.placeholderText() == t("Recent projects")
+    assert window._recent.currentIndex() == -1
+    assert window._recent.count() == 1
+    assert window._recent.itemText(0) == "example.ice"
     window.close()
     window.deleteLater()
 

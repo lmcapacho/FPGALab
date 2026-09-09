@@ -345,16 +345,19 @@ class FPGALabMainWindow(QMainWindow):
         self._path = QLineEdit()
         self._path.setReadOnly(True)
         self._browse_button = QPushButton()
+        style_button(self._browse_button, "selector")
         self._browse_button.clicked.connect(self._browse)
         self._recent = QComboBox()
         self._recent.setMinimumWidth(155)
         self._recent.currentIndexChanged.connect(self._choose_recent)
         self._refresh_recent()
         self._lab_button = QPushButton()
+        style_button(self._lab_button, "selector")
         self._lab_button.setMinimumWidth(210)
         self._lab_button.clicked.connect(self._open_lab_manager)
         self._refresh_labs()
         self._language = QComboBox()
+        self._language.setObjectName("languageSelector")
         for language in language_manager.languages:
             self._language.addItem(language.upper(), language)
         self._language.setCurrentIndex(self._language.findData(language_manager.language))
@@ -439,9 +442,10 @@ class FPGALabMainWindow(QMainWindow):
     def _refresh_recent(self) -> None:
         self._recent.blockSignals(True)
         self._recent.clear()
-        self._recent.addItem(t("Recent projects"), None)
         for path in self._recent_projects.paths():
             self._recent.addItem(path.name, path)
+        self._recent.setPlaceholderText(t("Recent projects"))
+        self._recent.setCurrentIndex(-1)
         self._recent.blockSignals(False)
 
     def _restore_last_project(self) -> None:
@@ -461,6 +465,7 @@ class FPGALabMainWindow(QMainWindow):
         path = self._recent.itemData(index)
         if path:
             self.set_project_path(Path(path))
+        self._recent.setCurrentIndex(-1)
 
     def _request_project(self) -> None:
         path = self.selected_project()

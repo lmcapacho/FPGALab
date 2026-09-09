@@ -23,9 +23,19 @@ def test_dark_and_light_styles_share_semantic_structure():
 def test_ui_icons_are_packaged_svg_assets():
     icon_dir = Path(__file__).parents[1] / "fpga_lab" / "assets" / "icons" / "ui"
     names = {path.stem for path in icon_dir.glob("*.svg")}
-    assert {"play", "stop", "refresh", "tools", "settings", "connections", "edit", "zoom-in", "zoom-out"} <= names
+    assert {"play", "stop", "refresh", "tools", "settings", "connections", "edit", "zoom-in", "zoom-out", "chevron-down"} <= names
     assert Metrics.ICON_BUTTON_WIDTH >= Metrics.CONTROL_HEIGHT
     assert not icon("play").isNull()
+
+
+def test_global_style_distinguishes_active_controls_and_combo_boxes():
+    stylesheet = application_stylesheet("dark")
+
+    assert 'QPushButton[role="success"]:disabled' in stylesheet
+    assert 'QPushButton[role="danger"]:disabled' in stylesheet
+    assert 'QPushButton[role="selector"]' in stylesheet
+    assert "QComboBox::down-arrow" in stylesheet
+    assert "chevron-down.svg" in stylesheet
 
 
 def test_board_editor_uses_the_shared_theme_without_name_collisions():

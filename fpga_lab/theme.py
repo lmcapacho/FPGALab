@@ -110,6 +110,7 @@ def style_button(button: QPushButton, role: str = "secondary", icon_name: str | 
 def application_stylesheet(mode: str = "dark") -> str:
     """Build the application-wide QSS from one semantic palette."""
     p = set_palette(mode)
+    combo_arrow = (_ICON_DIR / "chevron-down.svg").as_posix()
     return f"""
     QMainWindow, QDialog {{ background: {p.canvas}; }}
     QWidget {{ color: {p.text}; font-family: Inter, "Segoe UI", Arial, sans-serif; font-size: {Metrics.FONT_SIZE}px; }}
@@ -124,7 +125,14 @@ def application_stylesheet(mode: str = "dark") -> str:
         border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_SM}px; selection-background-color: {p.accent};
     }}
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QKeySequenceEdit:focus {{ border-color: {p.accent}; }}
-    QComboBox::drop-down {{ border: 0; width: 24px; }}
+    QComboBox {{ padding-right: 30px; }}
+    QComboBox::drop-down {{ border: 0; width: 28px; }}
+    QComboBox::down-arrow {{ image: url("{combo_arrow}"); width: 12px; height: 12px; }}
+    QComboBox#languageSelector {{ padding: 0 14px 0 5px; }}
+    QComboBox#languageSelector::drop-down {{ width: 14px; }}
+    QComboBox#languageSelector::down-arrow {{ width: 8px; height: 8px; }}
+    QSpinBox {{ padding-right: 24px; }}
+    QSpinBox::up-button, QSpinBox::down-button {{ width: 20px; border: 0; background: {p.surface_hover}; }}
     QListWidget, QTableWidget, QGraphicsView {{ background: {p.workbench}; border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_SM}px; }}
     QListWidget::item {{ padding: 5px 7px; border-radius: 4px; }}
     QListWidget::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
@@ -138,10 +146,15 @@ def application_stylesheet(mode: str = "dark") -> str:
     QPushButton[role="success"]:hover {{ background: {p.success_hover}; }}
     QPushButton[role="danger"] {{ background: {p.danger_surface}; border-color: {p.danger}; color: #ffffff; }}
     QPushButton[role="danger"]:hover {{ background: {p.danger}; }}
+    QPushButton[role="selector"] {{ background: {p.surface_hover}; border-color: {p.border_strong}; font-weight: 600; }}
+    QPushButton[role="selector"]:hover {{ border-color: {p.accent}; }}
     QPushButton[role="icon"] {{ padding: 0; background: transparent; border-color: {p.border}; }}
     QPushButton[role="icon"]:hover {{ background: {p.surface_hover}; border-color: {p.accent}; }}
     QPushButton[role="icon-danger"] {{ padding: 0; background: transparent; border-color: {p.border}; }}
     QPushButton[role="icon-danger"]:hover {{ background: {p.danger_surface}; border-color: {p.danger}; }}
+    QPushButton[role="success"]:disabled, QPushButton[role="danger"]:disabled {{
+        background: {p.surface}; border-color: {p.border}; color: {p.text_muted};
+    }}
     QPushButton#switch {{ background: {p.surface_raised}; border: 1px solid {p.border_strong}; border-radius: {Metrics.RADIUS_MD}px; padding: 10px; font-weight: 700; }}
     QPushButton#switch:pressed {{ background: {p.success}; color: {p.accent_text}; }}
     QStatusBar {{ background: {p.surface}; color: {p.warning}; border-top: 1px solid {p.border}; font-weight: 600; }}
