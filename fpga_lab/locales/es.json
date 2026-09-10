@@ -197,6 +197,7 @@
   "Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms. Ctrl+drag pans.": "Arrastre una pieza. Doble clic para configurar. Ctrl+D duplica la pieza seleccionada. Ctrl+rueda acerca o aleja. Ctrl+arrastrar desplaza el lienzo.",
   "Drag a part. Double-click to configure. Ctrl+D duplicates the selected part. Ctrl+wheel zooms. Ctrl+drag pans. Ctrl+0 resets zoom.": "Arrastre una pieza. Doble clic para configurar. Ctrl+D duplica la pieza seleccionada. Ctrl+rueda acerca o aleja. Ctrl+arrastrar desplaza el lienzo. Ctrl+0 restablece el zoom.",
   "Drag empty space to select multiple parts. Shift+click changes the selection. Drag a selected part to move the group. Ctrl+drag pans.": "Arrastre sobre un espacio vacío para seleccionar varias piezas. Mayús+clic cambia la selección. Arrastre una pieza seleccionada para mover el grupo. Ctrl+arrastrar desplaza el lienzo.",
+  "Drag empty space to select multiple parts. Shift+click changes the selection. Drag a selected part to move the group. Use the wheel to zoom. Ctrl+drag or middle-drag pans.": "Arrastre sobre un espacio vacío para seleccionar varias piezas. Mayús+clic cambia la selección. Arrastre una pieza seleccionada para mover el grupo. Use la rueda para acercar o alejar. Ctrl+arrastrar o arrastrar con el botón central desplaza el lienzo.",
   "Zoom in": "Acercar",
   "Zoom out": "Alejar",
   "Reset zoom": "Restablecer zoom",

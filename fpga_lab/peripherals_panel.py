@@ -258,9 +258,11 @@ class ConnectionDialog(QDialog):
 
 
 class WorkbenchView(QGraphicsView):
-    """Zoomable workbench canvas with keyboard actions for selected parts."""
+    """Zoomable, pannable workbench canvas with keyboard editing actions."""
 
     zoom_changed = pyqtSignal(float)
+    camera_changed = pyqtSignal(QPointF)
+    _CANVAS_EXTENT = 100_000.0
 
     def __init__(self, scene, delete_selected, duplicate_selected, persist_positions, undo, redo, parent=None):
         super().__init__(scene, parent)
@@ -271,25 +273,39 @@ class WorkbenchView(QGraphicsView):
         self._redo = redo
         self._zoom = 1.0
         self._panning = False
+        self._pan_paused = False
+        self._pan_button = None
+        self._pan_start = QPointF()
+        self._pan_center = QPointF()
         self._editing_enabled = True
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self.ensure_scene_fits()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.ensure_scene_fits()
 
     def ensure_scene_fits(self) -> None:
-        """Keep the scene large enough for 640×480 VGA items and the viewport."""
-        bounds = self.scene().itemsBoundingRect()
-        width = max(float(self.viewport().width()), bounds.right() + 24.0)
-        height = max(float(self.viewport().height()), bounds.bottom() + 24.0)
-        self.scene().setSceneRect(0, 0, width, height)
+        """Maintain a large symmetric canvas without exposing scroll bars."""
+        extent = self._CANVAS_EXTENT
+        self.scene().setSceneRect(-extent, -extent, extent * 2, extent * 2)
+
+    def camera_center(self) -> QPointF:
+        """Return the scene coordinate currently centered in the viewport."""
+        return self.mapToScene(self.viewport().rect().center())
+
+    def restore_camera(self, center: QPointF | None = None) -> None:
+        """Restore a saved camera or center the initial collection of parts."""
+        if center is None:
+            bounds = self.scene().itemsBoundingRect()
+            center = bounds.center() if not bounds.isEmpty() else QPointF(0.0, 0.0)
+        self.centerOn(center)
 
     def mousePressEvent(self, event):
         self.setFocus()
@@ -303,25 +319,36 @@ class WorkbenchView(QGraphicsView):
                 item.setSelected(not item.isSelected())
                 event.accept()
                 return
-        if (
+        wants_pan = event.button() == Qt.MouseButton.MiddleButton or (
             event.button() == Qt.MouseButton.LeftButton
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-        ):
+        )
+        if wants_pan:
             self._panning = True
-            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            self._pan_paused = False
+            self._pan_button = event.button()
+            self._pan_start = event.position()
+            self._pan_center = self.camera_center()
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self._set_canvas_cursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        super().mouseReleaseEvent(event)
-        if self._panning and event.button() == Qt.MouseButton.LeftButton:
+        if self._panning and event.button() == self._pan_button:
             self._panning = False
+            self._pan_paused = False
+            self._pan_button = None
             self.setDragMode(
                 QGraphicsView.DragMode.RubberBandDrag
                 if self._editing_enabled else QGraphicsView.DragMode.NoDrag
             )
-            self.setCursor(Qt.CursorShape.ArrowCursor)
+            self._set_canvas_cursor(Qt.CursorShape.ArrowCursor)
+            self.camera_changed.emit(self.camera_center())
+            event.accept()
             return
+        super().mouseReleaseEvent(event)
         if self._editing_enabled and event.button() == Qt.MouseButton.LeftButton:
             updates = [
                 update
@@ -332,53 +359,49 @@ class WorkbenchView(QGraphicsView):
             if updates:
                 self._persist_positions(updates)
 
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
-        if self._panning or not self._editing_enabled:
-            return
-        selected = [
-            item for item in self.scene().selectedItems()
-            if isinstance(item, WorkbenchPeripheralItem)
-        ]
-        if len(selected) < 2:
-            return
-        left = min(item.sceneBoundingRect().left() for item in selected)
-        top = min(item.sceneBoundingRect().top() for item in selected)
-        right = max(item.sceneBoundingRect().right() for item in selected)
-        bottom = max(item.sceneBoundingRect().bottom() for item in selected)
-        bounds = self.scene().sceneRect()
-        dx = (
-            bounds.left() - left if left < bounds.left()
-            else bounds.right() - right if right > bounds.right()
-            else 0.0
-        )
-        dy = (
-            bounds.top() - top if top < bounds.top()
-            else bounds.bottom() - bottom if bottom > bounds.bottom()
-            else 0.0
-        )
-        if dx or dy:
-            for item in selected:
-                item.moveBy(dx, dy)
+    def _set_canvas_cursor(self, shape: Qt.CursorShape) -> None:
+        """Keep the view and its viewport cursor synchronized."""
+        self.setCursor(shape)
+        self.viewport().setCursor(shape)
 
-    def wheelEvent(self, event):
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            steps = event.angleDelta().y() / 120
-            if steps:
-                self.set_zoom(self._zoom * (1.15 ** steps))
+    def mouseMoveEvent(self, event):
+        inside = self.viewport().rect().contains(event.position().toPoint())
+        grabbed_item = self.scene().mouseGrabberItem()
+        if not inside and (self._panning or isinstance(grabbed_item, WorkbenchPeripheralItem)):
+            self._pan_paused = self._panning
             event.accept()
             return
-        super().wheelEvent(event)
+        if self._panning:
+            if self._pan_paused:
+                self._pan_start = event.position()
+                self._pan_center = self.camera_center()
+                self._pan_paused = False
+                event.accept()
+                return
+            delta = event.position() - self._pan_start
+            self.centerOn(self._pan_center - QPointF(delta.x() / self._zoom, delta.y() / self._zoom))
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def wheelEvent(self, event):
+        """Use the wheel exclusively for cursor-centered canvas zoom."""
+        delta = event.angleDelta().y() or event.angleDelta().x()
+        steps = delta / 120
+        if steps:
+            self.set_zoom(self._zoom * (1.15 ** steps))
+        event.accept()
 
     def set_zoom(self, zoom: float) -> None:
-        """Apply bounded scene zoom while retaining ordinary scrolling when needed."""
-        zoom = max(0.4, min(float(zoom), 2.5))
+        """Apply bounded cursor-anchored zoom independently of canvas size."""
+        zoom = max(0.1, min(float(zoom), 2.5))
         if abs(zoom - self._zoom) < 0.001:
             return
         self._zoom = zoom
         self.resetTransform()
         self.scale(self._zoom, self._zoom)
         self.zoom_changed.emit(self._zoom)
+        self.camera_changed.emit(self.camera_center())
 
     def zoom_in(self) -> None:
         self.set_zoom(self._zoom * 1.15)
@@ -403,6 +426,7 @@ class WorkbenchView(QGraphicsView):
         zoom = min(viewport.width() / fitted.width(), viewport.height() / fitted.height())
         self.set_zoom(zoom)
         self.centerOn(bounds.center())
+        self.camera_changed.emit(self.camera_center())
 
     def set_editable(self, enabled: bool) -> None:
         """Allow navigation while blocking destructive keyboard actions."""
@@ -463,7 +487,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
-        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
         self._active = {}
         self._brightness = {}
         self._pressed = False
@@ -480,20 +504,9 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         return self._peripheral
 
     def itemChange(self, change, value):
-        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and self.scene() is not None:
-            selected_group = self.isSelected() and len(self.scene().selectedItems()) > 1
-            if selected_group:
-                return value
-            bounds = self.scene().sceneRect(); rect = self.rect()
-            return QPointF(max(bounds.left(), min(value.x(), bounds.right() - rect.width())), max(bounds.top(), min(value.y(), bounds.bottom() - rect.height())))
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged and self._editable:
             self._last_position = value; self._drag_dirty = True
         return super().itemChange(change, value)
-
-    def clamp_to_scene(self):
-        if self.scene() is None: return
-        bounds = self.scene().sceneRect(); rect = self.rect(); pos = self.pos()
-        self.setPos(max(bounds.left(), min(pos.x(), bounds.right() - rect.width())), max(bounds.top(), min(pos.y(), bounds.bottom() - rect.height())))
 
     def _persist_position(self):
         if self._drag_dirty:
@@ -530,7 +543,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     def set_editable(self, enabled):
         self._editable = enabled
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, enabled)
-        self.setCursor(Qt.CursorShape.OpenHandCursor if enabled else Qt.CursorShape.ArrowCursor)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def set_button_pressed(self, source: str, pressed: bool) -> None:
         """Merge mouse and keyboard press states for a momentary button."""
@@ -566,6 +579,8 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         })
 
     def mousePressEvent(self, event):
+        if self._editable and event.button() == Qt.MouseButton.LeftButton:
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
         if self._peripheral.kind == "sensor":
             self._sensor_value = not self._sensor_value
             self._input_changed(self._peripheral.peripheral_id, "signal", int(self._sensor_value))
@@ -581,6 +596,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
         if self._peripheral.kind == "button":
             self.set_button_pressed("mouse", False)
         self._renderer.mouse_release(self._peripheral, event.pos(), self._input_changed)
@@ -669,6 +685,7 @@ class PeripheralsPanel(QWidget):
         self._zoom_fit_button.clicked.connect(self.workbench.fit_contents)
         self.workbench.zoom_changed.connect(self._update_zoom_label)
         self.workbench.zoom_changed.connect(self._persist_workbench_zoom)
+        self.workbench.camera_changed.connect(self._persist_workbench_center)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
         self._workbench_bindings = {}; self._reload()
         self._update_history_actions()
@@ -682,7 +699,7 @@ class PeripheralsPanel(QWidget):
         self._add_button.setText(t("Add"))
         self._add_button.setToolTip(t("Add a peripheral"))
         self._workbench_hint.setText(t("Virtual workbench"))
-        self._workbench_hint.setToolTip(t("Drag empty space to select multiple parts. Shift+click changes the selection. Drag a selected part to move the group. Ctrl+drag pans."))
+        self._workbench_hint.setToolTip(t("Drag empty space to select multiple parts. Shift+click changes the selection. Drag a selected part to move the group. Use the wheel to zoom. Ctrl+drag or middle-drag pans."))
         self._undo_button.setToolTip(t("Undo (Ctrl+Z)"))
         self._redo_button.setToolTip(t("Redo (Ctrl+Y or Ctrl+Shift+Z)"))
         self._zoom_out_button.setToolTip(t("Zoom out"))
@@ -731,7 +748,6 @@ class PeripheralsPanel(QWidget):
                 if wire.peripheral_id == peripheral.peripheral_id:
                     self._workbench_bindings[(peripheral.peripheral_id, wire.terminal)] = (bench_item, wire.hdl_net)
         self._rebuild_temporal_probes(project, workbench_items)
-        self.workbench.ensure_scene_fits()
         self._restore_workbench_zoom()
         self._update_connection_status()
 
@@ -741,11 +757,19 @@ class PeripheralsPanel(QWidget):
             raw = json.loads(self._lab.read_text(encoding="utf-8"))
             state = raw.get("workbench", {})
             zoom = float(state.get("zoom", 1.0)) if isinstance(state, dict) else 1.0
+            raw_center = state.get("center") if isinstance(state, dict) else None
+            center = (
+                QPointF(float(raw_center[0]), float(raw_center[1]))
+                if isinstance(raw_center, list) and len(raw_center) == 2
+                else None
+            )
         except (OSError, ValueError, json.JSONDecodeError):
             zoom = 1.0
+            center = None
         self._restoring_workbench_state = True
         try:
             self.workbench.set_zoom(zoom)
+            self.workbench.restore_camera(center)
         finally:
             self._restoring_workbench_state = False
 
@@ -758,6 +782,17 @@ class PeripheralsPanel(QWidget):
         if not isinstance(state, dict):
             state = raw["workbench"] = {}
         state["zoom"] = round(zoom, 4)
+        self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+
+    def _persist_workbench_center(self, center: QPointF) -> None:
+        """Store the camera independently from peripheral coordinates."""
+        if self._restoring_workbench_state:
+            return
+        raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        state = raw.setdefault("workbench", {})
+        if not isinstance(state, dict):
+            state = raw["workbench"] = {}
+        state["center"] = [round(center.x(), 2), round(center.y(), 2)]
         self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
 
     def _output_condition(self, net: str | None, expected: bool) -> tuple[int, int, bool] | None:
