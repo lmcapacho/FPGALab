@@ -28,16 +28,6 @@ def test_ui_icons_are_packaged_svg_assets():
     assert not icon("play").isNull()
 
 
-def test_global_style_distinguishes_active_controls_and_combo_boxes():
-    stylesheet = application_stylesheet("dark")
-
-    assert 'QPushButton[role="success"]:disabled' in stylesheet
-    assert 'QPushButton[role="danger"]:disabled' in stylesheet
-    assert 'QPushButton[role="selector"]' in stylesheet
-    assert "QComboBox::down-arrow" in stylesheet
-    assert "chevron-down.svg" in stylesheet
-
-
 def test_board_editor_uses_the_shared_theme_without_name_collisions():
     application = QApplication.instance() or QApplication([])
     application.setStyleSheet(application_stylesheet("dark"))

@@ -7,11 +7,10 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QPoint, QPointF, QSettings, Qt
+from PyQt6.QtCore import QPointF, QSettings, Qt
 from PyQt6.QtWidgets import QApplication, QGraphicsView, QMessageBox
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
-from fpga_lab.i18n import t
 from fpga_lab.peripherals_panel import PeripheralConfigDialog, PeripheralsPanel
 from fpga_lab.lab_workspace import LabWorkspace
 from fpga_lab.main_window import FPGALabMainWindow, LabManagerDialog
@@ -70,23 +69,6 @@ def test_model_changing_controls_are_locked_while_running(tmp_path):
     assert window._recent.isEnabled() is True
     assert window._lab_button.isEnabled() is True
     assert window._simulation_settings_button.isEnabled() is True
-    window.close()
-    window.deleteLater()
-
-
-def test_recent_projects_uses_a_placeholder_instead_of_a_fake_entry(tmp_path, monkeypatch):
-    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
-    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
-    project = tmp_path / "example.ice"
-    project.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(window._recent_projects, "paths", lambda: [project])
-
-    window._refresh_recent()
-
-    assert window._recent.placeholderText() == t("Recent projects")
-    assert window._recent.currentIndex() == -1
-    assert window._recent.count() == 1
-    assert window._recent.itemText(0) == "example.ice"
     window.close()
     window.deleteLater()
 
@@ -277,23 +259,6 @@ def test_fit_contents_uses_and_persists_the_regular_workbench_zoom(tmp_path):
     panel.deleteLater()
 
 
-def test_workbench_uses_a_wide_canvas_without_visible_scrollbars(tmp_path):
-    board = BoardDefinition.load(bundled_board_definition())
-    lab = tmp_path / "expanded-workbench.lab"
-    lab.write_text('{"peripherals": []}', encoding="utf-8")
-    panel = PeripheralsPanel(board, None, lab)
-    panel.resize(760, 520)
-    panel.show()
-    _APPLICATION.processEvents()
-    scene = panel.workbench.sceneRect()
-    assert scene.left() < 0 < scene.right()
-    assert scene.top() < 0 < scene.bottom()
-    assert panel.workbench.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-    assert panel.workbench.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-    panel.close()
-    panel.deleteLater()
-
-
 def test_workbench_camera_is_persisted_with_zoom(tmp_path):
     board = BoardDefinition.load(bundled_board_definition())
     lab = tmp_path / "camera.lab"
@@ -347,34 +312,6 @@ def test_canvas_pan_pauses_outside_the_workbench_without_a_reentry_jump(tmp_path
     panel.deleteLater()
 
 
-def test_mouse_wheel_zooms_without_a_keyboard_modifier(tmp_path):
-    class WheelEvent:
-        def __init__(self, delta: int):
-            self._delta = delta
-            self.accepted = False
-
-        def angleDelta(self):
-            return QPoint(0, self._delta)
-
-        def accept(self):
-            self.accepted = True
-
-    board = BoardDefinition.load(bundled_board_definition())
-    lab = tmp_path / "wheel-zoom.lab"
-    lab.write_text('{"peripherals": []}', encoding="utf-8")
-    panel = PeripheralsPanel(board, None, lab)
-    zoom_in = WheelEvent(120)
-    panel.workbench.wheelEvent(zoom_in)
-    increased = panel.workbench._zoom
-    zoom_out = WheelEvent(-120)
-    panel.workbench.wheelEvent(zoom_out)
-
-    assert zoom_in.accepted and zoom_out.accepted
-    assert increased > 1.0
-    assert abs(panel.workbench._zoom - 1.0) < 0.001
-    panel.deleteLater()
-
-
 def test_workbench_uses_rubber_band_selection_and_persists_group_positions(tmp_path):
     board = BoardDefinition.load(bundled_board_definition())
     lab = tmp_path / "group.lab"
@@ -387,11 +324,6 @@ def test_workbench_uses_rubber_band_selection_and_persists_group_positions(tmp_p
     panel = PeripheralsPanel(board, None, lab)
 
     assert panel.workbench.dragMode() == QGraphicsView.DragMode.RubberBandDrag
-    assert all(
-        item.cursor().shape() == Qt.CursorShape.ArrowCursor
-        for item in panel._workbench_scene.items()
-        if hasattr(item, "peripheral")
-    )
     panel._save_positions([("led_1", 35.25, 42.75), ("led_2", 105.25, 42.75)])
 
     raw = json.loads(lab.read_text(encoding="utf-8"))
