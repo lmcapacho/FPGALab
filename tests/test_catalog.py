@@ -1,5 +1,6 @@
-from fpga_lab.peripherals.catalog import load_catalog
-from fpga_lab.peripherals.manifest import RESERVED_PROPERTIES
+from fpga_lab.peripherals.catalog import icon_path_for, load_catalog
+from fpga_lab.peripherals.manifest import RESERVED_PROPERTIES, parse_manifest
+from fpga_lab.peripheral_catalog_panel import matches_catalog_spec
 from fpga_lab.wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS
 
 
@@ -9,6 +10,41 @@ def test_catalog_contains_original_five_and_vga():
         "led", "traffic_light", "seven_segment", "button", "sensor",
         "vga_monitor", "vga_6bit", "vga_12bit",
     }
+
+
+def test_catalog_metadata_supports_search_categories_and_icons():
+    catalog = load_catalog()
+
+    assert catalog["button"].category == "input"
+    assert "keyboard" in catalog["button"].keywords
+    assert catalog["seven_segment"].category == "display"
+    assert catalog["vga_monitor"].category == "video"
+    assert catalog["led"].description
+    base_icons = {icon_path_for(catalog[identifier]) for identifier in (
+        "button", "sensor", "led", "traffic_light", "seven_segment",
+    )}
+    assert len(base_icons) == 5
+    assert all(path.name == "icon.svg" and path.is_file() for path in base_icons)
+    assert matches_catalog_spec(catalog["button"], "keyboard")
+    assert not matches_catalog_spec(catalog["button"], "keyboard", "output")
+    assert matches_catalog_spec(catalog["seven_segment"], "digit", "display")
+
+
+def test_catalog_metadata_remains_optional_for_third_party_manifests():
+    spec = parse_manifest({
+        "id": "minimal",
+        "label": "Minimal",
+        "simulation": {"class": "gpio_sampled"},
+        "terminals": [],
+        "properties": {},
+        "visual": {"renderer": "lamp", "size": [10, 10]},
+    })
+
+    assert spec.category == "output"
+    assert spec.description == ""
+    assert spec.keywords == ()
+    assert spec.icon is None
+    assert icon_path_for(spec).name == "output.svg"
 
 
 def test_legacy_terminal_shapes():

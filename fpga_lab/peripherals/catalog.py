@@ -36,3 +36,15 @@ def spec_for(kind: str) -> PeripheralSpec:
         return catalog[kind]
     except KeyError as exc:
         raise ValueError(f"Unknown peripheral type: {kind}.") from exc
+
+
+def icon_path_for(spec: PeripheralSpec) -> Path:
+    """Resolve a plug-in icon, falling back to the bundled category artwork."""
+    if spec.icon:
+        candidate = catalog_root() / spec.id / spec.icon
+        if candidate.is_file():
+            return candidate
+    fallback = catalog_root().parent / "assets" / "icons" / "catalog" / f"{spec.category}.svg"
+    if fallback.is_file():
+        return fallback
+    return catalog_root().parent / "assets" / "icons" / "catalog" / "other.svg"

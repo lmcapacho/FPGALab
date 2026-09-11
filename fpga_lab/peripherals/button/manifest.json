@@ -2,6 +2,9 @@
   "id": "button",
   "label": "Push button",
   "category": "input",
+  "description": "Momentary digital input controlled by mouse or keyboard.",
+  "keywords": ["button", "push", "switch", "input", "keyboard"],
+  "icon": "icon.svg",
   "simulation": { "class": "gpio_driven" },
   "terminals": [
     { "name": "signal", "direction": "input", "width": 1, "required": true }

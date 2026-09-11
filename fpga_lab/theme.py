@@ -116,6 +116,8 @@ def application_stylesheet(mode: str = "dark") -> str:
     QWidget {{ color: {p.text}; font-family: Inter, "Segoe UI", Arial, sans-serif; font-size: {Metrics.FONT_SIZE}px; }}
     QFrame#panel, QFrame#toolbarPanel {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_MD}px; }}
     QFrame#boardPanel {{ background: {p.board_surface}; border: 1px solid {p.board_border}; border-radius: {Metrics.RADIUS_LG}px; }}
+    QFrame#catalogDrawer {{ background: {p.surface}; border: 1px solid {p.border_strong}; border-radius: {Metrics.RADIUS_LG}px; }}
+    QLabel#drawerTitle {{ font-size: {Metrics.FONT_TITLE}px; font-weight: 700; }}
     QLabel#boardTitle {{ color: {p.board_title}; font-size: {Metrics.FONT_TITLE}px; font-weight: 700; }}
     QLabel#caption, QLabel#infoText, QLabel#clockStatus {{ color: {p.text_muted}; font-size: {Metrics.FONT_SMALL}px; }}
     QLabel#errorText {{ color: {p.danger_hover}; font-size: {Metrics.FONT_SMALL}px; }}
@@ -136,12 +138,16 @@ def application_stylesheet(mode: str = "dark") -> str:
     QListWidget, QTableWidget, QGraphicsView {{ background: {p.workbench}; border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_SM}px; }}
     QListWidget::item {{ padding: 5px 7px; border-radius: 4px; }}
     QListWidget::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
+    QListWidget#catalogList::item {{ padding: 7px 9px; margin: 2px 0; border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_MD}px; }}
+    QListWidget#catalogList::item:hover {{ background: {p.surface_hover}; border-color: {p.border_strong}; }}
+    QListWidget#catalogList::item:selected {{ background: {p.surface_hover}; color: {p.text}; border-color: {p.accent}; }}
     QPushButton {{ min-height: {Metrics.CONTROL_HEIGHT}px; padding: 0 10px; background: {p.surface_raised}; border: 1px solid {p.border_strong}; border-radius: {Metrics.RADIUS_SM}px; }}
     QPushButton:hover {{ background: {p.surface_hover}; border-color: {p.accent}; }}
     QPushButton:pressed {{ background: {p.canvas}; }}
     QPushButton:disabled {{ color: {p.text_muted}; background: {p.surface}; border-color: {p.border}; }}
     QPushButton[role="primary"] {{ background: {p.accent}; border-color: {p.accent}; color: {p.accent_text}; font-weight: 650; }}
     QPushButton[role="primary"]:hover {{ background: {p.accent_hover}; }}
+    QPushButton#floatingCatalogButton {{ padding: 0; border-radius: 22px; }}
     QPushButton[role="success"] {{ background: {p.success}; border-color: {p.success_hover}; color: #ffffff; }}
     QPushButton[role="success"]:hover {{ background: {p.success_hover}; }}
     QPushButton[role="danger"] {{ background: {p.danger_surface}; border-color: {p.danger}; color: #ffffff; }}

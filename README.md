@@ -178,7 +178,7 @@ fpga_lab/peripherals/<peripheral-id>/manifest.json
 fpga_lab/peripherals/renderers/<renderer>.py
 ```
 
-The manifest declares terminals, directions, configuration properties, simulation class, and visual renderer. The generic configuration dialog is built from that schema. Adding a GPIO peripheral normally means adding a manifest, reusing or registering a renderer, and adding tests; it does not require a new closed list of component types in the workbench.
+The manifest declares terminals, directions, configuration properties, simulation class, and visual renderer. It can also provide a category, description, search keywords, and a catalog icon. The searchable catalog drawer discovers those fields automatically and falls back to a category icon when a part does not bundle its own artwork. The generic configuration dialog is built from the same schema. Adding a GPIO peripheral normally means adding a manifest, reusing or registering a renderer, and adding tests; it does not require a new closed list of component types in the workbench.
 
 The current simulation classes are:
 

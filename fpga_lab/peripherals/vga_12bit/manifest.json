@@ -1,7 +1,9 @@
 {
   "id": "vga_12bit",
   "label": "VGA 12-bit",
-  "category": "display",
+  "category": "video",
+  "description": "Twelve-bit VGA monitor with four bits per color channel.",
+  "keywords": ["vga", "monitor", "video", "rgb", "twelve bit"],
   "simulation": { "class": "streaming_sink", "sink_kind": "vga", "color_depth": 4 },
   "terminals": [
     { "name": "hsync", "direction": "output", "width": 1, "required": true },

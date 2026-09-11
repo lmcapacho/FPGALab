@@ -3,19 +3,20 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-from PyQt6.QtCore import QPointF, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QPointF, QSize, QTimer, Qt, pyqtSignal
 import re
 from PyQt6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPalette, QPen
 from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from .board import BoardDefinition
 from .constraints import PcfParser
 from .i18n import language_manager, t
+from .peripheral_catalog_panel import PeripheralCatalogPanel
 from .peripherals.catalog import load_catalog, spec_for
 from .peripherals.manifest import RESERVED_PROPERTIES
 from .peripherals.renderers import renderer_for
 from .peripherals.renderers.vga_monitor import VgaMonitorRenderer
 from .temporal import LedModel, SignalWindow
-from .wiring import PERIPHERAL_LABELS, SUPPLY_ENDPOINTS, PeripheralInstance, VirtualLabProject
+from .wiring import SUPPLY_ENDPOINTS, PeripheralInstance, VirtualLabProject
 from .theme import color, style_button
 
 
@@ -633,20 +634,6 @@ class PeripheralsPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 7, 8, 8)
         layout.setSpacing(5)
-        catalog_header = QHBoxLayout(); catalog_header.setSpacing(6)
-        self._catalog_title = QLabel()
-        catalog_header.addWidget(self._catalog_title)
-        self.kind = QComboBox()
-        for key, spec in load_catalog().items():
-            self.kind.addItem(t(spec.label), key)
-        self._add_button = QPushButton(); self._add_button.clicked.connect(self._add)
-        style_button(self._add_button, "primary")
-        self.kind.setMaximumWidth(310)
-        self._add_button.setFixedWidth(86)
-        catalog_header.addWidget(self.kind)
-        catalog_header.addWidget(self._add_button)
-        catalog_header.addStretch(1)
-        layout.addLayout(catalog_header)
         workbench_header = QHBoxLayout(); workbench_header.setSpacing(4)
         self._workbench_hint = QLabel()
         workbench_header.addWidget(self._workbench_hint)
@@ -687,17 +674,24 @@ class PeripheralsPanel(QWidget):
         self.workbench.zoom_changed.connect(self._persist_workbench_zoom)
         self.workbench.camera_changed.connect(self._persist_workbench_center)
         self.workbench.setMinimumHeight(330); layout.addWidget(self.workbench, 1)
+        self._catalog_button = QPushButton(self)
+        self._catalog_button.setObjectName("floatingCatalogButton")
+        style_button(self._catalog_button, "primary", "catalog")
+        self._catalog_button.setFixedSize(44, 44)
+        self._catalog_button.setIconSize(QSize(22, 22))
+        self._catalog_button.clicked.connect(self._toggle_catalog)
+        self._catalog_panel = PeripheralCatalogPanel(load_catalog(), self)
+        self._catalog_panel.add_requested.connect(self._add_kind)
         self._workbench_bindings = {}; self._reload()
         self._update_history_actions()
         language_manager.language_changed.connect(self._retranslate_ui)
         self._retranslate_ui()
+        QTimer.singleShot(0, self._position_catalog_button)
     def _retranslate_ui(self) -> None:
-        self._catalog_title.setText(t("Peripheral catalog"))
-        for index in range(self.kind.count()):
-            key = self.kind.itemData(index)
-            self.kind.setItemText(index, t(PERIPHERAL_LABELS[key]))
-        self._add_button.setText(t("Add"))
-        self._add_button.setToolTip(t("Add a peripheral"))
+        self._catalog_button.setText("")
+        self._catalog_button.setToolTip(t("Open peripheral catalog"))
+        self._catalog_button.setAccessibleName(t("Open peripheral catalog"))
+        self._catalog_panel.retranslate_ui()
         self._workbench_hint.setText(t("Virtual workbench"))
         self._workbench_hint.setToolTip(t("Drag empty space to select multiple parts. Shift+click changes the selection. Drag a selected part to move the group. Use the wheel to zoom. Ctrl+drag or middle-drag pans."))
         self._undo_button.setToolTip(t("Undo (Ctrl+Z)"))
@@ -710,6 +704,28 @@ class PeripheralsPanel(QWidget):
         self._update_connection_status()
         for item in self._workbench_scene.items():
             item.update()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_catalog_panel"):
+            self._catalog_panel.reposition()
+        QTimer.singleShot(0, self._position_catalog_button)
+
+    def _position_catalog_button(self) -> None:
+        """Anchor the catalog action over the workbench's upper-right corner."""
+        if not hasattr(self, "workbench") or not hasattr(self, "_catalog_button"):
+            return
+        margin = 14
+        workbench_rect = self.workbench.geometry()
+        x = workbench_rect.right() - self._catalog_button.width() - margin
+        y = workbench_rect.top() + margin
+        self._catalog_button.move(x, y)
+        if not self._catalog_panel.isVisible():
+            self._catalog_button.raise_()
+
+    def _toggle_catalog(self) -> None:
+        if self._editing_enabled:
+            self._catalog_panel.toggle()
 
     def _constraints(self):
         """Load optional design constraints without requiring a PCF for the board UI."""
@@ -894,7 +910,9 @@ class PeripheralsPanel(QWidget):
 
     def set_editable(self, enabled):
         self._editing_enabled = enabled
-        self.kind.setEnabled(enabled); self._add_button.setEnabled(enabled)
+        self._catalog_button.setEnabled(enabled)
+        if not enabled:
+            self._catalog_panel.close_drawer()
         self.workbench.set_editable(enabled)
         self._update_history_actions()
         for item in self._workbench_scene.items():
@@ -1185,8 +1203,10 @@ class PeripheralsPanel(QWidget):
     def current_wires(self):
         return getattr(self, "_resolved_wires", ())
 
-    def _add(self):
-        kind = self.kind.currentData()
+    def _add_kind(self, kind: str) -> None:
+        if not self._editing_enabled or kind not in load_catalog():
+            return
+        self._catalog_panel.close_drawer()
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         existing = {item["id"] for item in raw.get("peripherals", [])}
         index = 1

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import Any
 
 
@@ -30,6 +31,9 @@ class PeripheralSpec:
     id: str
     label: str
     category: str
+    description: str
+    keywords: tuple[str, ...]
+    icon: str | None
     simulation_class: str
     terminals: tuple[TerminalSpec, ...]
     properties: dict[str, dict[str, Any]]
@@ -101,10 +105,27 @@ def parse_manifest(raw: dict[str, Any], *, source: str = "manifest.json") -> Per
     size = visual["size"]
     if not (isinstance(size, list) and len(size) == 2):
         raise ValueError(f"{source}: {identifier} visual.size must be [width, height]")
+    category = str(raw.get("category", "output")).strip().casefold()
+    if not category:
+        raise ValueError(f"{source}: {identifier} category must not be empty")
+    description = str(raw.get("description", "")).strip()
+    raw_keywords = raw.get("keywords", [])
+    if not isinstance(raw_keywords, list) or not all(isinstance(value, str) for value in raw_keywords):
+        raise ValueError(f"{source}: {identifier} keywords must be a list of strings")
+    icon = raw.get("icon")
+    if icon is not None:
+        if not isinstance(icon, str) or not icon.strip():
+            raise ValueError(f"{source}: {identifier} icon must be a relative file name")
+        icon_path = PurePosixPath(icon)
+        if icon_path.is_absolute() or ".." in icon_path.parts:
+            raise ValueError(f"{source}: {identifier} icon must stay inside its peripheral directory")
     return PeripheralSpec(
         id=identifier,
         label=label,
-        category=str(raw.get("category", "output")),
+        category=category,
+        description=description,
+        keywords=tuple(value.strip().casefold() for value in raw_keywords if value.strip()),
+        icon=icon,
         simulation_class=sim_class,
         terminals=tuple(terminals),
         properties=properties,

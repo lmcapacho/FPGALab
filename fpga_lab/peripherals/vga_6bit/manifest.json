@@ -1,7 +1,9 @@
 {
   "id": "vga_6bit",
   "label": "VGA 6-bit",
-  "category": "display",
+  "category": "video",
+  "description": "Six-bit VGA monitor with two bits per color channel.",
+  "keywords": ["vga", "monitor", "video", "rgb", "six bit"],
   "simulation": { "class": "streaming_sink", "sink_kind": "vga", "color_depth": 2 },
   "terminals": [
     { "name": "hsync", "direction": "output", "width": 1, "required": true },

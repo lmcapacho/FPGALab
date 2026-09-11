@@ -1,7 +1,10 @@
 {
   "id": "seven_segment",
   "label": "Seven-segment display",
-  "category": "output",
+  "category": "display",
+  "description": "Seven-segment numeric display with configurable common connection.",
+  "keywords": ["display", "digit", "seven segment", "anode", "cathode"],
+  "icon": "icon.svg",
   "simulation": {
     "class": "gpio_temporal",
     "temporal": {
