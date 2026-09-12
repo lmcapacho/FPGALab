@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from threading import Event
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from .board import BoardDefinition, bundled_board_definition
 from .branding import application_icon
 from .build_cache import VerilatorBuildCache
+from .compiler import BuildCancelled
 from .ice_project import IcestudioProject, IcestudioProjectError
 from .i18n import t
 from .lab_workspace import LabWorkspace
@@ -47,6 +49,11 @@ class BuildWorker(QThread):
         self._profile = profile
         self._top_module = top_module
         self._optimization_mode = optimization_mode
+        self._cancel_requested = Event()
+
+    def cancel(self) -> None:
+        """Request cancellation of the current compiler process tree."""
+        self._cancel_requested.set()
 
     def run(self) -> None:
         try:
@@ -55,7 +62,10 @@ class BuildWorker(QThread):
                 self._profile,
                 top_module=self._top_module,
                 optimization_mode=self._optimization_mode,
+                cancel_requested=self._cancel_requested.is_set,
             )
+        except BuildCancelled:
+            return
         except Exception as error:
             self.failed.emit(str(error))
             return
@@ -139,6 +149,7 @@ class ApplicationController(QObject):
         window.stop_requested.connect(self.stop_simulation)
         window.toolchain_requested.connect(self.check_toolchain)
         window.simulation_settings_requested.connect(self.configure_simulation)
+        window.closing.connect(self.shutdown)
         app.aboutToQuit.connect(self.shutdown)
         window.set_clock_performance(self._simulation_settings.clock_hz)
 
@@ -253,10 +264,12 @@ class ApplicationController(QObject):
             worker.deleteLater()
 
     def shutdown(self) -> None:
-        """Wait for an in-flight native build before Qt destroys thread objects."""
+        """Cancel an in-flight native build before Qt destroys thread objects."""
         worker = self._build_worker
         if worker is not None and worker.isRunning():
-            worker.wait()
+            worker.cancel()
+            if not worker.wait(5000):
+                self._window.block_close(t("Waiting for the active build to stop safely."))
 
     def stop_simulation(self) -> None:
         """Stop the active clock without unloading the selected project."""

@@ -6,11 +6,14 @@ import argparse
 import hashlib
 import os
 import re
+import signal
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .cpp_wrapper import render_cpp_wrapper
 from .profile import BoardProfile
@@ -18,6 +21,10 @@ from .profile import BoardProfile
 
 class VerilatorBuildError(RuntimeError):
     """Verilator failure including its captured diagnostic output."""
+
+
+class BuildCancelled(RuntimeError):
+    """The user closed FPGALab before the native build completed."""
 
 
 _CONTINUOUS_ASSIGNMENT = re.compile(
@@ -78,6 +85,7 @@ class BuildRequest:
     environment: dict[str, str] | None = None
     make_variables: tuple[str, ...] = ()
     verilator_flags: tuple[str, ...] = ()
+    cancel_requested: Callable[[], bool] | None = None
 
 
 class VerilatorCompiler:
@@ -123,6 +131,7 @@ class VerilatorCompiler:
             [request.verilator, *args],
             cwd=request.build_dir.resolve(),
             environment=request.environment,
+            cancel_requested=request.cancel_requested,
         )
         _restore_unchanged_timestamps(generated_state)
         make = shutil.which("make", path=(request.environment or os.environ).get("PATH"))
@@ -132,15 +141,21 @@ class VerilatorCompiler:
             [make, "-C", str(target.parent), "-f", f"V{request.top_module}.mk", "-j", "OPT_FAST=-O3", *request.make_variables],
             cwd=request.build_dir.resolve(),
             environment=request.environment,
+            cancel_requested=request.cancel_requested,
         )
         if not target.exists():
             raise RuntimeError(f"Verilator completed but did not produce {target}")
         return target
 
     @staticmethod
-    def _run(command: list[str], *, cwd: Path, environment: dict[str, str] | None) -> None:
-        """Run one build phase and retain Verilator diagnostics on failure."""
-        completed = subprocess.run(
+    def _run(
+        command: list[str], *, cwd: Path, environment: dict[str, str] | None,
+        cancel_requested: Callable[[], bool] | None = None,
+    ) -> None:
+        """Run one cancellable build phase and retain diagnostics on failure."""
+        if cancel_requested is not None and cancel_requested():
+            raise BuildCancelled("Build cancelled.")
+        process = subprocess.Popen(
             command,
             cwd=cwd,
             text=True,
@@ -148,17 +163,80 @@ class VerilatorCompiler:
             stderr=subprocess.STDOUT,
             env=environment,
             creationflags=_subprocess_creation_flags(),
+            start_new_session=sys.platform != "win32",
         )
-        if completed.returncode:
-            output = completed.stdout.strip() or "Verilator did not provide diagnostic output."
+        while True:
+            try:
+                output, _ = process.communicate(timeout=0.1)
+                break
+            except subprocess.TimeoutExpired:
+                if cancel_requested is not None and cancel_requested():
+                    _terminate_process_tree(process)
+                    raise BuildCancelled("Build cancelled.")
+        if process.returncode:
+            output = output.strip() or "Verilator did not provide diagnostic output."
             raise VerilatorBuildError(output)
 
 
 def _subprocess_creation_flags() -> int:
     """Keep native build tools hidden behind the FPGALab progress UI on Windows."""
     if sys.platform == "win32":
-        return int(getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+        no_window = int(getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+        process_group = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200))
+        return no_window | process_group
     return 0
+
+
+def _terminate_process_tree(process: subprocess.Popen, timeout: float = 1.5) -> None:
+    """Stop a compiler and its descendants without leaving orphan processes."""
+    if process.poll() is not None:
+        return
+    if sys.platform == "win32":
+        flags = int(getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=flags,
+            check=False,
+        )
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+    try:
+        process.wait(timeout=timeout)
+        if sys.platform == "win32":
+            return
+    except subprocess.TimeoutExpired:
+        if sys.platform == "win32":
+            pass
+    if sys.platform != "win32":
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(process.pid, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.05)
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)),
+            check=False,
+        )
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
 
 
 def _write_if_changed(path: Path, content: str) -> None:

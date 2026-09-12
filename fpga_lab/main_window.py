@@ -278,6 +278,7 @@ class FPGALabMainWindow(QMainWindow):
     toolchain_requested = pyqtSignal()
     simulation_settings_requested = pyqtSignal()
     update_requested = pyqtSignal()
+    closing = pyqtSignal()
 
     def __init__(self, workspace: LabWorkspace, parent=None):
         super().__init__(parent)
@@ -291,6 +292,7 @@ class FPGALabMainWindow(QMainWindow):
         self.setStatusBar(self._status_bar)
         self._requested_clock_hz: float | None = None
         self._achieved_clock_hz: float | None = None
+        self._close_block_reason: str | None = None
 
         root = QWidget(self)
         layout = QVBoxLayout(root)
@@ -568,9 +570,20 @@ class FPGALabMainWindow(QMainWindow):
             previous.deleteLater()
 
     def closeEvent(self, event) -> None:
-        if self._active_lab is not None:
-            self._active_lab.close()
+        self._close_block_reason = None
+        self.closing.emit()
+        if self._close_block_reason:
+            self.set_status(self._close_block_reason)
+            event.ignore()
+            return
+        if self._active_lab is not None and not self._active_lab.close():
+            event.ignore()
+            return
         super().closeEvent(event)
+
+    def block_close(self, reason: str) -> None:
+        """Keep the shell alive when a worker could not stop safely."""
+        self._close_block_reason = reason
 
 
 def _format_frequency(frequency_hz: float) -> str:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from time import perf_counter
 
-from PyQt6.QtCore import QObject, QTimer, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 
 from .i18n import t
 from .simulation import VgaStats, VerilatorSimulation
@@ -266,3 +266,4 @@ class SimulationWorker(QObject):
             self._timer.stop()
         self._simulation.close()
         self.stopped.emit()
+        QThread.currentThread().quit()

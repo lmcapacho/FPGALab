@@ -1,10 +1,13 @@
 from pathlib import Path
-from subprocess import CompletedProcess
+import sys
+from threading import Event, Timer
+
+import pytest
 
 import fpga_lab.compiler as compiler_module
 
 from fpga_lab.compiler import (
-    BuildRequest, VerilatorCompiler, _generated_file_state, _restore_unchanged_timestamps,
+    BuildCancelled, BuildRequest, VerilatorCompiler, _generated_file_state, _restore_unchanged_timestamps,
     _subprocess_creation_flags, verilator_compatibility_flags, verilator_optimization_flags,
 )
 from fpga_lab.profile import BoardProfile
@@ -69,18 +72,42 @@ def test_unchanged_generated_files_keep_their_make_timestamp(tmp_path):
 def test_windows_build_processes_do_not_open_a_console(tmp_path, monkeypatch):
     captured: dict[str, object] = {}
 
-    def fake_run(command, **options):
+    class FakeProcess:
+        returncode = 0
+
+        def communicate(self, timeout):
+            return "", None
+
+    def fake_popen(command, **options):
         captured.update(options)
-        return CompletedProcess(command, 0, "")
+        return FakeProcess()
 
     monkeypatch.setattr(compiler_module.sys, "platform", "win32")
     monkeypatch.setattr(compiler_module.subprocess, "CREATE_NO_WINDOW", 0x08000000, raising=False)
-    monkeypatch.setattr(compiler_module.subprocess, "run", fake_run)
+    monkeypatch.setattr(compiler_module.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200, raising=False)
+    monkeypatch.setattr(compiler_module.subprocess, "Popen", fake_popen)
 
     VerilatorCompiler._run(["make"], cwd=tmp_path, environment=None)
 
-    assert _subprocess_creation_flags() == 0x08000000
-    assert captured["creationflags"] == 0x08000000
+    assert _subprocess_creation_flags() == 0x08000200
+    assert captured["creationflags"] == 0x08000200
+    assert captured["start_new_session"] is False
+
+
+def test_active_build_process_can_be_cancelled(tmp_path):
+    cancelled = Event()
+    timer = Timer(0.2, cancelled.set)
+    timer.start()
+    try:
+        with pytest.raises(BuildCancelled):
+            VerilatorCompiler._run(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                cwd=tmp_path,
+                environment=None,
+                cancel_requested=cancelled.is_set,
+            )
+    finally:
+        timer.cancel()
 
 
 def test_non_windows_build_processes_keep_default_creation_flags(monkeypatch):

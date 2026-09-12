@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QMetaObject, QSettings, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QSettings, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPushButton, QSplitter, QVBoxLayout, QWidget
 
 from .board import BoardDefinition, bundled_board_definition
@@ -100,7 +100,6 @@ class FPGAVirtualLab(QWidget):
             self.set_temporal_probes_requested.connect(self._worker.set_temporal_probes)
             self._worker.state_changed.connect(self._paint_state)
             self._worker.failure.connect(self._show_failure)
-            self._worker.stopped.connect(self._thread.quit)
             self._thread.finished.connect(self._worker.deleteLater)
             self._peripherals.temporal_probes_changed.connect(self.set_temporal_probes_requested)
             self.set_temporal_probes_requested.emit(self._peripherals.temporal_probes())
@@ -336,8 +335,7 @@ class FPGAVirtualLab(QWidget):
                 pass
         self._peripherals.drop_vga_images()
         if self._thread is not None and self._thread.isRunning():
-            QMetaObject.invokeMethod(self._worker, "shutdown", Qt.ConnectionType.BlockingQueuedConnection)
-            self._thread.quit()
+            self.shutdown_requested.emit()
             if not self._thread.wait(3000):
                 self._show_failure(t("waiting for safe simulation shutdown"))
                 event.ignore()

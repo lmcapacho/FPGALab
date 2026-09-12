@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QPointF, QSettings, Qt
-from PyQt6.QtWidgets import QApplication, QGraphicsView, QMessageBox
+from PyQt6.QtWidgets import QApplication, QGraphicsView, QMessageBox, QWidget
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
 from fpga_lab.peripherals_panel import PeripheralConfigDialog, PeripheralsPanel
@@ -20,6 +21,59 @@ from fpga_lab.wiring import PeripheralInstance
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
+
+
+def test_main_window_stays_open_when_the_active_lab_cannot_close(tmp_path):
+    class RefusingLab(QWidget):
+        allow_close = False
+
+        def closeEvent(self, event):
+            event.accept() if self.allow_close else event.ignore()
+
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+    lab = RefusingLab()
+    window.set_lab(lab)
+    window.show()
+    _APPLICATION.processEvents()
+
+    assert window.close() is False
+    assert window.isVisible()
+
+    lab.allow_close = True
+    assert window.close() is True
+    window.deleteLater()
+
+
+def test_closing_a_running_worker_stops_its_thread_and_native_simulation(tmp_path):
+    class FakeSimulation:
+        profile = SimpleNamespace(board_name="Test", inputs={}, outputs={}, clock_name="clk")
+
+        def __init__(self):
+            self.closed = False
+
+        def set_observation_divisor(self, _divisor):
+            pass
+
+        def set_temporal_probes(self, _probes):
+            pass
+
+        def close(self):
+            self.closed = True
+
+    lab_file = tmp_path / "lab.json"
+    lab_file.write_text('{"peripherals": []}', encoding="utf-8")
+    simulation = FakeSimulation()
+    lab = FPGAVirtualLab(simulation=simulation, lab_file=lab_file)
+    thread = lab._thread
+    assert thread is not None
+    assert thread.isRunning()
+
+    assert lab.close() is True
+
+    assert thread.isRunning() is False
+    assert simulation.closed is True
+    lab.deleteLater()
 
 
 def test_board_workbench_split_is_remembered_per_user(tmp_path):

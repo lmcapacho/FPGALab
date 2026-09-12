@@ -11,6 +11,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .compiler import BuildRequest, VerilatorCompiler, verilator_optimization_flags
 from .ice_project import IcestudioProject
@@ -231,6 +232,7 @@ class VerilatorBuildCache:
     def build_or_reuse(
         self, project: IcestudioProject, profile: BoardProfile, *, top_module: str = "top",
         verilator: str | None = None, optimization_mode: str = "automatic",
+        cancel_requested: Callable[[], bool] | None = None,
     ) -> CachedBuild:
         toolchain = resolve_verilator(verilator)
         toolchain.activate_runtime()
@@ -263,6 +265,7 @@ class VerilatorBuildCache:
                 toolchain.environment(),
                 toolchain.make_variables(),
                 compatibility_flags,
+                cancel_requested,
             )
             library = VerilatorCompiler().build(request)
             final = self.root / fingerprint

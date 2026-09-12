@@ -220,6 +220,7 @@
   "{name}: {state} ({source}, module {module}, {optimization}).": "{name}: {state} ({source}, módulo {module}, {optimization}).",
   "viewBox must have four values.": "viewBox debe tener cuatro valores.",
   "waiting for safe simulation shutdown": "esperando el cierre seguro de la simulación",
+  "Waiting for the active build to stop safely.": "Esperando que la compilación activa se detenga de forma segura.",
   "{identifier} added": "{identifier} agregado",
   "{identifier} deleted": "{identifier} eliminado",
   "{identifier} duplicated": "{identifier} duplicado",
