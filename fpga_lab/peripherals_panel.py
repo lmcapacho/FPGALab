@@ -494,6 +494,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._pressed = False
         self._press_sources: set[str] = set()
         self._sensor_value = False
+        self._powered = False
         self._editable = True
         self._snapshot = None
         self._drag_dirty = False
@@ -546,6 +547,11 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, enabled)
         self.setCursor(Qt.CursorShape.ArrowCursor)
 
+    def set_powered(self, powered: bool) -> None:
+        """Expose the virtual power state without inventing signal samples."""
+        self._powered = powered
+        self.update()
+
     def set_button_pressed(self, source: str, pressed: bool) -> None:
         """Merge mouse and keyboard press states for a momentary button."""
         if self._peripheral.kind != "button":
@@ -576,6 +582,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             "brightness": self._brightness,
             "pressed": self._pressed,
             "sensor_value": self._sensor_value,
+            "powered": self._powered,
             "snapshot": self._snapshot,
         })
 
@@ -917,6 +924,12 @@ class PeripheralsPanel(QWidget):
         self._update_history_actions()
         for item in self._workbench_scene.items():
             if isinstance(item, WorkbenchPeripheralItem): item.set_editable(enabled)
+
+    def set_powered(self, powered: bool) -> None:
+        """Propagate simulation power state to manifest renderers."""
+        for item in self._workbench_scene.items():
+            if isinstance(item, WorkbenchPeripheralItem):
+                item.set_powered(powered)
 
     def handle_shortcut_event(self, event, pressed: bool) -> bool:
         """Route configured keyboard shortcuts as momentary external button presses."""

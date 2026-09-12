@@ -235,6 +235,7 @@ class FPGAVirtualLab(QWidget):
         # Combinational designs still need periodic visual frames so static
         # outputs can contribute to the peripheral persistence models.
         self._running = True
+        self._peripherals.set_powered(True)
         self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
         self._edit_layout_button.setEnabled(False)
@@ -245,6 +246,7 @@ class FPGAVirtualLab(QWidget):
     def _pause(self) -> None:
         # Ignore frames already queued by the worker before Stop was pressed.
         self._running = False
+        self._peripherals.set_powered(False)
         self.pause_requested.emit()
         self._board_view.set_led_brightness("PWR", 0.0)
         self._edit_layout_button.setEnabled(True)
@@ -300,6 +302,7 @@ class FPGAVirtualLab(QWidget):
 
     def _show_failure(self, error: str) -> None:
         self._running = False
+        self._peripherals.set_powered(False)
         self.setWindowTitle(t("FPGALab · simulation stopped: {error}", error=error))
         self.status_changed.emit(t("Simulation error: {error}", error=error))
 

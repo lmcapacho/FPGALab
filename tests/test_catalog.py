@@ -1,6 +1,7 @@
 from fpga_lab.peripherals.catalog import icon_path_for, load_catalog
 from fpga_lab.peripherals.manifest import RESERVED_PROPERTIES, parse_manifest
 from fpga_lab.peripheral_catalog_panel import matches_catalog_spec
+from fpga_lab.peripherals.renderers.bcd_display import active_bcd_segments, bcd_segments
 from fpga_lab.wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS
 
 
@@ -8,7 +9,7 @@ def test_catalog_contains_original_five_and_vga():
     catalog = load_catalog()
     assert set(catalog) >= {
         "led", "traffic_light", "seven_segment", "button", "sensor",
-        "vga_monitor", "vga_6bit", "vga_12bit",
+        "bcd_display", "vga_monitor", "vga_6bit", "vga_12bit",
     }
 
 
@@ -78,6 +79,23 @@ def test_button_shortcut_is_declared_by_its_manifest():
     shortcut = load_catalog()["button"].properties["shortcut"]
     assert shortcut["type"] == "key_sequence"
     assert shortcut["default"] == ""
+
+
+def test_bcd_display_declares_four_bits_and_shows_hexadecimal_codes():
+    display = load_catalog()["bcd_display"]
+
+    assert display.required_terminals() == ("A", "B", "C", "D")
+    assert display.visual["renderer"] == "bcd_display"
+    assert bcd_segments(0) == frozenset("abcdef")
+    assert bcd_segments(8) == frozenset("abcdefg")
+    assert bcd_segments(9) == frozenset("abcdfg")
+    assert bcd_segments(10) == frozenset("abcefg")
+    assert bcd_segments(11) == frozenset("cdefg")
+    assert bcd_segments(15) == frozenset("aefg")
+    zero = {terminal: False for terminal in ("A", "B", "C", "D")}
+    assert active_bcd_segments({}, True) == frozenset()
+    assert active_bcd_segments(zero, False) == frozenset()
+    assert active_bcd_segments(zero, True) == frozenset("abcdef")
 
 
 def test_vga_components_have_fixed_pin_budgets():

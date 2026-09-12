@@ -1,0 +1,19 @@
+{
+  "id": "bcd_display",
+  "label": "BCD display",
+  "category": "display",
+  "description": "Four-bit BCD display showing 0–9 and hexadecimal A–F.",
+  "keywords": ["bcd", "binary", "decimal", "hexadecimal", "digit", "decoder", "seven segment", "display"],
+  "icon": "icon.svg",
+  "simulation": { "class": "gpio_sampled" },
+  "terminals": [
+    { "name": "A", "direction": "output", "width": 1, "required": true },
+    { "name": "B", "direction": "output", "width": 1, "required": true },
+    { "name": "C", "direction": "output", "width": 1, "required": true },
+    { "name": "D", "direction": "output", "width": 1, "required": true }
+  ],
+  "properties": {
+    "color": { "type": "color", "default": "#ff3b30", "label": "Color" }
+  },
+  "visual": { "renderer": "bcd_display", "size": [150, 205] }
+}
