@@ -451,3 +451,25 @@ def test_conflicting_input_remains_open_and_clears_only_that_pin():
     dialog.show()
     assert dialog._error_label.isVisible()
     dialog.close()
+
+
+def test_new_peripheral_can_be_saved_with_required_terminals_not_connected(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab_file = tmp_path / "lab.json"
+    lab_file.write_text('{"peripherals": []}', encoding="utf-8")
+    panel = PeripheralsPanel(board, None, lab_file)
+    draft = PeripheralInstance("bcd_display_1", "bcd_display", {}, {})
+    dialog = PeripheralConfigDialog(draft, board, parent=panel)
+    messages: list[str] = []
+    panel.changed.connect(messages.append)
+
+    panel._save_new_peripheral(dialog, "bcd_display", set())
+
+    saved = json.loads(lab_file.read_text(encoding="utf-8"))["peripherals"][0]
+    assert saved["connections"] == {}
+    assert panel.missing_required_connections() == (
+        "bcd_display_1.A", "bcd_display_1.B", "bcd_display_1.C", "bcd_display_1.D",
+    )
+    assert "bcd_display_1 saved with required terminals not connected: A, B, C, D." in messages
+    dialog.deleteLater()
+    panel.deleteLater()

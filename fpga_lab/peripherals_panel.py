@@ -85,7 +85,7 @@ class PeripheralConfigDialog(QDialog):
                     picker.addItem(pin.id, pin.id)
             index = picker.findData(peripheral.connections.get(terminal.name, ""))
             picker.setCurrentIndex(max(0, index))
-            label = terminal.name if terminal.required else f"{terminal.name} *"
+            label = terminal.name if terminal.required else t("{terminal} (optional)", terminal=terminal.name)
             form.addRow(label, picker)
             self._pickers[terminal.name] = picker
         for name, schema in self._spec.properties.items():
@@ -1071,9 +1071,8 @@ class PeripheralsPanel(QWidget):
 
     def _save_configuration(self, dialog: PeripheralConfigDialog, peripheral) -> None:
         value = dialog.value()
-        required = spec_for(peripheral.kind).required_terminals(value["properties"])
-        if not value["id"] or any(terminal not in value["connections"] for terminal in required):
-            dialog.show_error(t("Complete the identifier and every terminal."))
+        if not value["id"]:
+            dialog.show_error(t("Complete the identifier."))
             return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         ids = [item["id"] for item in raw.get("peripherals", []) if item["id"] != peripheral.peripheral_id]
@@ -1091,6 +1090,7 @@ class PeripheralsPanel(QWidget):
             return
         if self._commit(raw, t("{identifier} updated", identifier=value["id"])):
             dialog.accept()
+            self._show_missing_connection_warning(value)
 
     def _validation_error(self, raw) -> str | None:
         try:
@@ -1216,6 +1216,30 @@ class PeripheralsPanel(QWidget):
     def current_wires(self):
         return getattr(self, "_resolved_wires", ())
 
+    def missing_required_connections(self) -> tuple[str, ...]:
+        """Return required terminals intentionally left electrically open."""
+        missing: list[str] = []
+        for peripheral in VirtualLabProject.load(self._lab).peripherals:
+            required = spec_for(peripheral.kind).required_terminals(peripheral.properties)
+            missing.extend(
+                f"{peripheral.peripheral_id}.{terminal}"
+                for terminal in required
+                if not peripheral.connections.get(terminal)
+            )
+        return tuple(missing)
+
+    def _show_missing_connection_warning(self, value: dict[str, object]) -> None:
+        spec = spec_for(str(value["type"]))
+        properties = dict(value.get("properties", {}))
+        connections = dict(value.get("connections", {}))
+        missing = [terminal for terminal in spec.required_terminals(properties) if not connections.get(terminal)]
+        if missing:
+            self._show_status(t(
+                "{identifier} saved with required terminals not connected: {terminals}.",
+                identifier=value["id"],
+                terminals=", ".join(missing),
+            ))
+
     def _add_kind(self, kind: str) -> None:
         if not self._editing_enabled or kind not in load_catalog():
             return
@@ -1231,9 +1255,8 @@ class PeripheralsPanel(QWidget):
 
     def _save_new_peripheral(self, dialog: PeripheralConfigDialog, kind: str, existing: set[str]) -> None:
         value = dialog.value()
-        required = spec_for(kind).required_terminals(value["properties"])
-        if not value["id"] or any(terminal not in value["connections"] for terminal in required):
-            dialog.show_error(t("Complete the identifier and every terminal."))
+        if not value["id"]:
+            dialog.show_error(t("Complete the identifier."))
             return
         if value["id"] in existing:
             dialog.show_error(t("A peripheral with that identifier already exists."))
@@ -1246,3 +1269,4 @@ class PeripheralsPanel(QWidget):
             return
         if self._commit(raw, t("{identifier} added", identifier=value["id"])):
             dialog.accept()
+            self._show_missing_connection_warning(value)

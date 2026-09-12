@@ -227,10 +227,12 @@ class FPGAVirtualLab(QWidget):
             self.status_changed.emit(t("VGA monitor requires a clocked design."))
             return
         if bindings and self._clock_hz == 12_000_000:
-            self.status_changed.emit(t(
+            status = t(
                 "VGA 640×480 expects a ~25 MHz pixel clock; this lab is running at 12 MHz "
                 "(Alhambra default). Use --clock-hz 25000000 or 25175000."
-            ))
+            )
+        else:
+            status = t("Simulation running.") if self._has_clock is True else t("Combinational logic active.")
         self.configure_vga_requested.emit(bindings)
         # Combinational designs still need periodic visual frames so static
         # outputs can contribute to the peripheral persistence models.
@@ -239,8 +241,14 @@ class FPGAVirtualLab(QWidget):
         self.play_requested.emit()
         self._board_view.set_led_brightness("PWR", 1.0)
         self._edit_layout_button.setEnabled(False)
-        if not (bindings and self._clock_hz == 12_000_000):
-            self.status_changed.emit(t("Simulation running.") if self._has_clock is True else t("Combinational logic active."))
+        missing = self._peripherals.missing_required_connections()
+        if missing:
+            status += " " + t(
+                "{count} required peripheral terminal(s) are not connected: {terminals}.",
+                count=len(missing),
+                terminals=", ".join(missing),
+            )
+        self.status_changed.emit(status)
         self._peripherals.set_editable(False)
 
     def _pause(self) -> None:
