@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QMetaObject, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtWidgets import QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtCore import QEvent, QMetaObject, QSettings, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtWidgets import QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPushButton, QSplitter, QVBoxLayout, QWidget
 
 from .board import BoardDefinition, bundled_board_definition
 from .i18n import language_manager, t
@@ -19,6 +19,19 @@ from .simulation import VerilatorSimulation
 from .simulation_worker import SimulationFrame, SimulationWorker
 from .wiring import VirtualLabProject
 from .theme import Metrics, style_button
+
+
+_PANEL_SPLIT_KEY = "ui/board_workbench_ratio"
+_DEFAULT_PANEL_SPLIT = 0.3
+
+
+def _panel_split_ratio(settings: QSettings) -> float:
+    """Read a safe per-user board/workbench width ratio."""
+    try:
+        ratio = float(settings.value(_PANEL_SPLIT_KEY, _DEFAULT_PANEL_SPLIT))
+    except (TypeError, ValueError):
+        return _DEFAULT_PANEL_SPLIT
+    return min(0.75, max(0.2, ratio))
 
 
 class FPGAVirtualLab(QWidget):
@@ -45,6 +58,7 @@ class FPGAVirtualLab(QWidget):
         led_sources: dict[int, tuple[str, int]] | None = None,
         input_sources: dict[str, tuple[str, int]] | None = None,
         parent=None,
+        settings: QSettings | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle(t("FPGALab · Virtual FPGA Lab"))
@@ -60,6 +74,7 @@ class FPGAVirtualLab(QWidget):
         self._input_widths = dict(simulation.profile.inputs) if simulation else {}
         self._led_sources = led_sources
         self._input_sources = input_sources or {}
+        self._settings = settings if settings is not None else QSettings("FPGALab", "FPGALab")
         self._board_input_values: dict[str, int] = {}
         self._layout = BoardLayout.load(bundled_layout())
         self._project_pcf = project_pcf
@@ -94,11 +109,13 @@ class FPGAVirtualLab(QWidget):
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        root = QHBoxLayout()
-        root.setContentsMargins(0, 0, 0, 0)
-        outer.addLayout(root)
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setObjectName("labSplitter")
+        self._splitter.setChildrenCollapsible(False)
+        self._splitter.setHandleWidth(7)
+        outer.addWidget(self._splitter)
         board_panel = QFrame(objectName="boardPanel")
-        board_panel.setMinimumWidth(300)
+        board_panel.setMinimumWidth(240)
         board_layout = QVBoxLayout(board_panel)
         board_layout.setContentsMargins(Metrics.SPACE_MD, Metrics.SPACE_MD, Metrics.SPACE_MD, Metrics.SPACE_MD)
         board_header = QHBoxLayout()
@@ -117,9 +134,7 @@ class FPGAVirtualLab(QWidget):
         board_layout.addLayout(board_header)
         self._board_view = BoardView(self._layout, self._bouncy_input)
         board_layout.addWidget(self._board_view, 1)
-        root.addWidget(board_panel, 2)
-
-        controls = QVBoxLayout()
+        self._splitter.addWidget(board_panel)
         gpio_panel = QFrame(objectName="panel")
         gpio_layout = QVBoxLayout(gpio_panel)
         gpio_layout.setContentsMargins(0, 0, 0, 0)
@@ -133,10 +148,31 @@ class FPGAVirtualLab(QWidget):
         self._peripherals.input_changed.connect(self.set_input_requested)
         self._peripherals.changed.connect(self.status_changed.emit)
         gpio_layout.addWidget(self._peripherals, 1)
-        controls.addWidget(gpio_panel, 1)
-        root.addLayout(controls, 3)
+        self._splitter.addWidget(gpio_panel)
+        self._splitter.setStretchFactor(0, 2)
+        self._splitter.setStretchFactor(1, 3)
+        self._splitter.splitterMoved.connect(self._save_panel_split)
+        QTimer.singleShot(0, self._restore_panel_split)
         language_manager.language_changed.connect(self._retranslate_ui)
         self._retranslate_ui()
+
+    def _restore_panel_split(self) -> None:
+        """Apply the remembered ratio after Qt has assigned the initial width."""
+        total = max(self._splitter.width(), sum(self._splitter.sizes()))
+        if total <= 0:
+            return
+        board_width = round(total * _panel_split_ratio(self._settings))
+        self._splitter.setSizes([board_width, total - board_width])
+
+    def _save_panel_split(self, _position: int, _index: int) -> None:
+        """Persist the divider as a ratio so it survives window-size changes."""
+        sizes = self._splitter.sizes()
+        total = sum(sizes)
+        if total <= 0:
+            return
+        ratio = min(0.75, max(0.2, sizes[0] / total))
+        self._settings.setValue(_PANEL_SPLIT_KEY, ratio)
+        self._settings.sync()
 
     def _retranslate_ui(self) -> None:
         self.setWindowTitle(t("FPGALab · Virtual FPGA Lab"))

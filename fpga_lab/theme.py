@@ -117,6 +117,8 @@ def application_stylesheet(mode: str = "dark") -> str:
     QFrame#panel, QFrame#toolbarPanel {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_MD}px; }}
     QFrame#boardPanel {{ background: {p.board_surface}; border: 1px solid {p.board_border}; border-radius: {Metrics.RADIUS_LG}px; }}
     QFrame#catalogDrawer {{ background: {p.surface}; border: 1px solid {p.border_strong}; border-radius: {Metrics.RADIUS_LG}px; }}
+    QSplitter#labSplitter::handle {{ background: {p.canvas}; border: 0; }}
+    QSplitter#labSplitter::handle:hover {{ background: {p.accent}; }}
     QLabel#drawerTitle {{ font-size: {Metrics.FONT_TITLE}px; font-weight: 700; }}
     QLabel#boardTitle {{ color: {p.board_title}; font-size: {Metrics.FONT_TITLE}px; font-weight: 700; }}
     QLabel#caption, QLabel#infoText, QLabel#clockStatus {{ color: {p.text_muted}; font-size: {Metrics.FONT_SMALL}px; }}

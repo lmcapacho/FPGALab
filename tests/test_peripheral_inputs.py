@@ -22,6 +22,34 @@ from fpga_lab.wiring import PeripheralInstance
 _APPLICATION = QApplication.instance() or QApplication([])
 
 
+def test_board_workbench_split_is_remembered_per_user(tmp_path):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    lab_file = tmp_path / "lab.json"
+    lab_file.write_text('{"peripherals": []}', encoding="utf-8")
+    first = FPGAVirtualLab(lab_file=lab_file, settings=settings)
+    first.resize(1000, 600)
+    first.show()
+    _APPLICATION.processEvents()
+
+    first._splitter.moveSplitter(350, 1)
+    _APPLICATION.processEvents()
+    saved_ratio = float(settings.value("ui/board_workbench_ratio"))
+
+    second = FPGAVirtualLab(lab_file=lab_file, settings=settings)
+    second.resize(1000, 600)
+    second.show()
+    _APPLICATION.processEvents()
+    restored_sizes = second._splitter.sizes()
+    restored_ratio = restored_sizes[0] / sum(restored_sizes)
+
+    assert 0.3 < saved_ratio < 0.4
+    assert abs(restored_ratio - saved_ratio) < 0.02
+    first.close()
+    second.close()
+    first.deleteLater()
+    second.deleteLater()
+
+
 def test_deleting_the_active_lab_immediately_selects_the_starter_lab(tmp_path, monkeypatch):
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
     workspace = LabWorkspace(tmp_path / "workspace", settings)
