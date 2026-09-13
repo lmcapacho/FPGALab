@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .button import ButtonRenderer
 from .bcd_display import BcdDisplayRenderer
+from .dip_switch import DipSwitchRenderer
 from .lamp import LampRenderer
 from .sensor import SensorRenderer
 from .seven_segment import SevenSegmentRenderer
@@ -12,6 +13,7 @@ from .vga_monitor import VgaMonitorRenderer
 
 _RENDERERS = {
     "bcd_display": BcdDisplayRenderer,
+    "dip_switch": DipSwitchRenderer,
     "lamp": LampRenderer,
     "traffic_light": TrafficLightRenderer,
     "seven_segment": SevenSegmentRenderer,

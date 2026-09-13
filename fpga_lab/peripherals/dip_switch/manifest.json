@@ -1,0 +1,17 @@
+{
+  "id": "dip_switch",
+  "label": "4-position DIP switch",
+  "category": "input",
+  "description": "Four independent latching switches for digital FPGA inputs.",
+  "keywords": ["dip", "switch", "bank", "four", "toggle", "input"],
+  "icon": "icon.svg",
+  "simulation": { "class": "gpio_driven" },
+  "terminals": [
+    { "name": "SW1", "direction": "input", "width": 1, "required": true },
+    { "name": "SW2", "direction": "input", "width": 1, "required": true },
+    { "name": "SW3", "direction": "input", "width": 1, "required": true },
+    { "name": "SW4", "direction": "input", "width": 1, "required": true }
+  ],
+  "properties": {},
+  "visual": { "renderer": "dip_switch", "size": [200, 125] }
+}

@@ -136,6 +136,8 @@
   "Project": "Proyecto",
   "Push button": "Pulsador",
   "BCD display": "Display BCD",
+  "4-position DIP switch": "DIP switch de 4 posiciones",
+  "Four independent latching switches for digital FPGA inputs.": "Cuatro interruptores independientes con enclavamiento para entradas digitales de la FPGA.",
   "Four-bit BCD display showing 0–9 and hexadecimal A–F.": "Display BCD de cuatro bits que muestra 0–9 y A–F hexadecimal.",
   "Ready to run. The cache will be reused if the design is unchanged.": "Listo para ejecutar. Se reutilizará la caché si el diseño no cambió.",
   "Recent projects": "Proyectos recientes",

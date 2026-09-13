@@ -550,6 +550,8 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     def set_powered(self, powered: bool) -> None:
         """Expose the virtual power state without inventing signal samples."""
         self._powered = powered
+        if powered and hasattr(self._renderer, "sync_inputs"):
+            self._renderer.sync_inputs(self._peripheral, self._input_changed)
         self.update()
 
     def set_button_pressed(self, source: str, pressed: bool) -> None:
@@ -596,6 +598,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         elif self._peripheral.kind == "button":
             self.set_button_pressed("mouse", True)
         self._renderer.mouse_press(self._peripheral, event.pos(), self._input_changed)
+        self.update()
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
