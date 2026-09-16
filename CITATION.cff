@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use FPGALab in academic work, please cite it using this metadata."
+type: software
+title: "FPGALab: Interactive virtual FPGA laboratory"
+authors:
+  - family-names: "Capacho"
+    given-names: "Luis Miguel"
+    email: "lmcapacho@gmail.com"
+abstract: >-
+  FPGALab is an interactive virtual FPGA laboratory for Icestudio and Verilog
+  designs, with a simulated board and configurable external peripherals.
+license: "AGPL-3.0-or-later"
+repository-code: "https://github.com/lmcapacho/FPGALab"
+url: "https://github.com/lmcapacho/FPGALab"
+keywords:
+  - FPGA
+  - Verilog
+  - Icestudio
+  - Verilator
+  - digital electronics education

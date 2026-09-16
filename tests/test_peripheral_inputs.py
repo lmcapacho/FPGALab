@@ -155,6 +155,24 @@ def test_model_changing_controls_are_locked_while_running(tmp_path):
     window.deleteLater()
 
 
+def test_about_dialog_identifies_the_maintainer_license_and_source(tmp_path, monkeypatch):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+    dialogs: list[QMessageBox] = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda dialog: dialogs.append(dialog))
+
+    window._show_about()
+
+    assert len(dialogs) == 1
+    text = dialogs[0].text()
+    assert "Luis Miguel Capacho" in text
+    assert "Affero" in text
+    assert "https://github.com/lmcapacho/FPGALab" in text
+    assert window._about_button.accessibleName()
+    window.close()
+    window.deleteLater()
+
+
 def test_combinational_lab_starts_visual_refresh(tmp_path):
     """Static combinational outputs need visual frames after Run is pressed."""
     lab_file = tmp_path / "lab.json"

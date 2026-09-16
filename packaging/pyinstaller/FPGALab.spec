@@ -6,8 +6,10 @@ import sys
 from PyInstaller.utils.hooks import collect_data_files
 
 
+repository_root = Path(SPECPATH).parents[1]
 datas = collect_data_files("fpga_lab")
-icon_directory = Path(SPECPATH).parents[1] / "fpga_lab" / "assets" / "icons"
+datas += [(str(repository_root / name), ".") for name in ("LICENSE", "NOTICE", "AUTHORS.md", "AI_USAGE.md")]
+icon_directory = repository_root / "fpga_lab" / "assets" / "icons"
 icon = icon_directory / ("fpgalab.icns" if sys.platform == "darwin" else "fpgalab.ico")
 
 a = Analysis(

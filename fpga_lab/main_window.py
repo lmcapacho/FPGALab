@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from . import __version__
 from .i18n import language_manager, t
 from .lab_workspace import LabWorkspace
 from .recent_projects import RecentProjects
@@ -316,6 +317,9 @@ class FPGALabMainWindow(QMainWindow):
         self._simulation_settings_button = QPushButton()
         style_button(self._simulation_settings_button, "icon", "settings")
         self._simulation_settings_button.clicked.connect(self.simulation_settings_requested.emit)
+        self._about_button = QPushButton()
+        style_button(self._about_button, "icon", "info")
+        self._about_button.clicked.connect(self._show_about)
         self._run_button = QPushButton()
         style_button(self._run_button, "success", "play")
         self._run_button.setFixedSize(Metrics.ICON_BUTTON_WIDTH, Metrics.CONTROL_HEIGHT)
@@ -331,6 +335,7 @@ class FPGALabMainWindow(QMainWindow):
         self._status_bar.addPermanentWidget(self._update_button)
         self._status_bar.addPermanentWidget(self._toolchain_button)
         self._status_bar.addPermanentWidget(self._simulation_settings_button)
+        self._status_bar.addPermanentWidget(self._about_button)
         self._status_bar.addPermanentWidget(self._run_button)
         self._status_bar.addPermanentWidget(self._stop_button)
         language_manager.language_changed.connect(self._retranslate_ui)
@@ -385,6 +390,8 @@ class FPGALabMainWindow(QMainWindow):
         self._update_button.setToolTip(t("Check for updates"))
         self._toolchain_button.setToolTip(t("Check simulation toolchain"))
         self._simulation_settings_button.setToolTip(t("Simulation settings"))
+        self._about_button.setToolTip(t("About FPGALab"))
+        self._about_button.setAccessibleName(t("About FPGALab"))
         self._run_button.setToolTip(t("Run selected project"))
         self._stop_button.setToolTip(t("Stop simulation"))
         self._refresh_clock_status()
@@ -392,6 +399,29 @@ class FPGALabMainWindow(QMainWindow):
         if not self._status_bar.currentMessage():
             self._status_bar.showMessage(t("Select a design to start."))
         self._refresh_recent()
+
+    def _show_about(self) -> None:
+        """Show project provenance and the legal notices required by the license."""
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Icon.Information)
+        dialog.setWindowTitle(t("About FPGALab"))
+        dialog.setTextFormat(Qt.TextFormat.RichText)
+        dialog.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        dialog.setText(
+            f"<h2>FPGALab {__version__}</h2>"
+            f"<p>{t('Interactive virtual FPGA laboratory for Verilog designs.')}</p>"
+            f"<p><b>{t('Created and maintained by Luis Miguel Capacho.')}</b><br>"
+            f"{t('Copyright © 2026 Luis Miguel Capacho and contributors.')}</p>"
+            f"<p>{t('Licensed under the GNU Affero General Public License, version 3 or later.')}</p>"
+            '<p><a href="https://github.com/lmcapacho/FPGALab">'
+            f"{t('Source code')}</a> · "
+            '<a href="https://github.com/lmcapacho/FPGALab/blob/main/LICENSE">'
+            f"{t('License')}</a></p>"
+            f"<p><small>{t('This software is provided without warranty.')}</small></p>"
+        )
+        for label in dialog.findChildren(QLabel):
+            label.setOpenExternalLinks(True)
+        dialog.exec()
 
     def _choose_language(self, index: int) -> None:
         language = self._language.itemData(index)

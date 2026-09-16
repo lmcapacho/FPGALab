@@ -6,9 +6,20 @@ build-backend = "setuptools.build_meta"
 name = "fpga-lab"
 version = "0.1.0rc2"
 description = "Interactive virtual laboratory for Verilog designs and FPGA boards"
+authors = [
+    {name = "Luis Miguel Capacho", email = "lmcapacho@gmail.com"},
+]
+maintainers = [
+    {name = "Luis Miguel Capacho", email = "lmcapacho@gmail.com"},
+]
 license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.10"
 dependencies = ["PyQt6>=6.5"]
+
+[project.urls]
+Homepage = "https://github.com/lmcapacho/FPGALab"
+Source = "https://github.com/lmcapacho/FPGALab"
+Issues = "https://github.com/lmcapacho/FPGALab/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]

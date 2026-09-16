@@ -5,7 +5,9 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files
 
 
+repository_root = Path(SPECPATH).parents[1]
 datas = collect_data_files("fpga_lab")
+datas += [(str(repository_root / name), ".") for name in ("LICENSE", "NOTICE", "AUTHORS.md", "AI_USAGE.md")]
 
 a = Analysis(
     [str(Path(SPECPATH) / "launcher.py")],
@@ -32,5 +34,5 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    icon=str(Path(SPECPATH).parents[1] / "fpga_lab" / "assets" / "icons" / "fpgalab.ico"),
+    icon=str(repository_root / "fpga_lab" / "assets" / "icons" / "fpgalab.ico"),
 )

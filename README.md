@@ -238,6 +238,12 @@ macOS releases provide separate `macos-x86_64.zip` (Intel) and `macos-arm64.zip`
 
 FPGALab is under active development. Alhambra II is currently the only officially supported board. Simulation still requires an external Verilator toolchain and native build tools. Windows packages are not Authenticode-signed and macOS packages are not Apple-notarized. The virtual frequency that can be sustained depends on the host computer and the complexity of the simulated design and Lab.
 
+## Project stewardship
+
+FPGALab was initiated and is led and maintained by **Luis Miguel Capacho**. Human contributors and their roles are listed in [AUTHORS.md](AUTHORS.md). Generative AI tools have assisted implementation, refactoring, testing, and documentation under human direction and review; the development policy is described in [AI_USAGE.md](AI_USAGE.md).
+
+If you use FPGALab in academic work, GitHub can generate a citation from [CITATION.cff](CITATION.cff).
+
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+Copyright © 2026 Luis Miguel Capacho and contributors. FPGALab is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE). See [NOTICE](NOTICE) for attribution and project provenance.
