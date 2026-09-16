@@ -556,6 +556,12 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._powered = powered
         if powered and hasattr(self._renderer, "sync_inputs"):
             self._renderer.sync_inputs(self._peripheral, self._input_changed)
+        if not powered:
+            self._active.clear()
+            self._brightness.clear()
+            self._press_sources.clear()
+            self._pressed = False
+            self._snapshot = None
         self.update()
 
     def set_button_pressed(self, source: str, pressed: bool) -> None:
@@ -659,6 +665,7 @@ class PeripheralsPanel(QWidget):
         self._output_widths = output_widths or {}
         self._output_indexes = {name: index for index, name in enumerate(self._output_widths)}
         self._input_values = {}; self._editing_enabled = True
+        self._powered = False
         self._assigned_endpoints = None  # The entire board is available; the design PCF is optional.
         self._temporal_probes: list[tuple[tuple[int, int, bool], ...]] = []
         self._temporal_bindings: list[tuple[WorkbenchPeripheralItem, str]] = []
@@ -957,6 +964,7 @@ class PeripheralsPanel(QWidget):
 
     def set_powered(self, powered: bool) -> None:
         """Propagate simulation power state to manifest renderers."""
+        self._powered = powered
         for item in self._workbench_scene.items():
             if isinstance(item, WorkbenchPeripheralItem):
                 item.set_powered(powered)
@@ -992,6 +1000,8 @@ class PeripheralsPanel(QWidget):
         ConnectionDialog(self._board, self._constraints(), self._resolved_wires, self).exec()
 
     def _drive_input(self, peripheral_id, terminal, value):
+        if not self._powered:
+            return
         binding = self._workbench_bindings.get((peripheral_id, terminal))
         net = binding[1] if binding else None
         match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)\])?", net or "")

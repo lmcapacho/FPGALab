@@ -255,7 +255,7 @@ class FPGAVirtualLab(QWidget):
         self._running = False
         self._peripherals.set_powered(False)
         self.pause_requested.emit()
-        self._board_view.set_led_brightness("PWR", 0.0)
+        self._board_view.clear_leds()
         self._edit_layout_button.setEnabled(True)
         self.status_changed.emit(t("Simulation stopped."))
         self._peripherals.set_editable(True)
@@ -267,6 +267,8 @@ class FPGAVirtualLab(QWidget):
 
     def _bouncy_input(self, name: str, final_value: int) -> None:
         """Three quick transitions make button bounce perceptible and configurable."""
+        if not self._running:
+            return
         if name == "RESET":
             self.reset_requested.emit()
             return
@@ -285,13 +287,15 @@ class FPGAVirtualLab(QWidget):
             self._bounce_timers.append(timer)
 
     def _set_board_input(self, port: str, bit: int, value: int) -> None:
+        if not self._running:
+            return
         current = self._board_input_values.get(port, 0)
         current = current | (1 << bit) if value else current & ~(1 << bit)
         self._board_input_values[port] = current
         self.set_input_requested.emit(port, current)
 
     def _paint_state(self, frame: SimulationFrame) -> None:
-        if self._ignore_state:
+        if self._ignore_state or not self._running:
             return
         for index, state in enumerate(frame.led_brightness):
             self._board_view.set_led_brightness(f"LED{index}", float(state))

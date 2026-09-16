@@ -164,6 +164,11 @@ class BoardView(QGraphicsView):
         if led := self._leds.get(signal):
             led.set_brightness(brightness)
 
+    def clear_leds(self) -> None:
+        """Turn off every visual indicator when the virtual board loses power."""
+        for led in self._leds.values():
+            led.set_brightness(0.0)
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)

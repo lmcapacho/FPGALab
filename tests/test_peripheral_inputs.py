@@ -176,9 +176,11 @@ def test_stopped_lab_ignores_queued_clock_measurements(tmp_path):
     lab = FPGAVirtualLab(lab_file=lab_file)
     lab._has_clock = True
     measurements: list[tuple[float, float]] = []
+    painted_frames: list[SimulationFrame] = []
     lab.clock_performance_changed.connect(
         lambda requested, achieved: measurements.append((requested, achieved))
     )
+    lab._peripherals.update_frame = painted_frames.append
     frame = SimulationFrame(led_brightness=(0.0,) * 8, outputs={}, virtual_hz=8_000_000)
 
     lab._running = True
@@ -187,6 +189,7 @@ def test_stopped_lab_ignores_queued_clock_measurements(tmp_path):
     lab._paint_state(frame)
 
     assert measurements == [(12_000_000.0, 8_000_000.0)]
+    assert painted_frames == [frame]
     lab.close()
     lab.deleteLater()
 
@@ -211,10 +214,42 @@ def test_button_routes_a_scalar_pcf_net(tmp_path):
     values: list[tuple[str, int]] = []
     panel.input_changed.connect(lambda name, value: values.append((name, value)))
 
+    panel.set_powered(True)
     panel._drive_input("button_1", "signal", 1)
     panel._drive_input("button_1", "signal", 0)
 
     assert values == [("input_signal", 1), ("input_signal", 0)]
+    panel.deleteLater()
+    assert _APPLICATION is not None
+
+
+def test_stopped_panel_does_not_drive_combinational_inputs(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab = tmp_path / "lab.json"
+    lab.write_text(
+        json.dumps({
+            "peripherals": [{
+                "id": "button_1",
+                "type": "button",
+                "connections": {"signal": "D3"},
+                "properties": {},
+            }],
+        }),
+        encoding="utf-8",
+    )
+    pcf = tmp_path / "main.pcf"
+    pcf.write_text(f"set_io input_signal {board.fpga_pin_for('D3')}\n", encoding="utf-8")
+    panel = PeripheralsPanel(board, pcf, lab, {"input_signal": 1})
+    values: list[tuple[str, int]] = []
+    panel.input_changed.connect(lambda name, value: values.append((name, value)))
+
+    panel._drive_input("button_1", "signal", 1)
+    panel.set_powered(True)
+    panel._drive_input("button_1", "signal", 1)
+    panel.set_powered(False)
+    panel._drive_input("button_1", "signal", 0)
+
+    assert values == [("input_signal", 1)]
     panel.deleteLater()
     assert _APPLICATION is not None
 
