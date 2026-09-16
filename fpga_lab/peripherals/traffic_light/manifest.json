@@ -19,5 +19,5 @@
       "label": "Lamp colors"
     }
   },
-  "visual": { "renderer": "traffic_light", "size": [120, 180] }
+  "visual": { "renderer": "traffic_light", "size": [96, 170], "chrome": "compact" }
 }

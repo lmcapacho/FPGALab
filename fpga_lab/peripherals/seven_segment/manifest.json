@@ -37,5 +37,5 @@
       "label": "Color"
     }
   },
-  "visual": { "renderer": "seven_segment", "size": [150, 205] }
+  "visual": { "renderer": "seven_segment", "size": [138, 150], "chrome": "compact" }
 }

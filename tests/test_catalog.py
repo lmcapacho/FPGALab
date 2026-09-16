@@ -3,6 +3,7 @@ from fpga_lab.peripherals.manifest import RESERVED_PROPERTIES, parse_manifest
 from fpga_lab.peripheral_catalog_panel import matches_catalog_spec
 from fpga_lab.peripherals.renderers.bcd_display import active_bcd_segments, bcd_segments
 from fpga_lab.peripherals.renderers.dip_switch import DipSwitchRenderer
+from fpga_lab.peripherals.renderers.toggle_switch import ToggleSwitchRenderer
 from fpga_lab.wiring import PeripheralInstance
 from PyQt6.QtCore import QPointF
 from fpga_lab.wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS
@@ -12,7 +13,7 @@ def test_catalog_contains_original_five_and_vga():
     catalog = load_catalog()
     assert set(catalog) >= {
         "led", "traffic_light", "seven_segment", "button", "sensor",
-        "bcd_display", "dip_switch", "vga_monitor", "vga_6bit", "vga_12bit",
+        "bcd_display", "dip_switch", "toggle_switch", "vga_monitor", "vga_6bit", "vga_12bit",
     }
 
 
@@ -108,8 +109,8 @@ def test_four_position_dip_switch_toggles_and_resynchronizes_each_input():
     changes: list[tuple[str, str, int]] = []
     changed = lambda identifier, terminal, value: changes.append((identifier, terminal, value))
 
-    renderer.mouse_press(peripheral, QPointF(45, 60), changed)
-    renderer.mouse_press(peripheral, QPointF(119, 60), changed)
+    renderer.mouse_press(peripheral, QPointF(39, 34), changed)
+    renderer.mouse_press(peripheral, QPointF(91, 34), changed)
     renderer.sync_inputs(peripheral, changed)
 
     assert spec.required_terminals() == ("SW1", "SW2", "SW3", "SW4")
@@ -119,6 +120,25 @@ def test_four_position_dip_switch_toggles_and_resynchronizes_each_input():
         ("dip_switch_1", "SW2", 0),
         ("dip_switch_1", "SW3", 1),
         ("dip_switch_1", "SW4", 0),
+    ]
+
+
+def test_toggle_switch_latches_and_resynchronizes_its_input():
+    spec = load_catalog()["toggle_switch"]
+    renderer = ToggleSwitchRenderer()
+    peripheral = PeripheralInstance("switch_1", "toggle_switch", {}, {})
+    changes: list[tuple[str, str, int]] = []
+    changed = lambda identifier, terminal, value: changes.append((identifier, terminal, value))
+
+    renderer.mouse_press(peripheral, QPointF(48, 25), changed)
+    renderer.sync_inputs(peripheral, changed)
+    renderer.mouse_press(peripheral, QPointF(48, 25), changed)
+
+    assert spec.required_terminals() == ("signal",)
+    assert changes == [
+        ("switch_1", "signal", 1),
+        ("switch_1", "signal", 1),
+        ("switch_1", "signal", 0),
     ]
 
 

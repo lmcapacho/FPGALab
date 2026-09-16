@@ -1,5 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <rect x="3" y="3" width="42" height="42" rx="10" fill="#172238" stroke="#41536f" stroke-width="2"/>
-  <path d="M17 27a7 7 0 0 1 14 0v3H17z" fill="#b6ff00" stroke="#d9ff73" stroke-width="2"/>
-  <path d="M20 30v9M28 30v9M14 39h20M33 15l5-5M34 10h4v4M34 21l6-2M36 18l4 1-1 4" fill="none" stroke="#91a2bb" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <radialGradient id="dome" cx="35%" cy="25%" r="75%">
+      <stop offset="0" stop-color="#dcff80"/>
+      <stop offset="0.55" stop-color="#9bd900"/>
+      <stop offset="1" stop-color="#426000"/>
+    </radialGradient>
+  </defs>
+  <path d="M13 33V23a11 11 0 0 1 22 0v10z" fill="url(#dome)" stroke="#749800" stroke-width="2"/>
+  <rect x="10" y="32" width="28" height="6" rx="2" fill="#496800" stroke="#334b00" stroke-width="1.5"/>
+  <path d="M18 18c2-3 6-4 9-2" fill="none" stroke="#efffc2" stroke-width="2" stroke-linecap="round"/>
 </svg>

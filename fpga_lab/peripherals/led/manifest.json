@@ -12,5 +12,5 @@
   "properties": {
     "color": { "type": "color", "default": "#b6ff00", "label": "Color" }
   },
-  "visual": { "renderer": "lamp", "size": [120, 88] }
+  "visual": { "renderer": "lamp", "size": [72, 84], "chrome": "compact" }
 }

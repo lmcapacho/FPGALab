@@ -12,5 +12,5 @@
   "properties": {
     "shortcut": { "type": "key_sequence", "default": "", "label": "Keyboard shortcut" }
   },
-  "visual": { "renderer": "button", "size": [150, 88] }
+  "visual": { "renderer": "button", "size": [92, 82], "chrome": "compact" }
 }

@@ -9,6 +9,7 @@ from .lamp import LampRenderer
 from .sensor import SensorRenderer
 from .seven_segment import SevenSegmentRenderer
 from .traffic_light import TrafficLightRenderer
+from .toggle_switch import ToggleSwitchRenderer
 from .vga_monitor import VgaMonitorRenderer
 
 _RENDERERS = {
@@ -16,6 +17,7 @@ _RENDERERS = {
     "dip_switch": DipSwitchRenderer,
     "lamp": LampRenderer,
     "traffic_light": TrafficLightRenderer,
+    "toggle_switch": ToggleSwitchRenderer,
     "seven_segment": SevenSegmentRenderer,
     "button": ButtonRenderer,
     "sensor": SensorRenderer,

@@ -13,5 +13,5 @@
     { "name": "SW4", "direction": "input", "width": 1, "required": true }
   ],
   "properties": {},
-  "visual": { "renderer": "dip_switch", "size": [200, 125] }
+  "visual": { "renderer": "dip_switch", "size": [146, 90], "chrome": "compact" }
 }
