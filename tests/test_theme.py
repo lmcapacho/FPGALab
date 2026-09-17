@@ -17,6 +17,8 @@ def test_dark_and_light_styles_share_semantic_structure():
         assert 'QPushButton[role="primary"]' in stylesheet
         assert 'QPushButton[role="danger"]' in stylesheet
         assert 'QPushButton[role="icon"]' in stylesheet
+        assert "QComboBox QAbstractItemView" in stylesheet
+        assert "QStatusBar::item" in stylesheet
     application_stylesheet("dark")
 
 

@@ -132,6 +132,14 @@ def application_stylesheet(mode: str = "dark") -> str:
     QComboBox {{ padding-right: 30px; }}
     QComboBox::drop-down {{ border: 0; width: 28px; }}
     QComboBox::down-arrow {{ image: url("{combo_arrow}"); width: 12px; height: 12px; }}
+    QComboBox QAbstractItemView {{
+        background: {p.surface_raised}; color: {p.text}; border: 1px solid {p.border_strong};
+        selection-background-color: {p.accent}; selection-color: {p.accent_text}; outline: 0;
+    }}
+    QComboBox QAbstractItemView::item {{ min-height: {Metrics.CONTROL_HEIGHT}px; padding: 2px 8px; }}
+    QComboBox QAbstractItemView::item:hover {{ background: {p.surface_hover}; color: {p.text}; }}
+    QComboBox QAbstractItemView::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
+    QComboBox QAbstractItemView::item:disabled {{ background: {p.surface_raised}; color: {p.text_muted}; }}
     QComboBox#languageSelector {{ padding: 0 14px 0 5px; }}
     QComboBox#languageSelector::drop-down {{ width: 14px; }}
     QComboBox#languageSelector::down-arrow {{ width: 8px; height: 8px; }}
@@ -166,6 +174,7 @@ def application_stylesheet(mode: str = "dark") -> str:
     QPushButton#switch {{ background: {p.surface_raised}; border: 1px solid {p.border_strong}; border-radius: {Metrics.RADIUS_MD}px; padding: 10px; font-weight: 700; }}
     QPushButton#switch:pressed {{ background: {p.success}; color: {p.accent_text}; }}
     QStatusBar {{ background: {p.surface}; color: {p.warning}; border-top: 1px solid {p.border}; font-weight: 600; }}
+    QStatusBar::item {{ border: 0; }}
     QProgressBar {{ background: {p.surface_raised}; border: 1px solid {p.border}; border-radius: 4px; text-align: center; }}
     QProgressBar::chunk {{ background: {p.accent}; border-radius: 3px; }}
     QToolTip {{ background: {p.surface_raised}; color: {p.text}; border: 1px solid {p.border_strong}; padding: 4px; }}
