@@ -1,7 +1,11 @@
 from fpga_lab.peripherals.catalog import icon_path_for, load_catalog
 from fpga_lab.peripherals.manifest import RESERVED_PROPERTIES, parse_manifest
 from fpga_lab.peripheral_catalog_panel import matches_catalog_spec
-from fpga_lab.peripherals.renderers.bcd_display import active_bcd_segments, bcd_segments
+from fpga_lab.peripherals.renderers.bcd_display import (
+    active_bcd_segments,
+    bcd_enable_active,
+    bcd_segments,
+)
 from fpga_lab.peripherals.renderers.dip_switch import DipSwitchRenderer
 from fpga_lab.peripherals.renderers.toggle_switch import ToggleSwitchRenderer
 from fpga_lab.wiring import PeripheralInstance
@@ -90,6 +94,8 @@ def test_bcd_display_declares_four_bits_and_shows_hexadecimal_codes():
 
     assert display.required_terminals() == ("A", "B", "C", "D")
     assert display.visual["renderer"] == "bcd_display"
+    assert display.visual["chrome"] == "compact"
+    assert display.terminal_map()["enable"].required is False
     assert bcd_segments(0) == frozenset("abcdef")
     assert bcd_segments(8) == frozenset("abcdefg")
     assert bcd_segments(9) == frozenset("abcdfg")
@@ -100,6 +106,11 @@ def test_bcd_display_declares_four_bits_and_shows_hexadecimal_codes():
     assert active_bcd_segments({}, True) == frozenset()
     assert active_bcd_segments(zero, False) == frozenset()
     assert active_bcd_segments(zero, True) == frozenset("abcdef")
+    assert bcd_enable_active({}, None)
+    assert bcd_enable_active({"enable": True}, "D0")
+    assert not bcd_enable_active({"enable": False}, "D0")
+    assert active_bcd_segments(zero, True, enable_endpoint="D0") == frozenset()
+    assert active_bcd_segments({**zero, "enable": True}, True, enable_endpoint="D0") == frozenset("abcdef")
 
 
 def test_four_position_dip_switch_toggles_and_resynchronizes_each_input():

@@ -10,10 +10,11 @@
     { "name": "A", "direction": "output", "width": 1, "required": true },
     { "name": "B", "direction": "output", "width": 1, "required": true },
     { "name": "C", "direction": "output", "width": 1, "required": true },
-    { "name": "D", "direction": "output", "width": 1, "required": true }
+    { "name": "D", "direction": "output", "width": 1, "required": true },
+    { "name": "enable", "direction": "output", "width": 1, "required": false }
   ],
   "properties": {
     "color": { "type": "color", "default": "#ff3b30", "label": "Color" }
   },
-  "visual": { "renderer": "bcd_display", "size": [150, 205] }
+  "visual": { "renderer": "bcd_display", "size": [138, 150], "chrome": "compact" }
 }
