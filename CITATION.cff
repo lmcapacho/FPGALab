@@ -2,6 +2,8 @@ cff-version: 1.2.0
 message: "If you use FPGALab in academic work, please cite it using this metadata."
 type: software
 title: "FPGALab: Interactive virtual FPGA laboratory"
+version: "0.1.0rc3"
+date-released: 2026-09-16
 authors:
   - family-names: "Capacho"
     given-names: "Luis Miguel"

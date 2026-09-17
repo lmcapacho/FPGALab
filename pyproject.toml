@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fpga-lab"
-version = "0.1.0rc2"
+version = "0.1.0rc3"
 description = "Interactive virtual laboratory for Verilog designs and FPGA boards"
 authors = [
     {name = "Luis Miguel Capacho", email = "lmcapacho@gmail.com"},
