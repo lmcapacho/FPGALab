@@ -1,0 +1,53 @@
+site_name: FPGALab Documentation
+site_description: User and contributor documentation for FPGALab
+site_url: https://lmcapacho.github.io/FPGALab/en/
+repo_url: https://github.com/lmcapacho/FPGALab
+repo_name: lmcapacho/FPGALab
+docs_dir: docs/en
+theme:
+  name: material
+  language: en
+  icon:
+    logo: material/memory
+    repo: fontawesome/brands/github
+  features:
+    - navigation.footer
+    - navigation.sections
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/weather-night
+        name: Use dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/weather-sunny
+        name: Use light mode
+plugins:
+  - search:
+      lang: en
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.superfences
+extra:
+  alternate:
+    - name: English
+      link: /FPGALab/en/
+      lang: en
+    - name: Español
+      link: /FPGALab/es/
+      lang: es
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Labs and workbench: labs-and-workbench.md
+  - Toolchain and troubleshooting: troubleshooting.md
+  - Architecture and contribution: development.md

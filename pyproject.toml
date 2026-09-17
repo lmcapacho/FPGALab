@@ -23,6 +23,7 @@ Issues = "https://github.com/lmcapacho/FPGALab/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
+docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10"]
 
 [project.scripts]
 fpga-lab = "fpga_lab.app:main"

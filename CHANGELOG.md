@@ -4,6 +4,14 @@ All notable changes to FPGALab are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Bilingual English and Spanish documentation site with GitHub Pages deployment.
+
+### Changed
+
+- Split the workbench canvas and peripheral graphics item out of the main peripheral panel module.
+
 ## 0.1.0rc3 — 2026-09-16
 
 ### Added

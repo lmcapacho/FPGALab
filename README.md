@@ -2,6 +2,8 @@
 
 FPGALab is an interactive virtual FPGA laboratory for Verilog designs. It turns an Icestudio export into a native Verilator model and connects that model to a PyQt6 desktop interface, so learners can interact with a virtual board and peripherals without requiring physical hardware.
 
+User and contributor documentation is available in [English](https://lmcapacho.github.io/FPGALab/en/) and [Spanish](https://lmcapacho.github.io/FPGALab/es/).
+
 The first supported board is **Alhambra II**. Boards, workbench parts, and their visual renderers are separated from the simulation engine so the platform can grow without coupling every peripheral to the core application.
 
 ## Screenshot
