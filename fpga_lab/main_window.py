@@ -553,6 +553,12 @@ class FPGALabMainWindow(QMainWindow):
         self._refresh_clock_status()
 
     def _refresh_clock_status(self) -> None:
+        reference = t(
+            "Clock: {requested} · Actual: {actual}",
+            requested="000.000 MHz",
+            actual="000.000 MHz",
+        )
+        self._clock_status.setMinimumWidth(self._clock_status.fontMetrics().horizontalAdvance(reference) + 8)
         if self._requested_clock_hz is None:
             self._clock_status.setText(t("Combinational design"))
             return
@@ -591,13 +597,18 @@ class FPGALabMainWindow(QMainWindow):
 
     def set_lab(self, lab: QWidget) -> None:
         previous = self._active_lab
-        self._active_lab = lab
-        self._content.addWidget(lab)
-        self._content.setCurrentWidget(lab)
-        if previous is not None:
-            self._content.removeWidget(previous)
-            previous.close()
-            previous.deleteLater()
+        self._content.setUpdatesEnabled(False)
+        try:
+            self._active_lab = lab
+            self._content.addWidget(lab)
+            self._content.setCurrentWidget(lab)
+            if previous is not None:
+                self._content.removeWidget(previous)
+                previous.close()
+                previous.deleteLater()
+        finally:
+            self._content.setUpdatesEnabled(True)
+            self._content.update()
 
     def closeEvent(self, event) -> None:
         self._close_block_reason = None

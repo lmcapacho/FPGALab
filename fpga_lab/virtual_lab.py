@@ -148,20 +148,11 @@ class FPGAVirtualLab(QWidget):
         self._peripherals.changed.connect(self.status_changed.emit)
         gpio_layout.addWidget(self._peripherals, 1)
         self._splitter.addWidget(gpio_panel)
-        self._splitter.setStretchFactor(0, 2)
-        self._splitter.setStretchFactor(1, 3)
+        ratio = _panel_split_ratio(self._settings)
+        self._splitter.setSizes([round(ratio * 1000), round((1.0 - ratio) * 1000)])
         self._splitter.splitterMoved.connect(self._save_panel_split)
-        QTimer.singleShot(0, self._restore_panel_split)
         language_manager.language_changed.connect(self._retranslate_ui)
         self._retranslate_ui()
-
-    def _restore_panel_split(self) -> None:
-        """Apply the remembered ratio after Qt has assigned the initial width."""
-        total = max(self._splitter.width(), sum(self._splitter.sizes()))
-        if total <= 0:
-            return
-        board_width = round(total * _panel_split_ratio(self._settings))
-        self._splitter.setSizes([board_width, total - board_width])
 
     def _save_panel_split(self, _position: int, _index: int) -> None:
         """Persist the divider as a ratio so it survives window-size changes."""

@@ -45,6 +45,20 @@ def test_main_window_stays_open_when_the_active_lab_cannot_close(tmp_path):
     window.deleteLater()
 
 
+def test_clock_indicator_reserves_space_before_actual_frequency_arrives(tmp_path):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+
+    window.set_clock_performance(12_000_000)
+    reserved_width = window._clock_status.minimumWidth()
+    window.set_clock_performance(12_000_000, 8_750_000)
+
+    assert window._clock_status.minimumWidth() == reserved_width
+    assert window._clock_status.sizeHint().width() <= reserved_width
+    window.close()
+    window.deleteLater()
+
+
 def test_closing_a_running_worker_stops_its_thread_and_native_simulation(tmp_path):
     class FakeSimulation:
         profile = SimpleNamespace(board_name="Test", inputs={}, outputs={}, clock_name="clk")

@@ -724,6 +724,9 @@ class PeripheralsPanel(QWidget):
         self._catalog_button.setFixedSize(44, 44)
         self._catalog_button.setIconSize(QSize(22, 22))
         self._catalog_button.clicked.connect(self._toggle_catalog)
+        # The workbench geometry is not final until its first layout pass.
+        # Keep the overlay hidden instead of briefly painting it at (0, 0).
+        self._catalog_button.hide()
         self._catalog_panel = PeripheralCatalogPanel(load_catalog(), self)
         self._catalog_panel.add_requested.connect(self._add_kind)
         self._workbench_bindings = {}; self._reload()
@@ -761,9 +764,12 @@ class PeripheralsPanel(QWidget):
             return
         margin = 14
         workbench_rect = self.workbench.geometry()
+        if workbench_rect.width() < self._catalog_button.width() + margin * 2:
+            return
         x = workbench_rect.right() - self._catalog_button.width() - margin
         y = workbench_rect.top() + margin
         self._catalog_button.move(x, y)
+        self._catalog_button.show()
         if not self._catalog_panel.isVisible():
             self._catalog_button.raise_()
 
