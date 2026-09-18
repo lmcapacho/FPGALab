@@ -202,6 +202,12 @@ class BoardLayoutEditor(QDialog):
             return True
         return False
 
+    def refresh_theme(self) -> None:
+        """Refresh custom canvas colors after a live palette switch."""
+        self._canvas.setBackgroundBrush(color("canvas"))
+        self._scene.update()
+        self._canvas.viewport().update()
+
     def fit_to_canvas(self) -> None:
         self._canvas.fitInView(self._bounds, Qt.AspectRatioMode.KeepAspectRatio)
 

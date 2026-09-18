@@ -365,6 +365,12 @@ class PeripheralsPanel(QWidget):
         for item in self._workbench_scene.items():
             item.update()
 
+    def refresh_theme(self) -> None:
+        """Refresh custom-painted peripheral items after a palette change."""
+        self._workbench_scene.update()
+        self.workbench.viewport().update()
+        self._catalog_panel.update()
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         if hasattr(self, "_catalog_panel"):

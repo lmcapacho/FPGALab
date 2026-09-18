@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -32,7 +33,15 @@ from . import __version__
 from .i18n import language_manager, t
 from .lab_workspace import LabWorkspace
 from .recent_projects import RecentProjects
-from .theme import Metrics, style_button
+from .theme import (
+    Metrics,
+    application_palette,
+    application_stylesheet,
+    icon,
+    load_theme_mode,
+    save_theme_mode,
+    style_button,
+)
 
 
 def _style_lab_icon_button(button: QPushButton, icon_name: str) -> None:
@@ -281,11 +290,13 @@ class FPGALabMainWindow(QMainWindow):
     update_requested = pyqtSignal()
     closing = pyqtSignal()
 
-    def __init__(self, workspace: LabWorkspace, parent=None):
+    def __init__(self, workspace: LabWorkspace, parent=None, settings: QSettings | None = None):
         super().__init__(parent)
         self.setMinimumSize(1000, 680)
         self._recent_projects = RecentProjects()
         self._workspace = workspace
+        self._settings = settings if settings is not None else QSettings("FPGALab", "FPGALab")
+        self._theme_mode = load_theme_mode(self._settings)
         self._selected_lab = self._workspace.last_selected()
         self._active_lab: QWidget | None = None
         self._busy_dialog: QProgressDialog | None = None
@@ -370,6 +381,10 @@ class FPGALabMainWindow(QMainWindow):
         self._language.setCurrentIndex(self._language.findData(language_manager.language))
         self._language.currentIndexChanged.connect(self._choose_language)
         self._language.setFixedWidth(58)
+        self._theme_button = QPushButton()
+        style_button(self._theme_button, "icon")
+        self._theme_button.clicked.connect(self._toggle_theme)
+        self._refresh_theme_button()
         layout.addWidget(self._project_label)
         layout.addWidget(self._path, 3)
         layout.addWidget(self._browse_button)
@@ -377,6 +392,7 @@ class FPGALabMainWindow(QMainWindow):
         layout.addSpacing(8)
         layout.addWidget(self._lab_button, 2)
         layout.addWidget(self._language)
+        layout.addWidget(self._theme_button)
         return frame
 
     def _retranslate_ui(self) -> None:
@@ -387,6 +403,7 @@ class FPGALabMainWindow(QMainWindow):
         self._browse_button.setToolTip(t("Browse for an Icestudio design"))
         self._lab_button.setToolTip(t("Select or manage labs"))
         self._language.setToolTip(t("Interface language"))
+        self._refresh_theme_button()
         self._update_button.setToolTip(t("Check for updates"))
         self._toolchain_button.setToolTip(t("Check simulation toolchain"))
         self._simulation_settings_button.setToolTip(t("Simulation settings"))
@@ -427,6 +444,33 @@ class FPGALabMainWindow(QMainWindow):
         language = self._language.itemData(index)
         if language:
             language_manager.set_language(language)
+
+    def _refresh_theme_button(self) -> None:
+        """Show the action available from the current theme."""
+        target = "light" if self._theme_mode == "dark" else "dark"
+        self._theme_button.setIcon(icon("sun" if target == "light" else "moon"))
+        tooltip = t("Switch to light mode") if target == "light" else t("Switch to dark mode")
+        self._theme_button.setToolTip(tooltip)
+        self._theme_button.setAccessibleName(tooltip)
+
+    def _toggle_theme(self) -> None:
+        """Switch palettes immediately and retain the choice for future launches."""
+        self._theme_mode = save_theme_mode(
+            "light" if self._theme_mode == "dark" else "dark",
+            self._settings,
+        )
+        application = QApplication.instance()
+        if application is not None:
+            application.setPalette(application_palette(self._theme_mode))
+            application.setStyleSheet(application_stylesheet(self._theme_mode))
+        self._refresh_theme_button()
+        if self._active_lab is not None and hasattr(self._active_lab, "refresh_theme"):
+            self._active_lab.refresh_theme()
+        if application is not None:
+            for widget in application.topLevelWidgets():
+                if widget is not self and hasattr(widget, "refresh_theme"):
+                    widget.refresh_theme()
+        self.update()
 
     def _refresh_labs(self) -> None:
         current = self._selected_lab.resolve()

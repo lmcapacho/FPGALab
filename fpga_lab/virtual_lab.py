@@ -113,9 +113,9 @@ class FPGAVirtualLab(QWidget):
         self._splitter.setChildrenCollapsible(False)
         self._splitter.setHandleWidth(7)
         outer.addWidget(self._splitter)
-        board_panel = QFrame(objectName="boardPanel")
-        board_panel.setMinimumWidth(240)
-        board_layout = QVBoxLayout(board_panel)
+        self._board_panel = QFrame(objectName="boardPanel")
+        self._board_panel.setMinimumWidth(240)
+        board_layout = QVBoxLayout(self._board_panel)
         board_layout.setContentsMargins(Metrics.SPACE_MD, Metrics.SPACE_MD, Metrics.SPACE_MD, Metrics.SPACE_MD)
         board_header = QHBoxLayout()
         self._board_title = QLabel()
@@ -133,7 +133,7 @@ class FPGAVirtualLab(QWidget):
         board_layout.addLayout(board_header)
         self._board_view = BoardView(self._layout, self._bouncy_input)
         board_layout.addWidget(self._board_view, 1)
-        self._splitter.addWidget(board_panel)
+        self._splitter.addWidget(self._board_panel)
         gpio_panel = QFrame(objectName="panel")
         gpio_layout = QVBoxLayout(gpio_panel)
         gpio_layout.setContentsMargins(0, 0, 0, 0)
@@ -166,9 +166,23 @@ class FPGAVirtualLab(QWidget):
 
     def _retranslate_ui(self) -> None:
         self.setWindowTitle(t("FPGALab · Virtual FPGA Lab"))
-        self._board_title.setText(f"{self._board_name.upper()} · {t('VIRTUAL FPGA')}")
+        self._refresh_board_title()
         self._edit_layout_button.setToolTip(t("Edit board layout"))
         self._connections_button.setToolTip(t("View physical and HDL connections"))
+
+    def _refresh_board_title(self) -> None:
+        """Use a compact board title when toolbar actions need the available width."""
+        board_name = self._board_name.upper()
+        full_title = f"{board_name} · {t('VIRTUAL FPGA')}"
+        button_width = self._connections_button.width() + self._edit_layout_button.width()
+        available = max(0, self._board_panel.width() - button_width - 44)
+        title = full_title if self._board_title.fontMetrics().horizontalAdvance(full_title) <= available else board_name
+        self._board_title.setText(title)
+        self._board_title.setToolTip(full_title)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._refresh_board_title()
 
     def workbench_zoom(self) -> float:
         """Return the current workbench zoom before this hosted lab is replaced."""
@@ -189,6 +203,12 @@ class FPGAVirtualLab(QWidget):
     def restore_workbench_history(self, state) -> None:
         """Restore editing history after attaching a newly compiled simulation."""
         self._peripherals.restore_history_state(state)
+
+    def refresh_theme(self) -> None:
+        """Apply the active semantic palette to custom-painted Lab surfaces."""
+        self._board_view.refresh_theme()
+        self._peripherals.refresh_theme()
+        self.update()
 
     def set_lab_file(self, lab_file: str | Path) -> None:
         """Load another laboratory without rebuilding the active HDL model."""

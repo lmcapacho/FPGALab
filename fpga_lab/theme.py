@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtGui import QColor, QIcon
+from PyQt6.QtCore import QSettings
+from PyQt6.QtGui import QColor, QIcon, QPalette
 from PyQt6.QtWidgets import QPushButton
 
 
@@ -20,6 +21,7 @@ class ThemePalette:
     text: str
     text_muted: str
     accent: str
+    accent_surface: str
     accent_hover: str
     accent_text: str
     success: str
@@ -39,7 +41,7 @@ class ThemePalette:
 DARK = ThemePalette(
     canvas="#0b1220", surface="#111a2b", surface_raised="#172238", surface_hover="#22304a",
     border="#27364f", border_strong="#41536f", text="#e6edf7", text_muted="#91a2bb",
-    accent="#38bdf8", accent_hover="#7dd3fc", accent_text="#071521",
+    accent="#38bdf8", accent_surface="#12344a", accent_hover="#7dd3fc", accent_text="#071521",
     success="#22c55e", success_hover="#4ade80", success_surface="#14532d",
     danger="#ef4444", danger_hover="#f87171", danger_surface="#7f1d1d", warning="#fbbf24",
     board_surface="#102820", board_border="#34d67b", board_title="#bbf7d0",
@@ -49,7 +51,7 @@ DARK = ThemePalette(
 LIGHT = ThemePalette(
     canvas="#eef3f8", surface="#ffffff", surface_raised="#f7f9fc", surface_hover="#e8eef6",
     border="#d4dde9", border_strong="#9aabc0", text="#172033", text_muted="#5f7088",
-    accent="#0284c7", accent_hover="#0369a1", accent_text="#ffffff",
+    accent="#0284c7", accent_surface="#dbeafe", accent_hover="#0369a1", accent_text="#ffffff",
     success="#15803d", success_hover="#166534", success_surface="#dcfce7",
     danger="#dc2626", danger_hover="#b91c1c", danger_surface="#fee2e2", warning="#b45309",
     board_surface="#e8f5ee", board_border="#16a34a", board_title="#14532d",
@@ -74,6 +76,26 @@ class Metrics:
 
 _palette = DARK
 _ICON_DIR = Path(__file__).resolve().parent / "assets" / "icons" / "ui"
+THEME_KEY = "ui/theme"
+THEME_MODES = ("dark", "light")
+
+
+def load_theme_mode(settings: QSettings | None = None) -> str:
+    """Read a valid per-user theme preference, defaulting safely to dark."""
+    store = settings if settings is not None else QSettings("FPGALab", "FPGALab")
+    mode = str(store.value(THEME_KEY, "dark")).casefold()
+    return mode if mode in THEME_MODES else "dark"
+
+
+def save_theme_mode(mode: str, settings: QSettings | None = None) -> str:
+    """Persist one supported theme and return its normalized name."""
+    normalized = mode.casefold()
+    if normalized not in THEME_MODES:
+        raise ValueError(f"Unsupported theme: {mode}")
+    store = settings if settings is not None else QSettings("FPGALab", "FPGALab")
+    store.setValue(THEME_KEY, normalized)
+    store.sync()
+    return normalized
 
 
 def palette() -> ThemePalette:
@@ -91,6 +113,31 @@ def set_palette(mode: str) -> ThemePalette:
 def color(role: str) -> QColor:
     """Resolve a semantic color for custom-painted widgets."""
     return QColor(getattr(_palette, role))
+
+
+def application_palette(mode: str) -> QPalette:
+    """Provide native Qt controls with the same semantic colors as the QSS."""
+    p = LIGHT if mode.casefold() == "light" else DARK
+    result = QPalette()
+    roles = {
+        QPalette.ColorRole.Window: p.canvas,
+        QPalette.ColorRole.WindowText: p.text,
+        QPalette.ColorRole.Base: p.surface_raised,
+        QPalette.ColorRole.AlternateBase: p.surface,
+        QPalette.ColorRole.ToolTipBase: p.surface_raised,
+        QPalette.ColorRole.ToolTipText: p.text,
+        QPalette.ColorRole.Text: p.text,
+        QPalette.ColorRole.Button: p.surface_raised,
+        QPalette.ColorRole.ButtonText: p.text,
+        QPalette.ColorRole.Highlight: p.accent,
+        QPalette.ColorRole.HighlightedText: p.accent_text,
+        QPalette.ColorRole.PlaceholderText: p.text_muted,
+    }
+    for role, value in roles.items():
+        result.setColor(role, QColor(value))
+    result.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(p.text_muted))
+    result.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(p.text_muted))
+    return result
 
 
 def icon(name: str) -> QIcon:
@@ -111,6 +158,9 @@ def application_stylesheet(mode: str = "dark") -> str:
     """Build the application-wide QSS from one semantic palette."""
     p = set_palette(mode)
     combo_arrow = (_ICON_DIR / "chevron-down.svg").as_posix()
+    spin_suffix = "-light" if mode.casefold() == "light" else ""
+    spin_up_arrow = (_ICON_DIR / f"chevron-up{spin_suffix}.svg").as_posix()
+    spin_down_arrow = (_ICON_DIR / f"chevron-down{spin_suffix}.svg").as_posix()
     return f"""
     QMainWindow, QDialog {{ background: {p.canvas}; }}
     QWidget {{ color: {p.text}; font-family: Inter, "Segoe UI", Arial, sans-serif; font-size: {Metrics.FONT_SIZE}px; }}
@@ -129,22 +179,30 @@ def application_stylesheet(mode: str = "dark") -> str:
         border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_SM}px; selection-background-color: {p.accent};
     }}
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QKeySequenceEdit:focus {{ border-color: {p.accent}; }}
-    QComboBox {{ padding-right: 30px; }}
+    QComboBox {{ padding-right: 30px; combobox-popup: 0; }}
     QComboBox::drop-down {{ border: 0; width: 28px; }}
     QComboBox::down-arrow {{ image: url("{combo_arrow}"); width: 12px; height: 12px; }}
     QComboBox QAbstractItemView {{
         background: {p.surface_raised}; color: {p.text}; border: 1px solid {p.border_strong};
         selection-background-color: {p.accent}; selection-color: {p.accent_text}; outline: 0;
+        show-decoration-selected: 1;
     }}
     QComboBox QAbstractItemView::item {{ min-height: {Metrics.CONTROL_HEIGHT}px; padding: 2px 8px; }}
-    QComboBox QAbstractItemView::item:hover {{ background: {p.surface_hover}; color: {p.text}; }}
+    QComboBox QAbstractItemView::item:hover {{ background: {p.accent}; color: {p.accent_text}; }}
     QComboBox QAbstractItemView::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
     QComboBox QAbstractItemView::item:disabled {{ background: {p.surface_raised}; color: {p.text_muted}; }}
     QComboBox#languageSelector {{ padding: 0 14px 0 5px; }}
     QComboBox#languageSelector::drop-down {{ width: 14px; }}
     QComboBox#languageSelector::down-arrow {{ width: 8px; height: 8px; }}
-    QSpinBox {{ padding-right: 24px; }}
-    QSpinBox::up-button, QSpinBox::down-button {{ width: 20px; border: 0; background: {p.surface_hover}; }}
+    QSpinBox, QDoubleSpinBox {{ padding-right: 24px; }}
+    QSpinBox::up-button, QSpinBox::down-button,
+    QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+        width: 20px; border: 0; border-left: 1px solid {p.border_strong}; background: {p.accent_surface};
+    }}
+    QSpinBox::up-button:hover, QSpinBox::down-button:hover,
+    QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{ background: {p.surface_hover}; }}
+    QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{ image: url("{spin_up_arrow}"); width: 10px; height: 10px; }}
+    QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{ image: url("{spin_down_arrow}"); width: 10px; height: 10px; }}
     QListWidget, QTableWidget, QGraphicsView {{ background: {p.workbench}; border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_SM}px; }}
     QListWidget::item {{ padding: 5px 7px; border-radius: 4px; }}
     QListWidget::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
@@ -152,7 +210,7 @@ def application_stylesheet(mode: str = "dark") -> str:
     QListWidget#catalogList::item:hover {{ background: {p.surface_hover}; border-color: {p.border_strong}; }}
     QListWidget#catalogList::item:selected {{ background: {p.surface_hover}; color: {p.text}; border-color: {p.accent}; }}
     QPushButton {{ min-height: {Metrics.CONTROL_HEIGHT}px; padding: 0 10px; background: {p.surface_raised}; border: 1px solid {p.border_strong}; border-radius: {Metrics.RADIUS_SM}px; }}
-    QPushButton:hover {{ background: {p.surface_hover}; border-color: {p.accent}; }}
+    QPushButton:hover {{ background: {p.accent_surface}; border-color: {p.accent}; }}
     QPushButton:pressed {{ background: {p.canvas}; }}
     QPushButton:disabled {{ color: {p.text_muted}; background: {p.surface}; border-color: {p.border}; }}
     QPushButton[role="primary"] {{ background: {p.accent}; border-color: {p.accent}; color: {p.accent_text}; font-weight: 650; }}
@@ -163,9 +221,9 @@ def application_stylesheet(mode: str = "dark") -> str:
     QPushButton[role="danger"] {{ background: {p.danger_surface}; border-color: {p.danger}; color: #ffffff; }}
     QPushButton[role="danger"]:hover {{ background: {p.danger}; }}
     QPushButton[role="selector"] {{ background: {p.surface_hover}; border-color: {p.border_strong}; font-weight: 600; }}
-    QPushButton[role="selector"]:hover {{ border-color: {p.accent}; }}
+    QPushButton[role="selector"]:hover {{ background: {p.accent_surface}; border-color: {p.accent}; }}
     QPushButton[role="icon"] {{ padding: 0; background: transparent; border-color: {p.border}; }}
-    QPushButton[role="icon"]:hover {{ background: {p.surface_hover}; border-color: {p.accent}; }}
+    QPushButton[role="icon"]:hover {{ background: {p.accent_surface}; border-color: {p.accent}; }}
     QPushButton[role="icon-danger"] {{ padding: 0; background: transparent; border-color: {p.border}; }}
     QPushButton[role="icon-danger"]:hover {{ background: {p.danger_surface}; border-color: {p.danger}; }}
     QPushButton[role="success"]:disabled, QPushButton[role="danger"]:disabled {{

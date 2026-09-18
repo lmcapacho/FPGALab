@@ -4,6 +4,10 @@ All notable changes to FPGALab are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Light and dark interface themes with an accessible sun/moon selector and per-user persistence.
+
 ## 0.1.0rc3 — 2026-09-16
 
 ### Added

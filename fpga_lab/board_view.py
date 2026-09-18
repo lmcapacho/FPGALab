@@ -145,6 +145,7 @@ class BoardView(QGraphicsView):
         )
 
     def set_calibration_mode(self, enabled: bool) -> None:
+        self._calibration_mode = enabled
         for item in self._led_items.values():
             item.set_calibration(enabled)
 
@@ -168,6 +169,14 @@ class BoardView(QGraphicsView):
         """Turn off every visual indicator when the virtual board loses power."""
         for led in self._leds.values():
             led.set_brightness(0.0)
+
+    def refresh_theme(self) -> None:
+        """Repaint scene colors that are not controlled by the Qt stylesheet."""
+        self.setBackgroundBrush(color("canvas"))
+        for item in self._led_items.values():
+            item.set_calibration(self._calibration_mode)
+        self._scene.update()
+        self.viewport().update()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

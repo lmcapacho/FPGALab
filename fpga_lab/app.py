@@ -27,7 +27,7 @@ from .signals import signal_reference
 from .simulation import VerilatorSimulation
 from .simulation_settings import SimulationSettings, SimulationSettingsDialog
 from .toolchain import resolve_verilator
-from .theme import application_stylesheet
+from .theme import application_palette, application_stylesheet, load_theme_mode
 from .verilog_interface import VerilogInterface
 from .update_controller import UpdateController
 from .virtual_lab import FPGAVirtualLab
@@ -362,7 +362,9 @@ def main() -> None:
     app.setApplicationName("FPGALab")
     app.setApplicationDisplayName("FPGALab")
     app.setOrganizationName("FPGALab")
-    app.setStyleSheet(application_stylesheet("dark"))
+    theme_mode = load_theme_mode()
+    app.setPalette(application_palette(theme_mode))
+    app.setStyleSheet(application_stylesheet(theme_mode))
     if hasattr(app, "setDesktopFileName"):
         app.setDesktopFileName("fpgalab")
     app.setWindowIcon(application_icon())

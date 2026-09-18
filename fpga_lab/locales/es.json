@@ -111,6 +111,8 @@
   "Identifier": "Identificador",
   "Incomplete cache: {path}": "Caché incompleta: {path}",
   "Interface language": "Idioma de la interfaz",
+  "Switch to light mode": "Cambiar a modo claro",
+  "Switch to dark mode": "Cambiar a modo oscuro",
   "Lab": "Laboratorio",
   "Lab created: {name}": "Laboratorio creado: {name}",
   "Lab loaded: {name}": "Laboratorio cargado: {name}",
