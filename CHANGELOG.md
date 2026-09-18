@@ -4,18 +4,11 @@ All notable changes to FPGALab are documented in this file.
 
 ## Unreleased
 
-### Added
-
-- Bilingual English and Spanish documentation site with GitHub Pages deployment.
-
-### Changed
-
-- Split the workbench canvas and peripheral graphics item out of the main peripheral panel module.
-
 ## 0.1.0rc3 — 2026-09-16
 
 ### Added
 
+- Bilingual English and Spanish documentation site with GitHub Pages deployment.
 - Searchable peripheral catalog with compact visual previews.
 - BCD display, four-position DIP switch, and single toggle-switch peripherals.
 - Portable Lab import and export using the `.lab` extension, while retaining compatibility with existing `.lab.json` files.
@@ -30,6 +23,8 @@ All notable changes to FPGALab are documented in this file.
 
 ### Changed
 
+- Split the workbench canvas and peripheral graphics item out of the main peripheral panel module.
+- Refined the BCD display with compact visuals and an optional active-high `enable` input for display selection.
 - Refreshed the visual design system, controls, icons, dialogs, workbench hierarchy, and peripheral renderers.
 - Made peripheral terminals optionally unconnected so partially wired components can be placed and configured incrementally.
 - Optimized declarative temporal observation to reduce simulation overhead for LEDs and displays.
