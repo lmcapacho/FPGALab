@@ -320,6 +320,11 @@ class PeripheralsPanel(QWidget):
         workbench_header.addWidget(self._zoom_in_button)
         workbench_header.addWidget(self._zoom_fit_button)
         layout.addLayout(workbench_header)
+        self._compatibility_notice = QLabel()
+        self._compatibility_notice.setObjectName("warningText")
+        self._compatibility_notice.setWordWrap(True)
+        self._compatibility_notice.hide()
+        layout.addWidget(self._compatibility_notice)
         self._workbench_scene = QGraphicsScene(self); self.workbench = WorkbenchView(self._workbench_scene, self._delete_many, self._duplicate_many, self._save_positions, self.undo, self.redo)
         self._undo_button.clicked.connect(self.undo)
         self._redo_button.clicked.connect(self.redo)
@@ -417,7 +422,13 @@ class PeripheralsPanel(QWidget):
 
     def _reload(self):
         project = VirtualLabProject.load(self._lab)
-        wires = project.resolve(self._board, self._constraints())
+        wires, warnings = project.resolve_compatible(self._board, self._constraints())
+        self._compatibility_warnings = warnings
+        self._compatibility_notice.setVisible(bool(warnings))
+        self._compatibility_notice.setText(t(
+            "Compatibility notice: some Lab elements are inactive but remain preserved. {details}",
+            details=" ".join(warnings),
+        ) if warnings else "")
         self._resolved_wires = wires
         self._connection_counts = (len(wires), sum(wire.hdl_net is not None for wire in wires))
         self._workbench_scene.clear(); self._workbench_bindings = {}
@@ -502,7 +513,10 @@ class PeripheralsPanel(QWidget):
                 bindings.append((workbench_items[peripheral_id], terminal))
 
         for peripheral in project.peripherals:
-            spec = spec_for(peripheral.kind)
+            try:
+                spec = spec_for(peripheral.kind)
+            except ValueError:
+                continue
             temporal = spec.temporal
             if temporal is None:
                 continue
@@ -661,7 +675,7 @@ class PeripheralsPanel(QWidget):
     def _commit(self, raw, message):
         previous = json.loads(self._lab.read_text(encoding="utf-8"))
         try:
-            VirtualLabProject.from_raw(raw).resolve(self._board, self._constraints())
+            VirtualLabProject.from_raw(raw).resolve_compatible(self._board, self._constraints())
         except Exception as exc:
             self._show_configuration_error(str(exc))
             return False
@@ -728,6 +742,19 @@ class PeripheralsPanel(QWidget):
         QMessageBox.warning(self, t("Peripheral configuration"), message)
 
     def _configure(self, peripheral):
+        try:
+            spec_for(peripheral.kind)
+        except ValueError:
+            QMessageBox.information(
+                self,
+                t("Unsupported peripheral"),
+                t(
+                    "{identifier} uses the unavailable type '{kind}'. Its data will remain in the Lab. Install the matching peripheral or open the Lab with a compatible FPGALab version to configure it.",
+                    identifier=peripheral.peripheral_id,
+                    kind=peripheral.kind,
+                ),
+            )
+            return
         dialog = PeripheralConfigDialog(peripheral, self._board, self._assigned_endpoints, self)
         dialog.save_requested.connect(lambda: self._save_configuration(dialog, peripheral))
         result = dialog.exec()
@@ -759,7 +786,7 @@ class PeripheralsPanel(QWidget):
 
     def _validation_error(self, raw) -> str | None:
         try:
-            VirtualLabProject.from_raw(raw).resolve(self._board, self._constraints())
+            VirtualLabProject.from_raw(raw).resolve_compatible(self._board, self._constraints())
         except Exception as exc:
             return str(exc)
         return None
@@ -885,7 +912,10 @@ class PeripheralsPanel(QWidget):
         """Return required terminals intentionally left electrically open."""
         missing: list[str] = []
         for peripheral in VirtualLabProject.load(self._lab).peripherals:
-            required = spec_for(peripheral.kind).required_terminals(peripheral.properties)
+            try:
+                required = spec_for(peripheral.kind).required_terminals(peripheral.properties)
+            except ValueError:
+                continue
             missing.extend(
                 f"{peripheral.peripheral_id}.{terminal}"
                 for terminal in required

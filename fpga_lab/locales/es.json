@@ -294,5 +294,10 @@
   "Three-color traffic signal with configurable lamp colors.": "Semáforo de tres colores con colores de lámpara configurables.",
   "Monochrome-per-channel VGA monitor for 640×480 timing.": "Monitor VGA monocromático por canal para temporización de 640×480.",
   "Six-bit VGA monitor with two bits per color channel.": "Monitor VGA de seis bits con dos bits por canal de color.",
-  "Twelve-bit VGA monitor with four bits per color channel.": "Monitor VGA de doce bits con cuatro bits por canal de color."
+  "Twelve-bit VGA monitor with four bits per color channel.": "Monitor VGA de doce bits con cuatro bits por canal de color.",
+  "{identifier}: unsupported peripheral type '{kind}'; it was preserved but is inactive.": "{identifier}: el tipo de periférico '{kind}' no está disponible; se conservó, pero está inactivo.",
+  "Unsupported peripheral\n{kind}": "Periférico no disponible\n{kind}",
+  "Compatibility notice: some Lab elements are inactive but remain preserved. {details}": "Aviso de compatibilidad: algunos elementos del Lab están inactivos, pero permanecen conservados. {details}",
+  "Unsupported peripheral": "Periférico no disponible",
+  "{identifier} uses the unavailable type '{kind}'. Its data will remain in the Lab. Install the matching peripheral or open the Lab with a compatible FPGALab version to configure it.": "{identifier} usa el tipo no disponible '{kind}'. Sus datos permanecerán en el Lab. Instale el periférico correspondiente o abra el Lab con una versión compatible de FPGALab para configurarlo."
 }

@@ -173,6 +173,7 @@ def application_stylesheet(mode: str = "dark") -> str:
     QLabel#boardTitle {{ color: {p.board_title}; font-size: {Metrics.FONT_TITLE}px; font-weight: 700; }}
     QLabel#caption, QLabel#infoText, QLabel#clockStatus {{ color: {p.text_muted}; font-size: {Metrics.FONT_SMALL}px; }}
     QLabel#errorText {{ color: {p.danger_hover}; font-size: {Metrics.FONT_SMALL}px; }}
+    QLabel#warningText {{ color: {p.warning}; font-size: {Metrics.FONT_SMALL}px; font-weight: 600; }}
     QLabel#emptyState {{ color: {p.text_muted}; font-size: 15px; padding: 28px; }}
     QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QKeySequenceEdit {{
         min-height: {Metrics.CONTROL_HEIGHT}px; padding: 0 8px; background: {p.surface_raised};

@@ -594,3 +594,27 @@ def test_new_peripheral_can_be_saved_with_required_terminals_not_connected(tmp_p
     assert "bcd_display_1 saved with required terminals not connected: A, B, C, D." in messages
     dialog.deleteLater()
     panel.deleteLater()
+
+
+def test_workbench_opens_newer_lab_with_unsupported_peripheral_without_rewriting_it(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab_file = tmp_path / "newer.lab"
+    original = {
+        "peripherals": [{
+            "id": "led_bar_1",
+            "type": "led_bar",
+            "connections": {"LED0": "D0"},
+            "properties": {"position": [30, 40], "future_property": 7},
+        }],
+    }
+    lab_file.write_text(json.dumps(original, indent=2) + "\n", encoding="utf-8")
+
+    panel = PeripheralsPanel(board, None, lab_file)
+    items = [item for item in panel._workbench_scene.items() if hasattr(item, "supported")]
+
+    assert len(items) == 1
+    assert items[0].supported is False
+    assert panel._compatibility_notice.isVisibleTo(panel)
+    assert "led_bar_1" in panel._compatibility_notice.text()
+    assert json.loads(lab_file.read_text(encoding="utf-8")) == original
+    panel.deleteLater()

@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem
 
 from ..peripherals.catalog import spec_for
 from ..peripherals.renderers import renderer_for
+from ..peripherals.renderers.unsupported import UnsupportedRenderer
 from ..peripherals.renderers.vga_monitor import VgaMonitorRenderer
 from ..theme import color
 
@@ -16,9 +17,16 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     """Draggable item whose coordinates live in ``properties.position``."""
 
     def __init__(self, peripheral, configured, moved, input_changed):
-        spec = spec_for(peripheral.kind)
-        self._renderer = renderer_for(spec.visual["renderer"])
-        self._compact_chrome = spec.visual.get("chrome") == "compact"
+        try:
+            spec = spec_for(peripheral.kind)
+        except ValueError:
+            spec = None
+        self._supported = spec is not None
+        self._renderer = (
+            renderer_for(spec.visual["renderer"])
+            if spec is not None else UnsupportedRenderer()
+        )
+        self._compact_chrome = spec is not None and spec.visual.get("chrome") == "compact"
         renderer_width, height = self._renderer.size(peripheral)
         label_width = QFontMetrics(QFont()).horizontalAdvance(peripheral.peripheral_id) + 16
         width = max(renderer_width, label_width) if self._compact_chrome else renderer_width
@@ -49,6 +57,10 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     def peripheral(self):
         """Expose the selected model instance to the workbench keyboard handler."""
         return self._peripheral
+
+    @property
+    def supported(self) -> bool:
+        return self._supported
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged and self._editable:

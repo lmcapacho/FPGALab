@@ -49,3 +49,38 @@ def test_unknown_type_fails(tmp_path):
         assert "Unknown peripheral type" in str(error)
     else:
         raise AssertionError("expected unknown type")
+
+
+def test_compatible_resolution_preserves_unknown_peripheral_and_uses_known_wires(tmp_path):
+    path = tmp_path / "newer.lab"
+    path.write_text(
+        '{"peripherals":['
+        '{"id":"future_1","type":"future_part","connections":{"signal":"D1"}},'
+        '{"id":"led_1","type":"led","connections":{"anode":"D0"}}'
+        ']}'
+        "\n",
+        encoding="utf-8",
+    )
+    project = VirtualLabProject.load(path)
+    wires, warnings = project.resolve_compatible(BoardDefinition.load(bundled_board_definition()), [])
+
+    assert [(wire.peripheral_id, wire.terminal) for wire in wires] == [("led_1", "anode")]
+    assert len(warnings) == 1
+    assert "future_1" in warnings[0]
+    assert "future_part" in warnings[0]
+    assert VirtualLabProject.load(path).peripherals[0].connections == {"signal": "D1"}
+
+
+def test_compatible_resolution_ignores_only_obsolete_terminal(tmp_path):
+    path = tmp_path / "changed.lab"
+    path.write_text(
+        '{"peripherals":[{"id":"led_1","type":"led",'
+        '"connections":{"anode":"D0","old_terminal":"D1"}}]}\n',
+        encoding="utf-8",
+    )
+    project = VirtualLabProject.load(path)
+    wires, warnings = project.resolve_compatible(BoardDefinition.load(bundled_board_definition()), [])
+
+    assert [(wire.terminal, wire.board_endpoint) for wire in wires] == [("anode", "D0")]
+    assert len(warnings) == 1
+    assert "old_terminal" in warnings[0]

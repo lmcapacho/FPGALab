@@ -62,20 +62,54 @@ class VirtualLabProject:
     def resolve(
         self, board: BoardDefinition, constraints: list[PinConstraint]
     ) -> tuple[ResolvedWire, ...]:
+        wires, warnings = self._resolve(board, constraints, compatible=False)
+        assert not warnings
+        return wires
+
+    def resolve_compatible(
+        self, board: BoardDefinition, constraints: list[PinConstraint]
+    ) -> tuple[tuple[ResolvedWire, ...], tuple[str, ...]]:
+        """Resolve usable wiring while preserving newer catalog data verbatim.
+
+        Unknown peripheral types and terminal names are compatibility concerns,
+        not document corruption.  They remain in the Lab but are electrically
+        inactive until the matching catalog entry is installed.
+        """
+        return self._resolve(board, constraints, compatible=True)
+
+    def _resolve(
+        self, board: BoardDefinition, constraints: list[PinConstraint], *, compatible: bool
+    ) -> tuple[tuple[ResolvedWire, ...], tuple[str, ...]]:
         by_pin = PcfParser.index_by_pin(constraints)
         input_drivers: set[str] = set()
         resolved: list[ResolvedWire] = []
+        warnings: list[str] = []
         for peripheral in self.peripherals:
-            spec = spec_for(peripheral.kind)
+            try:
+                spec = spec_for(peripheral.kind)
+            except ValueError:
+                if not compatible:
+                    raise
+                warnings.append(t(
+                    "{identifier}: unsupported peripheral type '{kind}'; it was preserved but is inactive.",
+                    identifier=peripheral.peripheral_id,
+                    kind=peripheral.kind,
+                ))
+                continue
             known_terminals = spec.terminal_map()
             unknown = set(peripheral.connections) - set(known_terminals)
             if unknown:
-                raise ValueError(t(
+                message = t(
                     "{identifier}: invalid terminals: {terminals}.",
                     identifier=peripheral.peripheral_id,
                     terminals=", ".join(sorted(unknown)),
-                ))
+                )
+                if not compatible:
+                    raise ValueError(message)
+                warnings.append(message)
             for terminal, endpoint in peripheral.connections.items():
+                if terminal not in known_terminals:
+                    continue
                 terminal_spec = known_terminals[terminal]
                 if endpoint in SUPPLY_ENDPOINTS:
                     if endpoint not in terminal_spec.supplies:
@@ -107,4 +141,4 @@ class VirtualLabProject:
                 resolved.append(
                     ResolvedWire(peripheral.peripheral_id, terminal, endpoint, constraint.net if constraint else None)
                 )
-        return tuple(resolved)
+        return tuple(resolved), tuple(warnings)

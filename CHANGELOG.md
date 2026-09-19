@@ -8,6 +8,10 @@ All notable changes to FPGALab are documented in this file.
 
 - Light and dark interface themes with an accessible sun/moon selector and per-user persistence.
 
+### Changed
+
+- Open Labs from newer installations in a safe compatibility mode: unavailable peripherals and obsolete terminals remain preserved, visible, and inactive instead of preventing the Lab from opening.
+
 ## 0.1.0rc3 — 2026-09-16
 
 ### Added
