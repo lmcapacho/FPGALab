@@ -1,4 +1,9 @@
-from fpga_lab.peripherals.catalog import icon_path_for, load_catalog
+import json
+from pathlib import Path
+
+from PyQt6.QtGui import QImage, QPainter
+
+from fpga_lab.peripherals.catalog import discover_catalog, icon_path_for, load_catalog
 from fpga_lab.peripherals.manifest import RESERVED_PROPERTIES, parse_manifest
 from fpga_lab.peripheral_catalog_panel import matches_catalog_spec
 from fpga_lab.peripherals.renderers.bcd_display import (
@@ -8,6 +13,7 @@ from fpga_lab.peripherals.renderers.bcd_display import (
 )
 from fpga_lab.peripherals.renderers.dip_switch import DipSwitchRenderer
 from fpga_lab.peripherals.renderers.toggle_switch import ToggleSwitchRenderer
+from fpga_lab.peripherals.renderers import renderer_for
 from fpga_lab.wiring import PeripheralInstance
 from PyQt6.QtCore import QPointF
 from fpga_lab.wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS
@@ -165,3 +171,52 @@ def test_vga_components_have_fixed_pin_budgets():
     assert six.required_terminals() == ("hsync", "vsync", "r0", "r1", "g0", "g1", "b0", "b1")
     assert "r3" in twelve.required_terminals()
     assert "r1" not in one.required_terminals()
+
+
+def test_external_led_bar_loads_and_renders_without_a_peripheral_registry_entry(tmp_path, monkeypatch):
+    source = Path(__file__).parents[1] / "examples" / "peripherals" / "led_bar"
+    external_root = tmp_path / "peripherals"
+    installed = external_root / "led_bar"
+    installed.mkdir(parents=True)
+    for name in ("manifest.json", "icon.svg"):
+        (installed / name).write_bytes((source / name).read_bytes())
+
+    catalog = discover_catalog((external_root,))
+    spec = catalog["led_bar"]
+    assert spec.simulation_class == "gpio_temporal"
+    assert spec.visual["renderer"] == "led_array"
+    assert len(spec.required_terminals()) == 8
+
+    monkeypatch.setenv("FPGALAB_PERIPHERALS_DIR", str(external_root))
+    load_catalog.cache_clear()
+    try:
+        loaded = load_catalog()["led_bar"]
+        assert icon_path_for(loaded) == installed / "icon.svg"
+        renderer = renderer_for(loaded.visual["renderer"], loaded.visual)
+        assert renderer.size(PeripheralInstance("bar_1", "led_bar", {}, {})) == (190, 92)
+        image = QImage(190, 92, QImage.Format.Format_ARGB32)
+        image.fill(0)
+        painter = QPainter(image)
+        renderer.paint(
+            painter,
+            None,
+            PeripheralInstance("bar_1", "led_bar", {}, {"color": "#ef4444"}),
+            {"brightness": {"LED0": 1.0}},
+        )
+        painter.end()
+        lit_pixel = image.pixelColor(21, 34)
+        assert lit_pixel.red() > lit_pixel.green()
+    finally:
+        load_catalog.cache_clear()
+
+
+def test_led_array_manifest_rejects_unknown_visual_terminals():
+    raw = json.loads((Path(__file__).parents[1] / "examples" / "peripherals" / "led_bar" / "manifest.json").read_text())
+    raw["visual"]["terminals"][0] = "missing"
+
+    try:
+        parse_manifest(raw, source="led_bar/manifest.json")
+    except ValueError as error:
+        assert "unique output terminals" in str(error)
+    else:
+        raise AssertionError("Invalid declarative terminal was accepted")

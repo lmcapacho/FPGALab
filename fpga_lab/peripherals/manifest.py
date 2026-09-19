@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
@@ -41,6 +41,7 @@ class PeripheralSpec:
     sink_kind: str | None = None
     color_depth: int | None = None
     temporal: dict[str, Any] | None = None
+    resource_root: Path | None = None
 
     def terminal_map(self) -> dict[str, TerminalSpec]:
         return {terminal.name: terminal for terminal in self.terminals}
@@ -64,8 +65,16 @@ class PeripheralSpec:
         return tuple(terminal.name for terminal in self.terminals if terminal.required)
 
 
-def parse_manifest(raw: dict[str, Any], *, source: str = "manifest.json") -> PeripheralSpec:
+def parse_manifest(
+    raw: dict[str, Any],
+    *,
+    source: str = "manifest.json",
+    resource_root: Path | None = None,
+) -> PeripheralSpec:
     """Validate and freeze one catalog JSON object."""
+    api_version = raw.get("api_version", 1)
+    if api_version != 1:
+        raise ValueError(f"{source}: unsupported peripheral api_version {api_version!r}")
     identifier = raw.get("id")
     if not isinstance(identifier, str) or not identifier:
         raise ValueError(f"{source}: missing id")
@@ -103,8 +112,9 @@ def parse_manifest(raw: dict[str, Any], *, source: str = "manifest.json") -> Per
     if "renderer" not in visual or "size" not in visual:
         raise ValueError(f"{source}: {identifier} visual needs renderer and size")
     size = visual["size"]
-    if not (isinstance(size, list) and len(size) == 2):
+    if not (isinstance(size, list) and len(size) == 2 and all(isinstance(value, int) and value > 0 for value in size)):
         raise ValueError(f"{source}: {identifier} visual.size must be [width, height]")
+    _validate_led_array_visual(visual, terminals, properties, source, identifier)
     category = str(raw.get("category", "output")).strip().casefold()
     if not category:
         raise ValueError(f"{source}: {identifier} category must not be empty")
@@ -133,7 +143,38 @@ def parse_manifest(raw: dict[str, Any], *, source: str = "manifest.json") -> Per
         sink_kind=simulation.get("sink_kind"),
         color_depth=_optional_color_depth(simulation, source, identifier),
         temporal=_optional_temporal(simulation, source, identifier),
+        resource_root=resource_root,
     )
+
+
+def _validate_led_array_visual(
+    visual: dict[str, Any],
+    terminals: list[TerminalSpec],
+    properties: dict[str, dict[str, Any]],
+    source: str,
+    identifier: str,
+) -> None:
+    """Validate the reusable no-code LED-array renderer configuration."""
+    if visual.get("renderer") != "led_array":
+        return
+    visual_terminals = visual.get("terminals")
+    names = {terminal.name for terminal in terminals if terminal.direction == "output"}
+    if (
+        not isinstance(visual_terminals, list)
+        or not visual_terminals
+        or not all(isinstance(name, str) and name in names for name in visual_terminals)
+        or len(visual_terminals) != len(set(visual_terminals))
+    ):
+        raise ValueError(f"{source}: {identifier} led_array terminals must be unique output terminals")
+    if visual.get("orientation", "horizontal") not in {"horizontal", "vertical"}:
+        raise ValueError(f"{source}: {identifier} led_array orientation must be horizontal or vertical")
+    if visual.get("indicator_shape", "circle") not in {"circle", "rectangle"}:
+        raise ValueError(f"{source}: {identifier} led_array indicator_shape must be circle or rectangle")
+    if not isinstance(visual.get("show_labels", True), bool):
+        raise ValueError(f"{source}: {identifier} led_array show_labels must be boolean")
+    color_property = visual.get("color_property", "color")
+    if properties.get(color_property, {}).get("type") != "color":
+        raise ValueError(f"{source}: {identifier} led_array color_property must reference a color property")
 
 
 def _optional_color_depth(simulation: dict[str, Any], source: str, identifier: str) -> int | None:

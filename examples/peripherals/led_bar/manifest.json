@@ -1,0 +1,42 @@
+{
+  "api_version": 1,
+  "id": "led_bar",
+  "label": "8-LED bar",
+  "category": "output",
+  "description": "Eight independent LEDs in a compact horizontal bar.",
+  "keywords": ["led", "bar", "array", "indicator", "output"],
+  "icon": "icon.svg",
+  "simulation": {
+    "class": "gpio_temporal",
+    "temporal": {
+      "mode": "per_terminal"
+    }
+  },
+  "terminals": [
+    {"name": "LED0", "direction": "output", "required": true},
+    {"name": "LED1", "direction": "output", "required": true},
+    {"name": "LED2", "direction": "output", "required": true},
+    {"name": "LED3", "direction": "output", "required": true},
+    {"name": "LED4", "direction": "output", "required": true},
+    {"name": "LED5", "direction": "output", "required": true},
+    {"name": "LED6", "direction": "output", "required": true},
+    {"name": "LED7", "direction": "output", "required": true}
+  ],
+  "properties": {
+    "color": {
+      "type": "color",
+      "default": "#ef4444",
+      "label": "Color"
+    }
+  },
+  "visual": {
+    "renderer": "led_array",
+    "size": [190, 92],
+    "chrome": "compact",
+    "orientation": "horizontal",
+    "indicator_shape": "rectangle",
+    "show_labels": false,
+    "terminals": ["LED0", "LED1", "LED2", "LED3", "LED4", "LED5", "LED6", "LED7"],
+    "color_property": "color"
+  }
+}

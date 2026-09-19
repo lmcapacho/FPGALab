@@ -24,9 +24,23 @@ The native wrapper batches virtual FPGA cycles and publishes `SimulationFrame` o
 - `workbench/view.py` and `workbench/item.py`: canvas interaction and rendered instances.
 - `wiring.py`: Lab terminal-to-board-to-HDL resolution.
 
-## Add a peripheral
+## Install an external peripheral
+
+FPGALab discovers no-code peripheral folders at startup from:
+
+- Linux: `~/.local/share/FPGALab/peripherals/`
+- Windows: `%APPDATA%\FPGALab\peripherals\`
+- macOS: `~/Library/Application Support/FPGALab/peripherals/`
+
+Copy a complete peripheral directory into that location and restart FPGALab. For example, copy `examples/peripherals/led_bar` so the resulting path ends in `peripherals/led_bar/manifest.json`. The 8-LED bar then appears in the catalog without modifying or rebuilding FPGALab.
+
+External peripherals are currently declarative: they may use supported manifest properties, simulation classes, and generic renderers, but FPGALab does not execute Python code from these folders. Set `FPGALAB_PERIPHERALS_DIR` to use a different catalog folder while developing or testing a peripheral.
+
+## Add a bundled peripheral
 
 Create `fpga_lab/peripherals/<id>/manifest.json` and its licensed SVG resources. Define terminal direction, required connections, properties, visual renderer, size, and simulation mode. Reuse a generic renderer when possible; add a renderer class only when the behavior cannot be described by existing primitives.
+
+The generic `led_array` renderer accepts `visual.terminals`, `visual.orientation`, and `visual.color_property`. See `examples/peripherals/led_bar` for a complete API version 1 manifest.
 
 Run the tests before opening a pull request:
 

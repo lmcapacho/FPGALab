@@ -6,6 +6,7 @@ from .button import ButtonRenderer
 from .bcd_display import BcdDisplayRenderer
 from .dip_switch import DipSwitchRenderer
 from .lamp import LampRenderer
+from .led_array import LedArrayRenderer
 from .sensor import SensorRenderer
 from .seven_segment import SevenSegmentRenderer
 from .traffic_light import TrafficLightRenderer
@@ -25,7 +26,9 @@ _RENDERERS = {
 }
 
 
-def renderer_for(name: str):
+def renderer_for(name: str, visual: dict[str, object] | None = None):
+    if name == "led_array":
+        return LedArrayRenderer(visual or {})
     try:
         return _RENDERERS[name]()
     except KeyError as exc:
