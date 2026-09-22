@@ -57,6 +57,43 @@ def test_compatibility_flags_are_passed_to_verilator(tmp_path, monkeypatch):
     assert "-fno-dfg" in arguments
 
 
+def test_incremental_native_sources_do_not_depend_on_pyinstaller_temp_directory(tmp_path, monkeypatch):
+    verilog = _write(tmp_path, "module main; endmodule\n")
+    executable = tmp_path / "verilator"
+    executable.touch()
+    request = BuildRequest(
+        verilog=verilog,
+        profile=BoardProfile("Test", {}, {}, {}, None),
+        top_module="main",
+        build_dir=tmp_path / "cache" / "_incremental" / "workspace",
+        verilator=str(executable),
+    )
+    first_bundle = tmp_path / "_MEI_first" / "native"
+    second_bundle = tmp_path / "_MEI_second" / "native"
+    for bundle in (first_bundle, second_bundle):
+        bundle.mkdir(parents=True)
+        for name in ("sim_streaming.cpp", "sim_streaming.h", "sim_streaming_abi.h", "vga_decoder.cpp", "vga_decoder.h"):
+            (bundle / name).write_text(f"// {name}\n", encoding="utf-8")
+
+    monkeypatch.setattr(compiler_module, "_native_source_dir", lambda: first_bundle)
+    _, first_args = VerilatorCompiler().prepare(request)
+    native = request.build_dir / "native"
+    original_mtime = (native / "sim_streaming.h").stat().st_mtime_ns
+
+    monkeypatch.setattr(compiler_module, "_native_source_dir", lambda: second_bundle)
+    _, second_args = VerilatorCompiler().prepare(request)
+
+    assert first_args == second_args
+    assert str(first_bundle) not in " ".join(second_args)
+    assert str(second_bundle) not in " ".join(second_args)
+    assert str(native.resolve() / "sim_streaming.cpp") in second_args
+    assert str(native.resolve()) in second_args[second_args.index("-CFLAGS") + 1]
+    assert (native / "sim_streaming.h").stat().st_mtime_ns == original_mtime
+    assert {path.name for path in native.iterdir()} == {
+        "sim_streaming.cpp", "sim_streaming.h", "sim_streaming_abi.h", "vga_decoder.cpp", "vga_decoder.h",
+    }
+
+
 def test_unchanged_generated_files_keep_their_make_timestamp(tmp_path):
     generated = tmp_path / "Vmain.cpp"
     generated.write_text("unchanged", encoding="utf-8")

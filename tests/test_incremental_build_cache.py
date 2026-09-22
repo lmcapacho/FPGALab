@@ -73,6 +73,19 @@ def test_changed_hdl_reuses_a_stable_incremental_workspace(tmp_path, monkeypatch
     assert len(list((cache.root / "_incremental").iterdir())) == 1
 
 
+def test_legacy_incremental_workspace_key_is_not_reused(tmp_path, monkeypatch):
+    ice_file = tmp_path / "design.ice"
+    ice_file.write_text("{}", encoding="utf-8")
+    project = IcestudioProject(ice_file, tmp_path, tmp_path / "main.v", None)
+    cache = VerilatorBuildCache(tmp_path / "cache")
+
+    monkeypatch.setattr(cache_module, "_INCREMENTAL_FORMAT", 1)
+    legacy_key = cache.incremental_key(project, "main", "verilator", ())
+    monkeypatch.setattr(cache_module, "_INCREMENTAL_FORMAT", 2)
+
+    assert cache.incremental_key(project, "main", "verilator", ()) != legacy_key
+
+
 def test_automatic_budget_is_bounded_and_reacts_to_low_disk_space(tmp_path, monkeypatch):
     cache = VerilatorBuildCache(tmp_path / "cache")
     cache.root.mkdir(parents=True)

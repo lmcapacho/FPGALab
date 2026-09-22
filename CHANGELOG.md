@@ -4,6 +4,10 @@ All notable changes to FPGALab are documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- Keep native build sources in the persistent incremental workspace, so Windows one-file builds remain compilable after FPGALab restarts.
+
 ### Added
 
 - Light and dark interface themes with an accessible sun/moon selector and per-user persistence.

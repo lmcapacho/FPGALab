@@ -20,6 +20,7 @@ from .profile import BoardProfile
 from .toolchain import resolve_verilator
 
 _CACHE_FORMAT = 5
+_INCREMENTAL_FORMAT = 2  # Old Makefiles reference PyInstaller's vanished _MEI directory.
 _NATIVE_DIR = Path(__file__).resolve().parent / "native"
 _MIN_CACHE_BUDGET = 128 * 1024 * 1024
 _MAX_CACHE_BUDGET = 512 * 1024 * 1024
@@ -96,7 +97,7 @@ class VerilatorBuildCache:
     ) -> str:
         """Identify a stable Make workspace without including changing HDL content."""
         digest = hashlib.sha256()
-        digest.update(f"fpgalab-incremental:{_CACHE_FORMAT}\0{top_module}\0{verilator}\0".encode())
+        digest.update(f"fpgalab-incremental:{_CACHE_FORMAT}:{_INCREMENTAL_FORMAT}\0{top_module}\0{verilator}\0".encode())
         digest.update(str(project.ice_file.resolve()).encode())
         digest.update(json.dumps({
             "verilator_flags": verilator_flags,

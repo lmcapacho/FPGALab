@@ -103,7 +103,14 @@ class VerilatorCompiler:
         obj_dir.mkdir(parents=True, exist_ok=True)
         wrapper = build_dir / "sim_main.cpp"
         _write_if_changed(wrapper, render_cpp_wrapper(request.profile, f"V{request.top_module}"))
-        native = Path(__file__).resolve().parent / "native"
+        # One-file bundles unpack under a new _MEI directory on every launch.
+        # Make dependency files must refer to sources in the persistent build
+        # workspace, otherwise the next incremental build cannot find them.
+        native = build_dir / "native"
+        native.mkdir(exist_ok=True)
+        for source in _native_source_dir().iterdir():
+            if source.is_file() and source.suffix in {".cpp", ".h"}:
+                _copy_if_changed(source, native / source.name)
         streaming = native / "sim_streaming.cpp"
         decoder = native / "vga_decoder.cpp"
 
@@ -247,6 +254,21 @@ def _write_if_changed(path: Path, content: str) -> None:
     except FileNotFoundError:
         pass
     path.write_text(content, encoding="utf-8")
+
+
+def _native_source_dir() -> Path:
+    return Path(__file__).resolve().parent / "native"
+
+
+def _copy_if_changed(source: Path, destination: Path) -> None:
+    """Update workspace sources by content without invalidating unchanged objects."""
+    content = source.read_bytes()
+    try:
+        if destination.read_bytes() == content:
+            return
+    except FileNotFoundError:
+        pass
+    destination.write_bytes(content)
 
 
 def _generated_file_state(directory: Path, prefix: str) -> dict[Path, tuple[bytes, int, int]]:
