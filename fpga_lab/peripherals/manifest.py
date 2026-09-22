@@ -239,10 +239,15 @@ def _validate_state_svg_visual(
             and region[0] + region[2] <= width
             and region[1] + region[3] <= visual_height
         )
+        event = interaction.get("event") if isinstance(interaction, dict) else None
+        action = interaction.get("action") if isinstance(interaction, dict) else None
+        valid_behavior = (event, action) in {
+            ("click", "toggle"),
+            ("press_release", "momentary"),
+        }
         if (
             not isinstance(interaction, dict)
-            or interaction.get("event") != "click"
-            or interaction.get("action") != "toggle"
+            or not valid_behavior
             or not isinstance(interaction_terminal, str)
             or interaction_terminal not in input_names
             or not valid_region

@@ -1,0 +1,35 @@
+{
+  "api_version": 1,
+  "id": "simple_button",
+  "label": "Simple button",
+  "category": "input",
+  "description": "Minimal momentary input built only from a manifest and SVG states.",
+  "keywords": ["button", "momentary", "input", "state", "svg"],
+  "icon": "icon.svg",
+  "simulation": {"class": "gpio_driven"},
+  "terminals": [
+    {"name": "signal", "direction": "input", "required": true}
+  ],
+  "properties": {},
+  "visual": {
+    "renderer": "state_svg",
+    "size": [88, 82],
+    "chrome": "compact",
+    "states": {
+      "released": "released.svg",
+      "pressed": "pressed.svg"
+    },
+    "default_state": "released",
+    "state_rules": [
+      {"state": "pressed", "when": {"terminal": "signal", "equals": 1}}
+    ],
+    "interactions": [
+      {
+        "event": "press_release",
+        "region": [13, 5, 62, 50],
+        "terminal": "signal",
+        "action": "momentary"
+      }
+    ]
+  }
+}

@@ -46,6 +46,8 @@ El renderizador genérico `state_svg` selecciona recursos SVG del paquete median
 
 Para entradas digitales, `state_svg` también admite interacciones `click` delimitadas con la acción `toggle`. La interacción debe apuntar a una terminal de entrada declarada. Su valor retenido se restaura cada vez que inicia la simulación. Consulta `examples/peripherals/simple_switch` para ver un ejemplo interactivo completo sin código Python.
 
+Las entradas momentáneas usan el evento `press_release` con la acción `momentary`. Permanecen activas mientras se mantienen presionadas, se liberan incluso si el puntero sale de la región activa y regresan a un nivel bajo seguro cuando se detiene la simulación. Consulta `examples/peripherals/simple_button`.
+
 Ejecuta las pruebas antes de abrir un pull request:
 
 ```bash

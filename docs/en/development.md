@@ -46,6 +46,8 @@ The generic `state_svg` renderer selects packaged SVG resources through ordered 
 
 For digital inputs, `state_svg` also supports bounded `click` interactions with the `toggle` action. The interaction must target a declared input terminal. Its latched value is restored whenever simulation starts. See `examples/peripherals/simple_switch` for a complete interactive example requiring no Python code.
 
+Momentary inputs use the `press_release` event with the `momentary` action. They stay active while held, release even when the pointer leaves the active region, and return to a safe low level when simulation stops. See `examples/peripherals/simple_button`.
+
 Run the tests before opening a pull request:
 
 ```bash

@@ -106,6 +106,8 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         if powered and hasattr(self._renderer, "sync_inputs"):
             self._renderer.sync_inputs(self._peripheral, self._input_changed)
         if not powered:
+            if hasattr(self._renderer, "cancel_interactions"):
+                self._renderer.cancel_interactions()
             self._active.clear()
             self._brightness.clear()
             self._press_sources.clear()

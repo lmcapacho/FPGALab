@@ -23,6 +23,7 @@ class StateSvgRenderer(NullInputMixin):
         self._input_values = {
             str(dict(interaction)["terminal"]): False for interaction in self._interactions
         }
+        self._pressed_terminals: set[str] = set()
         self._renderers: dict[str, QSvgRenderer] = {}
         if resource_root is not None:
             for state, resource in dict(self._visual["states"]).items():
@@ -56,9 +57,27 @@ class StateSvgRenderer(NullInputMixin):
             x, y, width, height = interaction["region"]
             if x <= pos.x() <= x + width and y <= pos.y() <= y + height:
                 terminal = str(interaction["terminal"])
-                self._input_values[terminal] = not self._input_values[terminal]
+                if interaction["action"] == "toggle":
+                    self._input_values[terminal] = not self._input_values[terminal]
+                else:
+                    self._input_values[terminal] = True
+                    self._pressed_terminals.add(terminal)
                 input_changed(peripheral.peripheral_id, terminal, int(self._input_values[terminal]))
                 return
+
+    def mouse_release(self, peripheral, pos, input_changed) -> None:
+        """Release every momentary terminal captured by the preceding press."""
+        del pos
+        for terminal in tuple(self._pressed_terminals):
+            self._input_values[terminal] = False
+            input_changed(peripheral.peripheral_id, terminal, 0)
+        self._pressed_terminals.clear()
+
+    def cancel_interactions(self) -> None:
+        """Restore safe visual levels when simulation power is removed."""
+        for terminal in self._pressed_terminals:
+            self._input_values[terminal] = False
+        self._pressed_terminals.clear()
 
     def sync_inputs(self, peripheral, input_changed) -> None:
         """Restore declarative input levels after the native simulation resets."""

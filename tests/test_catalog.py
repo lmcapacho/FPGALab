@@ -306,3 +306,46 @@ def test_state_svg_interaction_requires_an_input_terminal_and_bounded_region():
         assert "invalid state_svg interaction" in str(error)
     else:
         raise AssertionError("Out-of-bounds interaction was accepted")
+
+
+def test_external_state_svg_button_stays_active_until_release_and_cancels_safely(tmp_path):
+    source = Path(__file__).parents[1] / "examples" / "peripherals" / "simple_button"
+    external_root = tmp_path / "peripherals"
+    installed = external_root / "simple_button"
+    installed.mkdir(parents=True)
+    for name in ("manifest.json", "icon.svg", "released.svg", "pressed.svg"):
+        (installed / name).write_bytes((source / name).read_bytes())
+
+    spec = discover_catalog((external_root,))["simple_button"]
+    renderer = renderer_for(spec.visual["renderer"], spec.visual, spec.resource_root)
+    peripheral = PeripheralInstance("button_1", "simple_button", {"signal": "D0"}, {})
+    changes: list[tuple[str, str, int]] = []
+    changed = lambda identifier, terminal, value: changes.append((identifier, terminal, value))
+
+    renderer.mouse_press(peripheral, QPointF(44, 27), changed)
+    assert renderer.selected_state({}) == "pressed"
+    renderer.mouse_release(peripheral, QPointF(200, 200), changed)
+    assert renderer.selected_state({}) == "released"
+    renderer.mouse_press(peripheral, QPointF(44, 27), changed)
+    renderer.cancel_interactions()
+    assert renderer.selected_state({}) == "released"
+    renderer.sync_inputs(peripheral, changed)
+
+    assert changes == [
+        ("button_1", "signal", 1),
+        ("button_1", "signal", 0),
+        ("button_1", "signal", 1),
+        ("button_1", "signal", 0),
+    ]
+
+
+def test_state_svg_rejects_mismatched_momentary_event_and_action():
+    raw = json.loads((Path(__file__).parents[1] / "examples" / "peripherals" / "simple_button" / "manifest.json").read_text())
+    raw["visual"]["interactions"][0]["action"] = "toggle"
+
+    try:
+        parse_manifest(raw, source="simple_button/manifest.json")
+    except ValueError as error:
+        assert "invalid state_svg interaction" in str(error)
+    else:
+        raise AssertionError("Mismatched interaction event and action were accepted")
