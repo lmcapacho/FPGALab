@@ -32,7 +32,7 @@ FPGALab descubre al iniciar carpetas de periféricos sin código en:
 - Windows: `%APPDATA%\FPGALab\peripherals\`
 - macOS: `~/Library/Application Support/FPGALab/peripherals/`
 
-Copia allí el directorio completo del periférico y reinicia FPGALab. Por ejemplo, copia `examples/peripherals/led_bar` de modo que la ruta final termine en `peripherals/led_bar/manifest.json`. La barra de 8 LED aparecerá en el catálogo sin modificar ni recompilar FPGALab.
+Copia allí el directorio completo del periférico y reinicia FPGALab. Por ejemplo, copia `examples/peripherals/simple_relay` de modo que la ruta final termine en `peripherals/simple_relay/manifest.json`. El relé aparecerá en el catálogo y alternará entre sus archivos `off.svg` y `on.svg` sin modificar ni recompilar FPGALab.
 
 Por ahora los periféricos externos son declarativos: pueden usar las propiedades, clases de simulación y renderizadores genéricos admitidos por el manifiesto, pero FPGALab no ejecuta código Python desde esas carpetas. Usa `FPGALAB_PERIPHERALS_DIR` para seleccionar otra carpeta de catálogo durante el desarrollo o las pruebas.
 
@@ -41,6 +41,8 @@ Por ahora los periféricos externos son declarativos: pueden usar las propiedade
 Crea `fpga_lab/peripherals/<id>/manifest.json` y los recursos SVG con licencia compatible. Define terminales, conexiones obligatorias, propiedades, renderizador, tamaño y modo de simulación. Reutiliza un renderizador genérico cuando sea posible.
 
 El renderizador genérico `led_array` acepta `visual.terminals`, `visual.orientation` y `visual.color_property`. Consulta `examples/peripherals/led_bar` para ver un manifiesto completo de la API versión 1.
+
+El renderizador genérico `state_svg` selecciona recursos SVG del paquete mediante reglas ordenadas en `visual.state_rules`. Por ahora cada regla compara una terminal declarada con `0` o `1`; se usa `visual.default_state` cuando ninguna coincide. Consulta `examples/peripherals/simple_relay` para ver el ejemplo sin código más pequeño. Las rutas deben ser relativas, permanecer dentro del directorio del periférico y terminar en `.svg`.
 
 Ejecuta las pruebas antes de abrir un pull request:
 

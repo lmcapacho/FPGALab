@@ -8,6 +8,7 @@ All notable changes to FPGALab are documented in this file.
 
 - Light and dark interface themes with an accessible sun/moon selector and per-user persistence.
 - Declarative user peripheral discovery and a reusable LED-array renderer, validated by an external 8-LED bar example.
+- Generic `state_svg` rendering with safe manifest rules, validated by an external no-code relay example.
 
 ### Changed
 

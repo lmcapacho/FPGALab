@@ -1,7 +1,11 @@
 import json
+import os
 from pathlib import Path
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 from PyQt6.QtGui import QImage, QPainter
+from PyQt6.QtWidgets import QApplication
 
 from fpga_lab.peripherals.catalog import discover_catalog, icon_path_for, load_catalog
 from fpga_lab.peripherals.manifest import RESERVED_PROPERTIES, parse_manifest
@@ -17,6 +21,9 @@ from fpga_lab.peripherals.renderers import renderer_for
 from fpga_lab.wiring import PeripheralInstance
 from PyQt6.QtCore import QPointF
 from fpga_lab.wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS
+
+
+_APPLICATION = QApplication.instance() or QApplication([])
 
 
 def test_catalog_contains_original_five_and_vga():
@@ -220,3 +227,39 @@ def test_led_array_manifest_rejects_unknown_visual_terminals():
         assert "unique output terminals" in str(error)
     else:
         raise AssertionError("Invalid declarative terminal was accepted")
+
+
+def test_external_state_svg_peripheral_changes_resource_from_signal_only(tmp_path):
+    source = Path(__file__).parents[1] / "examples" / "peripherals" / "simple_relay"
+    external_root = tmp_path / "peripherals"
+    installed = external_root / "simple_relay"
+    installed.mkdir(parents=True)
+    for name in ("manifest.json", "icon.svg", "off.svg", "on.svg"):
+        (installed / name).write_bytes((source / name).read_bytes())
+
+    spec = discover_catalog((external_root,))["simple_relay"]
+    renderer = renderer_for(spec.visual["renderer"], spec.visual, spec.resource_root)
+    peripheral = PeripheralInstance("relay_1", "simple_relay", {"signal": "D0"}, {})
+
+    assert spec.simulation_class == "gpio_sampled"
+    assert renderer.size(peripheral) == (132, 100)
+    assert renderer.selected_state({"active": {"signal": False}}) == "off"
+    assert renderer.selected_state({"active": {"signal": True}}) == "on"
+    image = QImage(132, 100, QImage.Format.Format_ARGB32)
+    image.fill(0)
+    painter = QPainter(image)
+    renderer.paint(painter, None, peripheral, {"active": {"signal": True}})
+    painter.end()
+    assert image.pixelColor(8, 8).green() > image.pixelColor(8, 8).red()
+
+
+def test_state_svg_manifest_rejects_resources_outside_its_directory():
+    raw = json.loads((Path(__file__).parents[1] / "examples" / "peripherals" / "simple_relay" / "manifest.json").read_text())
+    raw["visual"]["states"]["on"] = "../on.svg"
+
+    try:
+        parse_manifest(raw, source="simple_relay/manifest.json")
+    except ValueError as error:
+        assert "relative SVG files" in str(error)
+    else:
+        raise AssertionError("Unsafe state SVG resource was accepted")

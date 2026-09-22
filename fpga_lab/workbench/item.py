@@ -23,7 +23,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             spec = None
         self._supported = spec is not None
         self._renderer = (
-            renderer_for(spec.visual["renderer"], spec.visual)
+            renderer_for(spec.visual["renderer"], spec.visual, spec.resource_root)
             if spec is not None else UnsupportedRenderer()
         )
         self._compact_chrome = spec is not None and spec.visual.get("chrome") == "compact"

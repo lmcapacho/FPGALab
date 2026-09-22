@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="76" viewBox="0 0 132 76">
+  <rect x="3" y="3" width="126" height="70" rx="10" fill="#172033" stroke="#64748b" stroke-width="2"/>
+  <circle cx="25" cy="38" r="6" fill="#94a3b8"/>
+  <circle cx="105" cy="22" r="6" fill="#94a3b8"/>
+  <circle cx="105" cy="54" r="6" fill="#94a3b8"/>
+  <path d="M32 37 L96 23" fill="none" stroke="#38bdf8" stroke-width="6" stroke-linecap="round"/>
+  <text x="66" y="67" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#94a3b8">OFF</text>
+</svg>

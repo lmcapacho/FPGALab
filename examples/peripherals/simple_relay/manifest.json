@@ -1,0 +1,27 @@
+{
+  "api_version": 1,
+  "id": "simple_relay",
+  "label": "Simple relay",
+  "category": "output",
+  "description": "Minimal external peripheral built only from a manifest and SVG states.",
+  "keywords": ["relay", "switch", "state", "svg", "output"],
+  "icon": "icon.svg",
+  "simulation": {"class": "gpio_sampled"},
+  "terminals": [
+    {"name": "signal", "direction": "output", "required": true}
+  ],
+  "properties": {},
+  "visual": {
+    "renderer": "state_svg",
+    "size": [132, 100],
+    "chrome": "compact",
+    "states": {
+      "off": "off.svg",
+      "on": "on.svg"
+    },
+    "default_state": "off",
+    "state_rules": [
+      {"state": "on", "when": {"terminal": "signal", "equals": 1}}
+    ]
+  }
+}

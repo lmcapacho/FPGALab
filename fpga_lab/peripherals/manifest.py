@@ -115,6 +115,7 @@ def parse_manifest(
     if not (isinstance(size, list) and len(size) == 2 and all(isinstance(value, int) and value > 0 for value in size)):
         raise ValueError(f"{source}: {identifier} visual.size must be [width, height]")
     _validate_led_array_visual(visual, terminals, properties, source, identifier)
+    _validate_state_svg_visual(visual, terminals, source, identifier, resource_root)
     category = str(raw.get("category", "output")).strip().casefold()
     if not category:
         raise ValueError(f"{source}: {identifier} category must not be empty")
@@ -175,6 +176,43 @@ def _validate_led_array_visual(
     color_property = visual.get("color_property", "color")
     if properties.get(color_property, {}).get("type") != "color":
         raise ValueError(f"{source}: {identifier} led_array color_property must reference a color property")
+
+
+def _validate_state_svg_visual(
+    visual: dict[str, Any], terminals: list[TerminalSpec], source: str, identifier: str,
+    resource_root: Path | None,
+) -> None:
+    """Validate a no-code renderer whose state selects one packaged SVG."""
+    if visual.get("renderer") != "state_svg":
+        return
+    states = visual.get("states")
+    if not isinstance(states, dict) or not states:
+        raise ValueError(f"{source}: {identifier} state_svg needs a non-empty states object")
+    for state, resource in states.items():
+        if not isinstance(state, str) or not state or not isinstance(resource, str) or not resource:
+            raise ValueError(f"{source}: {identifier} state_svg states must map names to SVG files")
+        path = PurePosixPath(resource)
+        if path.is_absolute() or ".." in path.parts or path.suffix.casefold() != ".svg":
+            raise ValueError(f"{source}: {identifier} state_svg resources must be relative SVG files")
+        if resource_root is not None and not (resource_root / resource).is_file():
+            raise ValueError(f"{source}: {identifier} missing state SVG {resource!r}")
+    default = visual.get("default_state")
+    if not isinstance(default, str) or default not in states:
+        raise ValueError(f"{source}: {identifier} state_svg default_state must name a declared state")
+    rules = visual.get("state_rules", [])
+    terminal_names = {terminal.name for terminal in terminals}
+    if not isinstance(rules, list):
+        raise ValueError(f"{source}: {identifier} state_svg state_rules must be a list")
+    for rule in rules:
+        when = rule.get("when") if isinstance(rule, dict) else None
+        if (
+            not isinstance(rule, dict)
+            or rule.get("state") not in states
+            or not isinstance(when, dict)
+            or when.get("terminal") not in terminal_names
+            or when.get("equals") not in {0, 1, False, True}
+        ):
+            raise ValueError(f"{source}: {identifier} has an invalid state_svg rule")
 
 
 def _optional_color_depth(simulation: dict[str, Any], source: str, identifier: str) -> int | None:
