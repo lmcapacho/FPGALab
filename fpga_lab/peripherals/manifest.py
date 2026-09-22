@@ -205,14 +205,49 @@ def _validate_state_svg_visual(
         raise ValueError(f"{source}: {identifier} state_svg state_rules must be a list")
     for rule in rules:
         when = rule.get("when") if isinstance(rule, dict) else None
+        state_name = rule.get("state") if isinstance(rule, dict) else None
+        terminal_name = when.get("terminal") if isinstance(when, dict) else None
+        equals = when.get("equals") if isinstance(when, dict) else None
         if (
             not isinstance(rule, dict)
-            or rule.get("state") not in states
+            or not isinstance(state_name, str)
+            or state_name not in states
             or not isinstance(when, dict)
-            or when.get("terminal") not in terminal_names
-            or when.get("equals") not in {0, 1, False, True}
+            or not isinstance(terminal_name, str)
+            or terminal_name not in terminal_names
+            or not isinstance(equals, (bool, int))
+            or equals not in (0, 1)
         ):
             raise ValueError(f"{source}: {identifier} has an invalid state_svg rule")
+    interactions = visual.get("interactions", [])
+    input_names = {terminal.name for terminal in terminals if terminal.direction == "input"}
+    width, height = visual["size"]
+    visual_height = max(1, height - 24)
+    if not isinstance(interactions, list):
+        raise ValueError(f"{source}: {identifier} state_svg interactions must be a list")
+    for interaction in interactions:
+        region = interaction.get("region") if isinstance(interaction, dict) else None
+        interaction_terminal = interaction.get("terminal") if isinstance(interaction, dict) else None
+        valid_region = (
+            isinstance(region, list)
+            and len(region) == 4
+            and all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in region)
+            and region[0] >= 0
+            and region[1] >= 0
+            and region[2] > 0
+            and region[3] > 0
+            and region[0] + region[2] <= width
+            and region[1] + region[3] <= visual_height
+        )
+        if (
+            not isinstance(interaction, dict)
+            or interaction.get("event") != "click"
+            or interaction.get("action") != "toggle"
+            or not isinstance(interaction_terminal, str)
+            or interaction_terminal not in input_names
+            or not valid_region
+        ):
+            raise ValueError(f"{source}: {identifier} has an invalid state_svg interaction")
 
 
 def _optional_color_depth(simulation: dict[str, Any], source: str, identifier: str) -> int | None:

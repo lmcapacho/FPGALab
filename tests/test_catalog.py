@@ -263,3 +263,46 @@ def test_state_svg_manifest_rejects_resources_outside_its_directory():
         assert "relative SVG files" in str(error)
     else:
         raise AssertionError("Unsafe state SVG resource was accepted")
+
+
+def test_external_state_svg_switch_toggles_and_resynchronizes_input(tmp_path):
+    source = Path(__file__).parents[1] / "examples" / "peripherals" / "simple_switch"
+    external_root = tmp_path / "peripherals"
+    installed = external_root / "simple_switch"
+    installed.mkdir(parents=True)
+    for name in ("manifest.json", "icon.svg", "off.svg", "on.svg"):
+        (installed / name).write_bytes((source / name).read_bytes())
+
+    spec = discover_catalog((external_root,))["simple_switch"]
+    renderer = renderer_for(spec.visual["renderer"], spec.visual, spec.resource_root)
+    peripheral = PeripheralInstance("switch_1", "simple_switch", {"signal": "D0"}, {})
+    changes: list[tuple[str, str, int]] = []
+    changed = lambda identifier, terminal, value: changes.append((identifier, terminal, value))
+
+    renderer.mouse_press(peripheral, QPointF(4, 4), changed)
+    assert changes == []
+    assert renderer.selected_state({}) == "off"
+    renderer.mouse_press(peripheral, QPointF(50, 25), changed)
+    assert renderer.selected_state({}) == "on"
+    renderer.sync_inputs(peripheral, changed)
+    renderer.mouse_press(peripheral, QPointF(50, 25), changed)
+
+    assert spec.simulation_class == "gpio_driven"
+    assert changes == [
+        ("switch_1", "signal", 1),
+        ("switch_1", "signal", 1),
+        ("switch_1", "signal", 0),
+    ]
+    assert renderer.selected_state({}) == "off"
+
+
+def test_state_svg_interaction_requires_an_input_terminal_and_bounded_region():
+    raw = json.loads((Path(__file__).parents[1] / "examples" / "peripherals" / "simple_switch" / "manifest.json").read_text())
+    raw["visual"]["interactions"][0]["region"] = [12, 8, 200, 42]
+
+    try:
+        parse_manifest(raw, source="simple_switch/manifest.json")
+    except ValueError as error:
+        assert "invalid state_svg interaction" in str(error)
+    else:
+        raise AssertionError("Out-of-bounds interaction was accepted")

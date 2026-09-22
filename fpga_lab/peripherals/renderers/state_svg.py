@@ -19,6 +19,10 @@ class StateSvgRenderer(NullInputMixin):
         self._size = tuple(int(value) for value in self._visual["size"])
         self._default = str(self._visual["default_state"])
         self._rules = tuple(self._visual.get("state_rules", ()))
+        self._interactions = tuple(self._visual.get("interactions", ()))
+        self._input_values = {
+            str(dict(interaction)["terminal"]): False for interaction in self._interactions
+        }
         self._renderers: dict[str, QSvgRenderer] = {}
         if resource_root is not None:
             for state, resource in dict(self._visual["states"]).items():
@@ -31,6 +35,7 @@ class StateSvgRenderer(NullInputMixin):
         values = state.get("active", {})
         if not isinstance(values, dict):
             values = {}
+        values = {**values, **self._input_values}
         for raw_rule in self._rules:
             rule = dict(raw_rule)
             when = dict(rule["when"])
@@ -44,3 +49,18 @@ class StateSvgRenderer(NullInputMixin):
             return
         width, height = self._size
         renderer.render(painter, QRectF(0, 0, width, max(1, height - 24)))
+
+    def mouse_press(self, peripheral, pos, input_changed) -> None:
+        for raw_interaction in self._interactions:
+            interaction = dict(raw_interaction)
+            x, y, width, height = interaction["region"]
+            if x <= pos.x() <= x + width and y <= pos.y() <= y + height:
+                terminal = str(interaction["terminal"])
+                self._input_values[terminal] = not self._input_values[terminal]
+                input_changed(peripheral.peripheral_id, terminal, int(self._input_values[terminal]))
+                return
+
+    def sync_inputs(self, peripheral, input_changed) -> None:
+        """Restore declarative input levels after the native simulation resets."""
+        for terminal, value in self._input_values.items():
+            input_changed(peripheral.peripheral_id, terminal, int(value))

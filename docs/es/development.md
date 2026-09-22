@@ -44,6 +44,8 @@ El renderizador genérico `led_array` acepta `visual.terminals`, `visual.orienta
 
 El renderizador genérico `state_svg` selecciona recursos SVG del paquete mediante reglas ordenadas en `visual.state_rules`. Por ahora cada regla compara una terminal declarada con `0` o `1`; se usa `visual.default_state` cuando ninguna coincide. Consulta `examples/peripherals/simple_relay` para ver el ejemplo sin código más pequeño. Las rutas deben ser relativas, permanecer dentro del directorio del periférico y terminar en `.svg`.
 
+Para entradas digitales, `state_svg` también admite interacciones `click` delimitadas con la acción `toggle`. La interacción debe apuntar a una terminal de entrada declarada. Su valor retenido se restaura cada vez que inicia la simulación. Consulta `examples/peripherals/simple_switch` para ver un ejemplo interactivo completo sin código Python.
+
 Ejecuta las pruebas antes de abrir un pull request:
 
 ```bash

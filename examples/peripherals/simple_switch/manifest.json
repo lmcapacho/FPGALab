@@ -1,0 +1,35 @@
+{
+  "api_version": 1,
+  "id": "simple_switch",
+  "label": "Simple switch",
+  "category": "input",
+  "description": "Minimal interactive peripheral built only from a manifest and SVG states.",
+  "keywords": ["switch", "toggle", "input", "state", "svg"],
+  "icon": "icon.svg",
+  "simulation": {"class": "gpio_driven"},
+  "terminals": [
+    {"name": "signal", "direction": "input", "required": true}
+  ],
+  "properties": {},
+  "visual": {
+    "renderer": "state_svg",
+    "size": [112, 82],
+    "chrome": "compact",
+    "states": {
+      "off": "off.svg",
+      "on": "on.svg"
+    },
+    "default_state": "off",
+    "state_rules": [
+      {"state": "on", "when": {"terminal": "signal", "equals": 1}}
+    ],
+    "interactions": [
+      {
+        "event": "click",
+        "region": [12, 8, 88, 42],
+        "terminal": "signal",
+        "action": "toggle"
+      }
+    ]
+  }
+}

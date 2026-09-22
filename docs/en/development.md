@@ -44,6 +44,8 @@ The generic `led_array` renderer accepts `visual.terminals`, `visual.orientation
 
 The generic `state_svg` renderer selects packaged SVG resources through ordered `visual.state_rules`. Each rule currently compares one declared terminal with `0` or `1`; `visual.default_state` is used when no rule matches. See `examples/peripherals/simple_relay` for the smallest no-code example. Resource paths must be relative, remain inside the peripheral directory, and end in `.svg`.
 
+For digital inputs, `state_svg` also supports bounded `click` interactions with the `toggle` action. The interaction must target a declared input terminal. Its latched value is restored whenever simulation starts. See `examples/peripherals/simple_switch` for a complete interactive example requiring no Python code.
+
 Run the tests before opening a pull request:
 
 ```bash
