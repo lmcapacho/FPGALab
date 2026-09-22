@@ -36,6 +36,8 @@ Copia allí el directorio completo del periférico y reinicia FPGALab. Por ejemp
 
 Por ahora los periféricos externos son declarativos: pueden usar las propiedades, clases de simulación y renderizadores genéricos admitidos por el manifiesto, pero FPGALab no ejecuta código Python desde esas carpetas. Usa `FPGALAB_PERIPHERALS_DIR` para seleccionar otra carpeta de catálogo durante el desarrollo o las pruebas.
 
+Los manifiestos compartibles pueden incluir un objeto opcional `package` con `version` semántica, nombre del autor y URL opcional, identificador de licencia con formato SPDX, URL opcional del repositorio y `compatibility.minimum_fpgalab`. Los manifiestos antiguos e integrados siguen siendo válidos sin este objeto. Los ejemplos externos incluyen metadatos completos como referencia para las futuras herramientas de distribución.
+
 ## Agregar un periférico integrado
 
 Crea `fpga_lab/peripherals/<id>/manifest.json` y los recursos SVG con licencia compatible. Define terminales, conexiones obligatorias, propiedades, renderizador, tamaño y modo de simulación. Reutiliza un renderizador genérico cuando sea posible.

@@ -11,6 +11,7 @@ All notable changes to FPGALab are documented in this file.
 - Generic `state_svg` rendering with safe manifest rules, validated by an external no-code relay example.
 - Declarative clickable regions and latched digital inputs for no-code `state_svg` peripherals, with an external switch example.
 - Declarative press/release regions for momentary `state_svg` inputs, with safe cancellation and an external button example.
+- Optional versioned package metadata for external peripherals, including authorship, license, repository, and minimum FPGALab compatibility.
 
 ### Changed
 

@@ -36,6 +36,8 @@ Copy a complete peripheral directory into that location and restart FPGALab. For
 
 External peripherals are currently declarative: they may use supported manifest properties, simulation classes, and generic renderers, but FPGALab does not execute Python code from these folders. Set `FPGALAB_PERIPHERALS_DIR` to use a different catalog folder while developing or testing a peripheral.
 
+Shareable manifests may include an optional `package` object with a semantic `version`, author name and optional URL, SPDX-style license identifier, optional repository URL, and `compatibility.minimum_fpgalab`. Legacy and bundled manifests remain valid without this object. The external examples include complete package metadata as the reference for future distribution tooling.
+
 ## Add a bundled peripheral
 
 Create `fpga_lab/peripherals/<id>/manifest.json` and its licensed SVG resources. Define terminal direction, required connections, properties, visual renderer, size, and simulation mode. Reuse a generic renderer when possible; add a renderer class only when the behavior cannot be described by existing primitives.

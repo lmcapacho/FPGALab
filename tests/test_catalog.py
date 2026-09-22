@@ -66,7 +66,44 @@ def test_catalog_metadata_remains_optional_for_third_party_manifests():
     assert spec.description == ""
     assert spec.keywords == ()
     assert spec.icon is None
+    assert spec.package is None
     assert icon_path_for(spec).name == "output.svg"
+
+
+def test_external_examples_declare_publishable_package_metadata():
+    examples = Path(__file__).parents[1] / "examples" / "peripherals"
+
+    for manifest in sorted(examples.glob("*/manifest.json")):
+        spec = parse_manifest(
+            json.loads(manifest.read_text(encoding="utf-8")),
+            source=str(manifest),
+            resource_root=manifest.parent,
+        )
+        assert spec.package is not None
+        assert spec.package.version == "1.0.0"
+        assert spec.package.author_name == "Luis Miguel Capacho and contributors"
+        assert spec.package.author_url == "https://github.com/lmcapacho/FPGALab"
+        assert spec.package.license == "AGPL-3.0-or-later"
+        assert spec.package.repository == "https://github.com/lmcapacho/FPGALab"
+        assert spec.package.minimum_fpgalab == "0.1.0rc3"
+
+
+def test_package_metadata_rejects_invalid_versions_and_urls():
+    manifest = Path(__file__).parents[1] / "examples" / "peripherals" / "simple_relay" / "manifest.json"
+    cases = (
+        ("version", "latest", "package.version must use semantic versioning"),
+        ("repository", "../repository", "package.repository must be an HTTP(S) URL"),
+        ("license", "not a license", "package.license must be an SPDX-style identifier"),
+    )
+    for field, value, message in cases:
+        raw = json.loads(manifest.read_text(encoding="utf-8"))
+        raw["package"][field] = value
+        try:
+            parse_manifest(raw, source="simple_relay/manifest.json")
+        except ValueError as error:
+            assert message in str(error)
+        else:
+            raise AssertionError(f"Invalid package {field} was accepted")
 
 
 def test_legacy_terminal_shapes():

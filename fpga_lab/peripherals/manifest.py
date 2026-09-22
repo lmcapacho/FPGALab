@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+import re
 from typing import Any
+from urllib.parse import urlparse
 
 
 RESERVED_PROPERTIES = frozenset({"position"})
@@ -13,6 +15,9 @@ _VALID_DIRECTIONS = {"input", "output"}
 _VALID_SIM_CLASSES = {"gpio_sampled", "gpio_temporal", "gpio_driven", "streaming_sink"}
 _SUPPLY_ENDPOINTS = frozenset({"GND", "VCC"})
 _VALID_PROP_TYPES = {"color", "color_map", "enum", "boolean", "string", "key_sequence"}
+_PACKAGE_VERSION = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
+_FPGALAB_VERSION = re.compile(r"^\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?$")
+_LICENSE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+-]*$")
 
 
 @dataclass(frozen=True)
@@ -22,6 +27,18 @@ class TerminalSpec:
     width: int = 1
     required: bool = True
     supplies: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class PackageMetadata:
+    """Optional distribution identity for a shareable peripheral package."""
+
+    version: str
+    author_name: str
+    author_url: str | None
+    license: str
+    repository: str | None
+    minimum_fpgalab: str
 
 
 @dataclass(frozen=True)
@@ -38,6 +55,7 @@ class PeripheralSpec:
     terminals: tuple[TerminalSpec, ...]
     properties: dict[str, dict[str, Any]]
     visual: dict[str, Any]
+    package: PackageMetadata | None = None
     sink_kind: str | None = None
     color_depth: int | None = None
     temporal: dict[str, Any] | None = None
@@ -130,6 +148,7 @@ def parse_manifest(
         icon_path = PurePosixPath(icon)
         if icon_path.is_absolute() or ".." in icon_path.parts:
             raise ValueError(f"{source}: {identifier} icon must stay inside its peripheral directory")
+    package = _optional_package_metadata(raw.get("package"), source, identifier)
     return PeripheralSpec(
         id=identifier,
         label=label,
@@ -141,11 +160,56 @@ def parse_manifest(
         terminals=tuple(terminals),
         properties=properties,
         visual=visual,
+        package=package,
         sink_kind=simulation.get("sink_kind"),
         color_depth=_optional_color_depth(simulation, source, identifier),
         temporal=_optional_temporal(simulation, source, identifier),
         resource_root=resource_root,
     )
+
+
+def _optional_package_metadata(raw: Any, source: str, identifier: str) -> PackageMetadata | None:
+    """Validate optional publication metadata without breaking legacy manifests."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError(f"{source}: {identifier} package metadata must be an object")
+    version = raw.get("version")
+    author = raw.get("author")
+    license_id = raw.get("license")
+    compatibility = raw.get("compatibility")
+    if not isinstance(version, str) or _PACKAGE_VERSION.fullmatch(version) is None:
+        raise ValueError(f"{source}: {identifier} package.version must use semantic versioning")
+    if not isinstance(author, dict) or not isinstance(author.get("name"), str) or not author["name"].strip():
+        raise ValueError(f"{source}: {identifier} package.author needs a name")
+    author_url = author.get("url")
+    if author_url is not None and not _valid_web_url(author_url):
+        raise ValueError(f"{source}: {identifier} package.author.url must be an HTTP(S) URL")
+    if not isinstance(license_id, str) or _LICENSE_ID.fullmatch(license_id) is None:
+        raise ValueError(f"{source}: {identifier} package.license must be an SPDX-style identifier")
+    repository = raw.get("repository")
+    if repository is not None and not _valid_web_url(repository):
+        raise ValueError(f"{source}: {identifier} package.repository must be an HTTP(S) URL")
+    if not isinstance(compatibility, dict):
+        raise ValueError(f"{source}: {identifier} package.compatibility must be an object")
+    minimum = compatibility.get("minimum_fpgalab")
+    if not isinstance(minimum, str) or _FPGALAB_VERSION.fullmatch(minimum) is None:
+        raise ValueError(f"{source}: {identifier} minimum_fpgalab must be a FPGALab version")
+    return PackageMetadata(
+        version,
+        author["name"].strip(),
+        author_url,
+        license_id,
+        repository,
+        minimum,
+    )
+
+
+def _valid_web_url(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
 def _validate_led_array_visual(
