@@ -6,7 +6,7 @@ from pathlib import Path
 from PyQt6.QtCore import QPointF, QSize, QTimer, Qt, pyqtSignal
 import re
 from PyQt6.QtGui import QColor, QFont, QKeySequence, QPalette
-from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu, QInputDialog
 from .board import BoardDefinition
 from .constraints import PcfParser
 from .i18n import language_manager, t
@@ -18,6 +18,7 @@ from .temporal import LedModel, SignalWindow
 from .wiring import SUPPLY_ENDPOINTS, PeripheralInstance, VirtualLabProject
 from .theme import color, style_button
 from .workbench import WorkbenchPeripheralItem, WorkbenchView
+from .workbench.annotation import WorkbenchAnnotationItem
 
 
 _EXTERNAL_LIGHT_PERSISTENCE_SECONDS = 0.030
@@ -304,6 +305,12 @@ class PeripheralsPanel(QWidget):
         self._zoom_fit_button = QPushButton()
         self._undo_button = QPushButton()
         self._redo_button = QPushButton()
+        self._annotation_button = QPushButton()
+        self._annotation_menu = QMenu(self)
+        for kind, label in (("text", "Text"), ("rectangle", "Rectangle"), ("ellipse", "Ellipse"), ("line", "Line")):
+            self._annotation_menu.addAction(t(label), lambda checked=False, kind=kind: self._add_annotation(kind))
+        self._annotation_button.setMenu(self._annotation_menu)
+        style_button(self._annotation_button, "secondary")
         style_button(self._undo_button, "icon", "undo")
         style_button(self._redo_button, "icon", "redo")
         style_button(self._zoom_out_button, "icon", "zoom-out")
@@ -314,6 +321,7 @@ class PeripheralsPanel(QWidget):
         self._zoom_reset_button.setFixedWidth(60)
         workbench_header.addWidget(self._undo_button)
         workbench_header.addWidget(self._redo_button)
+        workbench_header.addWidget(self._annotation_button)
         workbench_header.addSpacing(4)
         workbench_header.addWidget(self._zoom_out_button)
         workbench_header.addWidget(self._zoom_reset_button)
@@ -358,6 +366,8 @@ class PeripheralsPanel(QWidget):
         self._catalog_button.setAccessibleName(t("Open peripheral catalog"))
         self._catalog_panel.retranslate_ui()
         self._workbench_hint.setText(t("Virtual workbench"))
+        self._annotation_button.setText(t("Annotate"))
+        self._annotation_button.setToolTip(t("Add text or shapes to the Lab"))
         self._workbench_hint.setToolTip(t("Drag empty space to select multiple parts. Shift+click changes the selection. Drag a selected part to move the group. Use the wheel to zoom. Ctrl+drag or middle-drag pans."))
         self._undo_button.setToolTip(t("Undo (Ctrl+Z)"))
         self._redo_button.setToolTip(t("Redo (Ctrl+Y or Ctrl+Shift+Z)"))
@@ -443,6 +453,11 @@ class PeripheralsPanel(QWidget):
             for wire in wires:
                 if wire.peripheral_id == peripheral.peripheral_id:
                     self._workbench_bindings[(peripheral.peripheral_id, wire.terminal)] = (bench_item, wire.hdl_net)
+        for annotation in json.loads(self._lab.read_text(encoding="utf-8")).get("annotations", []):
+            if isinstance(annotation, dict) and annotation.get("type") in {"text", "rectangle", "ellipse", "line"}:
+                item = WorkbenchAnnotationItem(annotation, self._edit_annotation)
+                item.set_editable(self._editing_enabled)
+                self._workbench_scene.addItem(item)
         self._rebuild_temporal_probes(project, workbench_items)
         self._restore_workbench_zoom()
         self._update_connection_status()
@@ -594,12 +609,13 @@ class PeripheralsPanel(QWidget):
     def set_editable(self, enabled):
         self._editing_enabled = enabled
         self._catalog_button.setEnabled(enabled)
+        self._annotation_button.setEnabled(enabled)
         if not enabled:
             self._catalog_panel.close_drawer()
         self.workbench.set_editable(enabled)
         self._update_history_actions()
         for item in self._workbench_scene.items():
-            if isinstance(item, WorkbenchPeripheralItem): item.set_editable(enabled)
+            if isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)): item.set_editable(enabled)
 
     def set_powered(self, powered: bool) -> None:
         """Propagate simulation power state to manifest renderers."""
@@ -660,13 +676,20 @@ class PeripheralsPanel(QWidget):
         """Persist one completed drag as a single Lab document update."""
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         previous = json.loads(json.dumps(raw))
-        positions = {
-            peripheral_id: [round(x, 1), round(y, 1)]
-            for peripheral_id, x, y in updates
-        }
+        positions = {update[0]: [round(update[1], 1), round(update[2], 1)] for update in updates}
+        geometries = {update[0]: update[3:] for update in updates if len(update) > 3}
         for item in raw.get("peripherals", []):
             if item["id"] in positions:
                 item.setdefault("properties", {})["position"] = positions[item["id"]]
+        for item in raw.get("annotations", []):
+            if item.get("id") in positions:
+                item["position"] = positions[item["id"]]
+                if item["id"] in geometries:
+                    width, height, reverse, orientation = geometries[item["id"]]
+                    item["width"] = round(width, 1)
+                    item["height"] = round(height, 1)
+                    item["reverse"] = reverse
+                    item["orientation"] = orientation
         self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
         message = t("Moved {count} peripheral(s)", count=len(updates))
         self._record_history(previous, raw, message)
@@ -802,7 +825,7 @@ class PeripheralsPanel(QWidget):
         self._delete_many([peripheral])
 
     def _delete_many(self, peripherals) -> None:
-        identifiers = {peripheral.peripheral_id for peripheral in peripherals}
+        identifiers = {peripheral["id"] if isinstance(peripheral, dict) else peripheral.peripheral_id for peripheral in peripherals}
         if not identifiers:
             return
         prompt = (
@@ -814,6 +837,7 @@ class PeripheralsPanel(QWidget):
         if answer != QMessageBox.StandardButton.Yes: return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         raw["peripherals"] = [item for item in raw.get("peripherals", []) if item["id"] not in identifiers]
+        raw["annotations"] = [item for item in raw.get("annotations", []) if item.get("id") not in identifiers]
         message = (
             t("{identifier} deleted", identifier=next(iter(identifiers)))
             if len(identifiers) == 1
@@ -833,6 +857,18 @@ class PeripheralsPanel(QWidget):
         existing = {item["id"] for item in raw.get("peripherals", [])}
         duplicate_ids: list[str] = []
         for peripheral in peripherals:
+            if isinstance(peripheral, dict):
+                annotation = copy.deepcopy(peripheral)
+                base = annotation["id"]
+                index = 1
+                annotation_ids = {item["id"] for item in raw.get("annotations", [])}
+                while f"{base}_{index}" in annotation_ids:
+                    index += 1
+                annotation["id"] = f"{base}_{index}"
+                annotation["position"] = [float(annotation["position"][0]) + 24, float(annotation["position"][1]) + 24]
+                raw.setdefault("annotations", []).append(annotation)
+                duplicate_ids.append(annotation["id"])
+                continue
             index = 1
             while f"{peripheral.kind}_{index}" in existing:
                 index += 1
@@ -857,6 +893,38 @@ class PeripheralsPanel(QWidget):
             for item in self._workbench_scene.items():
                 if isinstance(item, WorkbenchPeripheralItem) and item.peripheral.peripheral_id in duplicate_ids:
                     item.setSelected(True)
+                if isinstance(item, WorkbenchAnnotationItem) and item.data["id"] in duplicate_ids:
+                    item.setSelected(True)
+
+    def _add_annotation(self, kind: str) -> None:
+        if not self._editing_enabled:
+            return
+        value = ""
+        if kind == "text":
+            value, accepted = QInputDialog.getMultiLineText(self, t("Add text"), t("Markdown text"))
+            if not accepted or not value.strip():
+                return
+        raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        existing = {item.get("id") for item in raw.get("annotations", [])}
+        index = 1
+        while f"{kind}_{index}" in existing:
+            index += 1
+        center = self.workbench.camera_center()
+        raw.setdefault("annotations", []).append({"id": f"{kind}_{index}", "type": kind, "text": value, "position": [round(center.x(), 1), round(center.y(), 1)], "width": 180 if kind == "text" else 120, "height": 68 if kind == "text" else (12 if kind == "line" else 80), **({"orientation": "horizontal"} if kind == "line" else {})})
+        self._commit(raw, t("Annotation added"))
+
+    def _edit_annotation(self, annotation: dict) -> None:
+        if annotation.get("type") != "text":
+            return
+        value, accepted = QInputDialog.getMultiLineText(self, t("Edit text"), t("Markdown text"), annotation.get("text", ""))
+        if not accepted:
+            return
+        raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        for item in raw.get("annotations", []):
+            if item.get("id") == annotation["id"]:
+                item["text"] = value
+                break
+        self._commit(raw, t("Annotation updated"))
 
     def update_outputs(self, outputs: dict[str, int]) -> None:
         """Paint output peripherals from their actual HDL net resolved by the PCF."""

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QEvent, QSettings, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtWidgets import QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPushButton, QSplitter, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QApplication, QAbstractSpinBox, QComboBox, QFrame, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QTextEdit, QVBoxLayout, QWidget
 
 from .board import BoardDefinition, bundled_board_definition
 from .i18n import language_manager, t
@@ -333,9 +333,13 @@ class FPGAVirtualLab(QWidget):
         if event.type() not in {QEvent.Type.KeyPress, QEvent.Type.KeyRelease} or not self.isVisible():
             return super().eventFilter(watched, event)
         focused = QApplication.focusWidget()
-        if isinstance(focused, (QLineEdit, QComboBox, QKeySequenceEdit)):
+        if event.type() == QEvent.Type.KeyRelease and self._peripherals.handle_shortcut_event(event, False):
+            return True
+        if focused is None or focused.window() is not self.window() or isinstance(
+            focused, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox, QKeySequenceEdit)
+        ):
             return super().eventFilter(watched, event)
-        if self._peripherals.handle_shortcut_event(event, event.type() == QEvent.Type.KeyPress):
+        if event.type() == QEvent.Type.KeyPress and self._peripherals.handle_shortcut_event(event, True):
             return True
         return super().eventFilter(watched, event)
 

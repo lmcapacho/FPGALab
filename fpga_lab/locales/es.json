@@ -299,5 +299,17 @@
   "Unsupported peripheral\n{kind}": "Periférico no disponible\n{kind}",
   "Compatibility notice: some Lab elements are inactive but remain preserved. {details}": "Aviso de compatibilidad: algunos elementos del Lab están inactivos, pero permanecen conservados. {details}",
   "Unsupported peripheral": "Periférico no disponible",
-  "{identifier} uses the unavailable type '{kind}'. Its data will remain in the Lab. Install the matching peripheral or open the Lab with a compatible FPGALab version to configure it.": "{identifier} usa el tipo no disponible '{kind}'. Sus datos permanecerán en el Lab. Instale el periférico correspondiente o abra el Lab con una versión compatible de FPGALab para configurarlo."
+  "{identifier} uses the unavailable type '{kind}'. Its data will remain in the Lab. Install the matching peripheral or open the Lab with a compatible FPGALab version to configure it.": "{identifier} usa el tipo no disponible '{kind}'. Sus datos permanecerán en el Lab. Instale el periférico correspondiente o abra el Lab con una versión compatible de FPGALab para configurarlo.",
+  "Annotate": "Anotar",
+  "Add text or shapes to the Lab": "Agregar texto o figuras al Lab",
+  "Text": "Texto",
+  "Rectangle": "Rectángulo",
+  "Ellipse": "Elipse",
+  "Line": "Línea",
+  "Add text": "Agregar texto",
+  "Edit text": "Editar texto",
+  "Annotation added": "Anotación agregada",
+  "Annotation updated": "Anotación actualizada",
+  "Markdown text": "Texto Markdown",
+  "Drag an endpoint to change the line. Hold Shift for horizontal or vertical.": "Arrastra un extremo para cambiar la línea. Mantén Shift para fijarla horizontal o vertical."
 }

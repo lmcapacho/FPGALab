@@ -6,6 +6,7 @@ from PyQt6.QtCore import QPointF, Qt, pyqtSignal
 from PyQt6.QtWidgets import QGraphicsView
 
 from .item import WorkbenchPeripheralItem
+from .annotation import WorkbenchAnnotationItem
 
 
 class WorkbenchView(QGraphicsView):
@@ -66,10 +67,14 @@ class WorkbenchView(QGraphicsView):
             and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
         ):
             item = self.itemAt(event.position().toPoint())
-            if isinstance(item, WorkbenchPeripheralItem):
-                item.setSelected(not item.isSelected())
-                event.accept()
-                return
+            if isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)):
+                resizing = isinstance(item, WorkbenchAnnotationItem) and item.resize_handle_at(
+                    self.mapToScene(event.position().toPoint())
+                )
+                if not resizing:
+                    item.setSelected(not item.isSelected())
+                    event.accept()
+                    return
         wants_pan = event.button() == Qt.MouseButton.MiddleButton or (
             event.button() == Qt.MouseButton.LeftButton
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
@@ -104,7 +109,7 @@ class WorkbenchView(QGraphicsView):
             updates = [
                 update
                 for item in self.scene().items()
-                if isinstance(item, WorkbenchPeripheralItem)
+                if isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem))
                 if (update := item.take_position_update()) is not None
             ]
             if updates:
@@ -118,7 +123,7 @@ class WorkbenchView(QGraphicsView):
     def mouseMoveEvent(self, event):
         inside = self.viewport().rect().contains(event.position().toPoint())
         grabbed_item = self.scene().mouseGrabberItem()
-        if not inside and (self._panning or isinstance(grabbed_item, WorkbenchPeripheralItem)):
+        if not inside and (self._panning or isinstance(grabbed_item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem))):
             self._pan_paused = self._panning
             event.accept()
             return
@@ -206,15 +211,15 @@ class WorkbenchView(QGraphicsView):
             and event.key() == Qt.Key.Key_D
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
-            selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
+            selected = [item.peripheral if isinstance(item, WorkbenchPeripheralItem) else item.data for item in self.scene().selectedItems() if isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem))]
             if selected:
-                self._duplicate_selected([item.peripheral for item in selected])
+                self._duplicate_selected(selected)
                 event.accept()
                 return
         if self._editing_enabled and event.key() in {Qt.Key.Key_Delete, Qt.Key.Key_Backspace}:
-            selected = [item for item in self.scene().selectedItems() if isinstance(item, WorkbenchPeripheralItem)]
+            selected = [item.peripheral if isinstance(item, WorkbenchPeripheralItem) else item.data for item in self.scene().selectedItems() if isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem))]
             if selected:
-                self._delete_selected([item.peripheral for item in selected])
+                self._delete_selected(selected)
                 event.accept()
                 return
         super().keyPressEvent(event)
