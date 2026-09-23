@@ -134,6 +134,7 @@ def parse_manifest(
         raise ValueError(f"{source}: {identifier} visual.size must be [width, height]")
     _validate_led_array_visual(visual, terminals, properties, source, identifier)
     _validate_state_svg_visual(visual, terminals, source, identifier, resource_root)
+    _validate_signal_meter_visual(visual, terminals, properties, simulation, source, identifier)
     category = str(raw.get("category", "output")).strip().casefold()
     if not category:
         raise ValueError(f"{source}: {identifier} category must not be empty")
@@ -317,6 +318,24 @@ def _validate_state_svg_visual(
             or not valid_region
         ):
             raise ValueError(f"{source}: {identifier} has an invalid state_svg interaction")
+
+
+def _validate_signal_meter_visual(
+    visual: dict[str, Any], terminals: list[TerminalSpec], properties: dict[str, dict[str, Any]],
+    simulation: dict[str, Any], source: str, identifier: str,
+) -> None:
+    """Require a real temporal output for the generic high-time meter."""
+    if visual.get("renderer") != "signal_meter":
+        return
+    output_names = {terminal.name for terminal in terminals if terminal.direction == "output" and terminal.width == 1}
+    if visual.get("terminal") not in output_names:
+        raise ValueError(f"{source}: {identifier} signal_meter.terminal must name a one-bit output")
+    temporal = simulation.get("temporal")
+    if simulation.get("class") != "gpio_temporal" or not isinstance(temporal, dict) or temporal.get("mode") != "per_terminal":
+        raise ValueError(f"{source}: {identifier} signal_meter requires gpio_temporal per_terminal sampling")
+    color_property = visual.get("color_property", "color")
+    if properties.get(color_property, {}).get("type") != "color":
+        raise ValueError(f"{source}: {identifier} signal_meter.color_property must reference a color property")
 
 
 def _optional_color_depth(simulation: dict[str, Any], source: str, identifier: str) -> int | None:

@@ -44,6 +44,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self.setCursor(Qt.CursorShape.ArrowCursor)
         self._active = {}
         self._brightness = {}
+        self._temporal_observations = {}
         self._pressed = False
         self._press_sources: set[str] = set()
         self._sensor_value = False
@@ -85,6 +86,14 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._active[terminal] = brightness > 0.0
         self.update()
 
+    def set_temporal_observation(self, terminal: str, duty_cycle: float, edge_rate_hz: float) -> None:
+        """Publish a raw virtual-time signal window separately from visual LED persistence."""
+        self._temporal_observations[terminal] = {
+            "duty_cycle": max(0.0, min(float(duty_cycle), 1.0)),
+            "edge_rate_hz": max(0.0, float(edge_rate_hz)),
+        }
+        self.update()
+
     def set_snapshot(self, snapshot):
         self._snapshot = snapshot
         self.update()
@@ -110,6 +119,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
                 self._renderer.cancel_interactions()
             self._active.clear()
             self._brightness.clear()
+            self._temporal_observations.clear()
             self._press_sources.clear()
             self._pressed = False
             self._snapshot = None
@@ -163,6 +173,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._renderer.paint(painter, self.rect(), self._peripheral, {
             "active": self._active,
             "brightness": self._brightness,
+            "temporal": self._temporal_observations,
             "pressed": self._pressed,
             "sensor_value": self._sensor_value,
             "powered": self._powered,

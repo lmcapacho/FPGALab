@@ -9,6 +9,7 @@ from .lamp import LampRenderer
 from .led_array import LedArrayRenderer
 from .sensor import SensorRenderer
 from .state_svg import StateSvgRenderer
+from .signal_meter import SignalMeterRenderer
 from .seven_segment import SevenSegmentRenderer
 from .traffic_light import TrafficLightRenderer
 from .toggle_switch import ToggleSwitchRenderer
@@ -32,6 +33,8 @@ def renderer_for(name: str, visual: dict[str, object] | None = None, resource_ro
         return LedArrayRenderer(visual or {})
     if name == "state_svg":
         return StateSvgRenderer(visual or {}, resource_root)
+    if name == "signal_meter":
+        return SignalMeterRenderer(visual or {})
     try:
         return _RENDERERS[name]()
     except KeyError as exc:

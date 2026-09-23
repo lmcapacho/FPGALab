@@ -38,6 +38,12 @@ Por ahora los periféricos externos son declarativos: pueden usar las propiedade
 
 Los manifiestos compartibles pueden incluir un objeto opcional `package` con `version` semántica, nombre del autor y URL opcional, identificador de licencia con formato SPDX, URL opcional del repositorio y `compatibility.minimum_fpgalab`. Los manifiestos antiguos e integrados siguen siendo válidos sin este objeto. Los ejemplos externos incluyen metadatos completos como referencia para las futuras herramientas de distribución.
 
+### API declarativa de periféricos v1
+
+Un paquete es una carpeta con `manifest.json` y recursos SVG locales. El manifiesto define nombres y direcciones de terminales, propiedades editables, clase de simulación y renderizador integrado. No se carga código Python del usuario. `gpio_sampled` observa el último nivel de salida en cada actualización de interfaz; `gpio_temporal` con `temporal.mode: per_terminal` observa la fracción de ciclos virtuales en alto y la cantidad de transiciones entre actualizaciones. El renderizador temporal recibe `duty_cycle` (0–1) y `edge_rate_hz` por terminal, separados de `brightness`, que tiene persistencia visual propia de un LED. El intervalo usa tiempo virtual de simulación, no tiempo real. Estos datos no equivalen a un bus serie decodificado ni a la forma de onda exacta de cada pulso.
+
+El ejemplo externo [`pwm_meter`](../../examples/peripherals/pwm_meter/manifest.json) prueba ese contrato: una salida de FPGA, una sonda temporal y el renderizador genérico `signal_meter` muestran el porcentaje de tiempo en alto sin complemento Python. Copia la carpeta completa al catálogo de usuario y reinicia. Requiere FPGALab 0.1.0rc4 o posterior; las versiones anteriores no tienen este renderizador. La instalación desde la interfaz, la decodificación de protocolos (UART/I²C/SPI) y los renderizadores Python del usuario no forman parte de v1.
+
 ## Agregar un periférico integrado
 
 Crea `fpga_lab/peripherals/<id>/manifest.json` y los recursos SVG con licencia compatible. Define terminales, conexiones obligatorias, propiedades, renderizador, tamaño y modo de simulación. Reutiliza un renderizador genérico cuando sea posible.

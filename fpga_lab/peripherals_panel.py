@@ -956,11 +956,13 @@ class PeripheralsPanel(QWidget):
         if temporal.samples <= 0:
             for item, terminal in self._temporal_bindings:
                 item.set_terminal_brightness(terminal, 0.0)
+                item.set_temporal_observation(terminal, 0.0, 0.0)
             self._temporal_models = [LedModel(_EXTERNAL_LIGHT_PERSISTENCE_SECONDS) for _ in self._temporal_bindings]
             return
         for index, (item, terminal) in enumerate(self._temporal_bindings):
             model = self._temporal_models[index]
             edge_rate = temporal.edges[index] / temporal.elapsed_seconds if temporal.elapsed_seconds > 0 else 0.0
+            item.set_temporal_observation(terminal, temporal.hits[index] / temporal.samples, edge_rate)
             final_level = bool(temporal.ends[index])
             high_samples = temporal.hits[index]
             if edge_rate < _VISUAL_FUSION_EDGE_RATE_HZ:

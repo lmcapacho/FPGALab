@@ -85,7 +85,44 @@ def test_external_examples_declare_publishable_package_metadata():
         assert spec.package.author_url == "https://github.com/lmcapacho/FPGALab"
         assert spec.package.license == "AGPL-3.0-or-later"
         assert spec.package.repository == "https://github.com/lmcapacho/FPGALab"
-        assert spec.package.minimum_fpgalab == "0.1.0rc3"
+        assert spec.package.minimum_fpgalab == ("0.1.0rc4" if spec.id == "pwm_meter" else "0.1.0rc3")
+
+
+def test_external_pwm_meter_uses_temporal_output_without_python_plugin():
+    root = Path(__file__).parents[1] / "examples" / "peripherals" / "pwm_meter"
+    spec = parse_manifest(json.loads((root / "manifest.json").read_text(encoding="utf-8")), resource_root=root)
+    assert spec.simulation_class == "gpio_temporal"
+    assert spec.temporal == {"mode": "per_terminal"}
+    assert spec.visual["terminal"] == "signal"
+    renderer = renderer_for(spec.visual["renderer"], spec.visual, spec.resource_root)
+    image = QImage(132, 94, QImage.Format.Format_ARGB32)
+    image.fill(0)
+    painter = QPainter(image)
+    renderer.paint(painter, None, PeripheralInstance("pwm_meter_1", "pwm_meter", {}, {}), {
+        "powered": True,
+        "temporal": {"signal": {"duty_cycle": 0.25, "edge_rate_hz": 1000.0}},
+    })
+    painter.end()
+    assert image.pixelColor(30, 49) != image.pixelColor(80, 49)
+
+
+def test_signal_meter_requires_a_temporal_one_bit_output():
+    root = Path(__file__).parents[1] / "examples" / "peripherals" / "pwm_meter"
+    base = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    for mutation in ("terminal", "simulation", "width"):
+        raw = json.loads(json.dumps(base))
+        if mutation == "terminal":
+            raw["visual"]["terminal"] = "missing"
+        elif mutation == "simulation":
+            raw["simulation"]["class"] = "gpio_sampled"
+        else:
+            raw["terminals"][0]["width"] = 2
+        try:
+            parse_manifest(raw, resource_root=root)
+        except ValueError as error:
+            assert "signal_meter" in str(error)
+        else:
+            raise AssertionError(f"Invalid signal meter {mutation} was accepted")
 
 
 def test_package_metadata_rejects_invalid_versions_and_urls():

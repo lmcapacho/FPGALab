@@ -1,0 +1,33 @@
+{
+  "api_version": 1,
+  "id": "pwm_meter",
+  "package": {
+    "version": "1.0.0",
+    "author": {
+      "name": "Luis Miguel Capacho and contributors",
+      "url": "https://github.com/lmcapacho/FPGALab"
+    },
+    "license": "AGPL-3.0-or-later",
+    "repository": "https://github.com/lmcapacho/FPGALab",
+    "compatibility": {"minimum_fpgalab": "0.1.0rc4"}
+  },
+  "label": "PWM meter",
+  "category": "output",
+  "description": "Measures the high-time percentage of a digital FPGA output over each virtual-time update window.",
+  "keywords": ["pwm", "duty cycle", "meter", "temporal", "output"],
+  "icon": "icon.svg",
+  "simulation": {"class": "gpio_temporal", "temporal": {"mode": "per_terminal"}},
+  "terminals": [
+    {"name": "signal", "direction": "output", "width": 1, "required": true}
+  ],
+  "properties": {
+    "color": {"type": "color", "default": "#38bdf8", "label": "Color"}
+  },
+  "visual": {
+    "renderer": "signal_meter",
+    "size": [132, 94],
+    "chrome": "compact",
+    "terminal": "signal",
+    "color_property": "color"
+  }
+}
