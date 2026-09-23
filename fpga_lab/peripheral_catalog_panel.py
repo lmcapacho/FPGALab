@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QRect, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QKeyEvent
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -14,10 +14,11 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from .i18n import language_manager, t
-from .peripherals.catalog import icon_path_for
+from .peripherals.catalog import icon_path_for, user_catalog_root
 from .peripherals.manifest import PeripheralSpec
 from .theme import Metrics, style_button
 
@@ -58,6 +59,7 @@ class PeripheralCatalogPanel(QFrame):
     """Non-modal drawer for discovering and selecting manifest peripherals."""
 
     add_requested = pyqtSignal(str)
+    install_requested = pyqtSignal()
 
     def __init__(self, specs: dict[str, PeripheralSpec], parent=None):
         super().__init__(parent)
@@ -80,10 +82,17 @@ class PeripheralCatalogPanel(QFrame):
         header.addWidget(self._close_button)
         layout.addLayout(header)
 
+        search_row = QHBoxLayout()
         self._search = QLineEdit()
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self._refresh_items)
-        layout.addWidget(self._search)
+        search_row.addWidget(self._search, 1)
+        self._install_button = QPushButton()
+        style_button(self._install_button, "icon", "import")
+        self._install_button.setFixedSize(34, 34)
+        self._install_button.clicked.connect(self.install_requested.emit)
+        search_row.addWidget(self._install_button)
+        layout.addLayout(search_row)
 
         self._category = QComboBox()
         self._category.currentIndexChanged.connect(self._refresh_items)
@@ -117,6 +126,8 @@ class PeripheralCatalogPanel(QFrame):
         self._close_button.setToolTip(t("Close peripheral catalog"))
         self._close_button.setAccessibleName(t("Close peripheral catalog"))
         self._add_button.setText(t("Add selected peripheral"))
+        self._install_button.setToolTip(t("Install peripheral…"))
+        self._install_button.setAccessibleName(t("Install peripheral…"))
         self._category.blockSignals(True)
         self._category.clear()
         self._category.addItem(t("All categories"), None)
@@ -137,6 +148,12 @@ class PeripheralCatalogPanel(QFrame):
         """Expose filtered identifiers for behavior tests and keyboard workflows."""
         return tuple(self._list.item(index).data(Qt.ItemDataRole.UserRole) for index in range(self._list.count()))
 
+    def set_specs(self, specs: dict[str, PeripheralSpec]) -> None:
+        self._specs = dict(specs)
+        self.retranslate_ui()
+
+    uninstall_requested = pyqtSignal(str)
+
     def _refresh_items(self) -> None:
         query = self._search.text().strip().casefold()
         category = self._category.currentData()
@@ -150,11 +167,47 @@ class PeripheralCatalogPanel(QFrame):
             text = translated_label
             if translated_description:
                 text += f"\n{translated_description}"
+            installed = (user_catalog_root() / spec.id).is_dir()
             item = QListWidgetItem(QIcon(str(icon_path_for(spec))), text)
             item.setData(Qt.ItemDataRole.UserRole, spec.id)
             item.setToolTip(translated_description or translated_label)
             item.setSizeHint(QSize(0, 58))
             self._list.addItem(item)
+            if installed:
+                # QListWidget still paints the item's own text/icon behind item widgets.
+                item.setText("")
+                item.setIcon(QIcon())
+                row = QWidget(self._list)
+                row.setProperty("catalog_id", spec.id)
+                row.installEventFilter(self)
+                row_layout = QHBoxLayout(row)
+                row_layout.setContentsMargins(6, 2, 6, 2)
+                row_layout.setSpacing(8)
+                icon = QLabel()
+                icon.setPixmap(QIcon(str(icon_path_for(spec))).pixmap(34, 34))
+                icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                row_layout.addWidget(icon)
+                text_column = QVBoxLayout()
+                text_column.setContentsMargins(0, 0, 0, 0)
+                text_column.setSpacing(1)
+                title = QLabel(translated_label)
+                title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                text_column.addWidget(title)
+                if translated_description:
+                    description = QLabel()
+                    description.setText(description.fontMetrics().elidedText(translated_description, Qt.TextElideMode.ElideRight, 215))
+                    description.setToolTip(translated_description)
+                    description.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                    text_column.addWidget(description)
+                row_layout.addLayout(text_column, 1)
+                remove = QPushButton()
+                style_button(remove, "icon", "delete")
+                remove.setFixedSize(30, 30)
+                remove.setToolTip(t("Uninstall {identifier}", identifier=spec.id))
+                remove.setAccessibleName(t("Uninstall {identifier}", identifier=spec.id))
+                remove.clicked.connect(lambda _checked=False, identifier=spec.id: self.uninstall_requested.emit(identifier))
+                row_layout.addWidget(remove)
+                self._list.setItemWidget(item, row)
             if spec.id == current:
                 self._list.setCurrentItem(item)
         if self._list.currentItem() is None and self._list.count():
@@ -168,6 +221,18 @@ class PeripheralCatalogPanel(QFrame):
         item = self._list.currentItem()
         if item is not None:
             self.add_requested.emit(str(item.data(Qt.ItemDataRole.UserRole)))
+
+    def eventFilter(self, watched, event):
+        identifier = watched.property("catalog_id") if isinstance(watched, QWidget) else None
+        if identifier and event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick):
+            for index in range(self._list.count()):
+                item = self._list.item(index)
+                if item.data(Qt.ItemDataRole.UserRole) == identifier:
+                    self._list.setCurrentItem(item)
+                    if event.type() == QEvent.Type.MouseButtonDblClick:
+                        self._add_selected()
+                    return True
+        return super().eventFilter(watched, event)
 
     def drawer_width(self) -> int:
         return min(390, max(300, round(self.parentWidget().width() * 0.42)))

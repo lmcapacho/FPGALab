@@ -36,6 +36,10 @@ Copia allí el directorio completo del periférico y reinicia FPGALab. Por ejemp
 
 Antes de instalar un paquete, valida su carpeta con `python -m fpga_lab.peripherals.validate ruta/al/periferico`. El comando comprueba el manifiesto, el renderizador, los SVG referenciados, el nombre de la carpeta y la versión mínima de FPGALab; devuelve código de salida 0 si todo está listo. Puedes pasar varias carpetas. La validación no instala ni ejecuta código del paquete.
 
+También puedes abrir el catálogo en la mesa y elegir «Instalar periférico…» para importar una carpeta o un ZIP. El ZIP debe contener una única carpeta raíz con `manifest.json` y sus recursos; por ejemplo, `simple_relay/manifest.json`. FPGALab valida antes de copiar al catálogo del usuario y no sobrescribe periféricos existentes. Un paquete que exige una versión más nueva no se instala.
+
+El botón de instalación está junto a la búsqueda. Cada periférico instalado por el usuario muestra su propio icono de desinstalación en el catálogo; los integrados no. La desinstalación conserva los datos de los Labs que lo usen; esos elementos se muestran como no disponibles hasta reinstalar el paquete.
+
 Por ahora los periféricos externos son declarativos: pueden usar las propiedades, clases de simulación y renderizadores genéricos admitidos por el manifiesto, pero FPGALab no ejecuta código Python desde esas carpetas. Usa `FPGALAB_PERIPHERALS_DIR` para seleccionar otra carpeta de catálogo durante el desarrollo o las pruebas.
 
 Los manifiestos compartibles pueden incluir un objeto opcional `package` con `version` semántica, nombre del autor y URL opcional, identificador de licencia con formato SPDX, URL opcional del repositorio y `compatibility.minimum_fpgalab`. Los manifiestos antiguos e integrados siguen siendo válidos sin este objeto. Los ejemplos externos incluyen metadatos completos como referencia para las futuras herramientas de distribución.

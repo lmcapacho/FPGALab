@@ -3,9 +3,12 @@
 import json
 from pathlib import Path
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication, QPushButton
+
 from fpga_lab.peripherals.catalog import icon_path_for, load_catalog
 from fpga_lab.peripherals.manifest import RESERVED_PROPERTIES, parse_manifest
-from fpga_lab.peripheral_catalog_panel import matches_catalog_spec
+from fpga_lab.peripheral_catalog_panel import PeripheralCatalogPanel, matches_catalog_spec
 from fpga_lab.wiring import PERIPHERAL_LABELS, PERIPHERAL_TERMINALS
 
 
@@ -51,6 +54,26 @@ def test_catalog_metadata_remains_optional_for_third_party_manifests():
     assert spec.icon is None
     assert spec.package is None
     assert icon_path_for(spec).name == "output.svg"
+
+
+def test_user_package_has_inline_uninstall_action(tmp_path, monkeypatch):
+    _application = QApplication.instance() or QApplication([])
+    monkeypatch.setattr("fpga_lab.peripheral_catalog_panel.user_catalog_root", lambda: tmp_path)
+    (tmp_path / "simple_relay").mkdir()
+    example = Path(__file__).resolve().parents[1] / "examples/peripherals/simple_relay/manifest.json"
+    spec = parse_manifest(json.loads(example.read_text()))
+    panel = PeripheralCatalogPanel({"simple_relay": spec, "led": load_catalog()["led"]})
+    emitted = []
+    panel.uninstall_requested.connect(emitted.append)
+    rows = {panel._list.item(index).data(Qt.ItemDataRole.UserRole): panel._list.item(index) for index in range(panel._list.count())}
+    installed_row = panel._list.itemWidget(rows["simple_relay"])
+    assert installed_row is not None
+    assert rows["simple_relay"].text() == ""
+    assert rows["simple_relay"].icon().isNull()
+    assert panel._list.itemWidget(rows["led"]) is None
+    installed_row.findChild(QPushButton).click()
+    assert emitted == ["simple_relay"]
+    panel.close()
 
 
 def test_external_examples_declare_publishable_package_metadata():

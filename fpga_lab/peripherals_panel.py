@@ -5,13 +5,14 @@ import json
 from pathlib import Path
 from PyQt6.QtCore import QPointF, QSize, QTimer, Qt, pyqtSignal
 import re
-from PyQt6.QtGui import QColor, QFont, QKeySequence, QPalette
-from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu, QInputDialog
+from PyQt6.QtGui import QColor, QCursor, QFont, QKeySequence, QPalette
+from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu, QInputDialog
 from .board import BoardDefinition
 from .constraints import PcfParser
 from .i18n import language_manager, t
 from .peripheral_catalog_panel import PeripheralCatalogPanel
 from .peripherals.catalog import load_catalog, spec_for
+from .peripherals.install import install_package, uninstall_package
 from .peripherals.manifest import RESERVED_PROPERTIES
 from .peripherals.renderers.vga_monitor import VgaMonitorRenderer
 from .temporal import LedModel, SignalWindow
@@ -355,6 +356,8 @@ class PeripheralsPanel(QWidget):
         self._catalog_button.hide()
         self._catalog_panel = PeripheralCatalogPanel(load_catalog(), self)
         self._catalog_panel.add_requested.connect(self._add_kind)
+        self._catalog_panel.install_requested.connect(self._install_peripheral)
+        self._catalog_panel.uninstall_requested.connect(self._uninstall_peripheral)
         self._workbench_bindings = {}; self._reload()
         self._update_history_actions()
         language_manager.language_changed.connect(self._retranslate_ui)
@@ -410,6 +413,42 @@ class PeripheralsPanel(QWidget):
     def _toggle_catalog(self) -> None:
         if self._editing_enabled:
             self._catalog_panel.toggle()
+
+    def _install_peripheral(self) -> None:
+        menu = QMenu(self)
+        zip_action = menu.addAction(t("Shared package (.zip)…"))
+        folder_action = menu.addAction(t("Local development folder…"))
+        chosen = menu.exec(QCursor.pos())
+        if chosen == zip_action:
+            selected, _ = QFileDialog.getOpenFileName(self, t("Install peripheral"), "", "ZIP (*.zip)")
+        elif chosen == folder_action:
+            selected = QFileDialog.getExistingDirectory(self, t("Install peripheral"))
+        else:
+            return
+        if not selected:
+            return
+        try:
+            identifier = install_package(Path(selected))
+            self._catalog_panel.set_specs(load_catalog())
+            self._reload()
+        except (ValueError, OSError) as exc:
+            QMessageBox.warning(self, t("Cannot install peripheral"), str(exc))
+            return
+        QMessageBox.information(self, t("Peripheral installed"), t("Peripheral {identifier} is ready to add.", identifier=identifier))
+
+    def _uninstall_peripheral(self, identifier: str) -> None:
+        answer = QMessageBox.question(
+            self, t("Uninstall peripheral"),
+            t("Remove {identifier} from this computer? Labs that use it will retain their data but show an unavailable peripheral until it is reinstalled.", identifier=identifier),
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            uninstall_package(identifier)
+            self._catalog_panel.set_specs(load_catalog())
+            self._reload()
+        except (ValueError, OSError) as exc:
+            QMessageBox.warning(self, t("Cannot uninstall peripheral"), str(exc))
 
     def _constraints(self):
         """Load optional design constraints without requiring a PCF for the board UI."""

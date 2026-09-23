@@ -36,6 +36,10 @@ Copy a complete peripheral directory into that location and restart FPGALab. For
 
 Before installing a package, run `python -m fpga_lab.peripherals.validate path/to/peripheral`. The command checks the manifest, renderer, referenced SVGs, directory name, and minimum FPGALab version; it exits with status 0 when ready. You may pass multiple folders. Validation neither installs nor executes package code.
 
+You can also open the workbench catalog and choose “Install peripheral…” to import a folder or ZIP. The ZIP must contain a single root folder with `manifest.json` and its resources, such as `simple_relay/manifest.json`. FPGALab validates before copying to the user catalog and never overwrites an installed peripheral. Packages requiring a newer version are rejected.
+
+The install button sits beside search. Each user-installed peripheral has its own uninstall icon in the catalog; bundled peripherals do not. Uninstallation preserves Labs that use it; those elements appear unavailable until the package is reinstalled.
+
 External peripherals are currently declarative: they may use supported manifest properties, simulation classes, and generic renderers, but FPGALab does not execute Python code from these folders. Set `FPGALAB_PERIPHERALS_DIR` to use a different catalog folder while developing or testing a peripheral.
 
 Shareable manifests may include an optional `package` object with a semantic `version`, author name and optional URL, SPDX-style license identifier, optional repository URL, and `compatibility.minimum_fpgalab`. Legacy and bundled manifests remain valid without this object. The external examples include complete package metadata as the reference for future distribution tooling.
