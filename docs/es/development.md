@@ -34,6 +34,8 @@ FPGALab descubre al iniciar carpetas de periféricos sin código en:
 
 Copia allí el directorio completo del periférico y reinicia FPGALab. Por ejemplo, copia `examples/peripherals/simple_relay` de modo que la ruta final termine en `peripherals/simple_relay/manifest.json`. El relé aparecerá en el catálogo y alternará entre sus archivos `off.svg` y `on.svg` sin modificar ni recompilar FPGALab.
 
+Antes de instalar un paquete, valida su carpeta con `python -m fpga_lab.peripherals.validate ruta/al/periferico`. El comando comprueba el manifiesto, el renderizador, los SVG referenciados, el nombre de la carpeta y la versión mínima de FPGALab; devuelve código de salida 0 si todo está listo. Puedes pasar varias carpetas. La validación no instala ni ejecuta código del paquete.
+
 Por ahora los periféricos externos son declarativos: pueden usar las propiedades, clases de simulación y renderizadores genéricos admitidos por el manifiesto, pero FPGALab no ejecuta código Python desde esas carpetas. Usa `FPGALAB_PERIPHERALS_DIR` para seleccionar otra carpeta de catálogo durante el desarrollo o las pruebas.
 
 Los manifiestos compartibles pueden incluir un objeto opcional `package` con `version` semántica, nombre del autor y URL opcional, identificador de licencia con formato SPDX, URL opcional del repositorio y `compatibility.minimum_fpgalab`. Los manifiestos antiguos e integrados siguen siendo válidos sin este objeto. Los ejemplos externos incluyen metadatos completos como referencia para las futuras herramientas de distribución.

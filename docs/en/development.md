@@ -34,6 +34,8 @@ FPGALab discovers no-code peripheral folders at startup from:
 
 Copy a complete peripheral directory into that location and restart FPGALab. For example, copy `examples/peripherals/simple_relay` so the resulting path ends in `peripherals/simple_relay/manifest.json`. The relay then appears in the catalog and switches between its packaged `off.svg` and `on.svg` without modifying or rebuilding FPGALab.
 
+Before installing a package, run `python -m fpga_lab.peripherals.validate path/to/peripheral`. The command checks the manifest, renderer, referenced SVGs, directory name, and minimum FPGALab version; it exits with status 0 when ready. You may pass multiple folders. Validation neither installs nor executes package code.
+
 External peripherals are currently declarative: they may use supported manifest properties, simulation classes, and generic renderers, but FPGALab does not execute Python code from these folders. Set `FPGALAB_PERIPHERALS_DIR` to use a different catalog folder while developing or testing a peripheral.
 
 Shareable manifests may include an optional `package` object with a semantic `version`, author name and optional URL, SPDX-style license identifier, optional repository URL, and `compatibility.minimum_fpgalab`. Legacy and bundled manifests remain valid without this object. The external examples include complete package metadata as the reference for future distribution tooling.
