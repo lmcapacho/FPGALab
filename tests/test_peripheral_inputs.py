@@ -9,7 +9,7 @@ from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QPointF, QSettings, Qt
-from PyQt6.QtWidgets import QApplication, QGraphicsView, QMessageBox, QWidget
+from PyQt6.QtWidgets import QApplication, QFileDialog, QGraphicsView, QMessageBox, QWidget
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
 from fpga_lab.peripherals_panel import PeripheralConfigDialog, PeripheralsPanel
@@ -167,6 +167,34 @@ def test_model_changing_controls_are_locked_while_running(tmp_path):
     assert window._simulation_settings_button.isEnabled() is True
     window.close()
     window.deleteLater()
+
+
+def test_browse_opens_last_project_folder_across_sessions(tmp_path, monkeypatch):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    project_dir = tmp_path / "designs"
+    project_dir.mkdir()
+    project = project_dir / "example.ice"
+    project.write_text("{}", encoding="utf-8")
+    workspace = LabWorkspace(tmp_path / "labs", settings)
+    first = FPGALabMainWindow(workspace, settings=settings)
+    first.set_project_path(project)
+    first.close()
+    first.deleteLater()
+
+    opened_from = []
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda parent, title, directory, file_filter: (opened_from.append(directory) or "", ""))
+    second = FPGALabMainWindow(workspace, settings=settings)
+    second._browse()
+    assert opened_from == [str(project_dir)]
+    second.close()
+    second.deleteLater()
+
+    project.unlink()
+    third = FPGALabMainWindow(workspace, settings=settings)
+    third._browse()
+    assert opened_from[-1] == str(project_dir)
+    third.close()
+    third.deleteLater()
 
 
 def test_about_dialog_identifies_the_maintainer_license_and_source(tmp_path, monkeypatch):

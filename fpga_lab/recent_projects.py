@@ -32,5 +32,11 @@ class RecentProjects:
         path = Path(value) if value else None
         return path if path is not None and path.is_file() else None
 
+    def last_directory(self) -> Path | None:
+        """Keep the last project folder usable even if its .ice file was moved."""
+        value = self._settings.value(self.LAST_PROJECT_KEY, "", type=str)
+        directory = Path(value).parent if value else None
+        return directory if directory is not None and directory.is_dir() else None
+
     def clear(self) -> None:
         self._settings.remove(self.KEY)

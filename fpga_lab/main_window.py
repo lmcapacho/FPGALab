@@ -293,9 +293,9 @@ class FPGALabMainWindow(QMainWindow):
     def __init__(self, workspace: LabWorkspace, parent=None, settings: QSettings | None = None):
         super().__init__(parent)
         self.setMinimumSize(1000, 680)
-        self._recent_projects = RecentProjects()
         self._workspace = workspace
         self._settings = settings if settings is not None else QSettings("FPGALab", "FPGALab")
+        self._recent_projects = RecentProjects(self._settings)
         self._theme_mode = load_theme_mode(self._settings)
         self._selected_lab = self._workspace.last_selected()
         self._active_lab: QWidget | None = None
@@ -531,8 +531,11 @@ class FPGALabMainWindow(QMainWindow):
             self.set_status(t("Last project restored. Ready to run."))
 
     def _browse(self) -> None:
+        selected = self.selected_project()
+        directory = selected.parent if selected is not None and selected.parent.is_dir() else None
+        directory = directory or self._recent_projects.last_directory() or Path.home()
         filename, _ = QFileDialog.getOpenFileName(
-            self, t("Select Icestudio design"), "", t("Icestudio designs (*.ice)")
+            self, t("Select Icestudio design"), str(directory), t("Icestudio designs (*.ice)")
         )
         if filename:
             self.set_project_path(Path(filename))
