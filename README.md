@@ -1,5 +1,7 @@
 # FPGALab
 
+[![CI tests](https://github.com/lmcapacho/FPGALab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lmcapacho/FPGALab/actions/workflows/ci.yml)
+
 FPGALab is an interactive virtual FPGA laboratory for Verilog designs. It turns an Icestudio export into a native Verilator model and connects that model to a PyQt6 desktop interface, so learners can interact with a virtual board and peripherals without requiring physical hardware.
 
 User and contributor documentation is available in [English](https://lmcapacho.github.io/FPGALab/en/) and [Spanish](https://lmcapacho.github.io/FPGALab/es/).

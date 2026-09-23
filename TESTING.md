@@ -22,6 +22,8 @@ Tests should assert observable outcomes whenever possible. Access to private Qt 
 3. Qt workflow tests cover a small set of critical application flows. They should not become pixel or layout tests.
 4. Packaging workflows validate supported Python versions and operating-system artifacts in CI.
 
+The default pytest suite runs in GitHub Actions on every push to `main` and pull request across the supported Python versions. Its status appears in the README badge. Packaging checks remain separate from the test suite.
+
 Keep the default local suite fast enough to run before every commit. Slower end-to-end or packaging checks belong in CI rather than the default pytest run.
 
 ## Visual checklist for a release candidate

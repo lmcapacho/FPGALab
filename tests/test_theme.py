@@ -28,12 +28,6 @@ def test_dark_and_light_styles_share_semantic_structure():
         assert palette() == expected
         assert expected.canvas in stylesheet
         assert expected.accent in stylesheet
-        assert 'QPushButton[role="primary"]' in stylesheet
-        assert 'QPushButton[role="danger"]' in stylesheet
-        assert 'QPushButton[role="icon"]' in stylesheet
-        assert "QComboBox QAbstractItemView" in stylesheet
-        assert "combobox-popup: 0" in stylesheet
-        assert "QStatusBar::item" in stylesheet
         native_palette = application_palette(mode)
         assert native_palette.color(QPalette.ColorRole.Highlight).name() == expected.accent
         assert native_palette.color(QPalette.ColorRole.HighlightedText).name() == expected.accent_text

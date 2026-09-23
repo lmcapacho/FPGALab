@@ -22,10 +22,14 @@ jobs:
       - name: Install package
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -e .
+          python -m pip install -e ".[dev]"
       - name: Compile Python sources
         run: python -m compileall -q fpga_lab
       - name: Verify package metadata
         run: |
           python -c "from importlib.metadata import version; import fpga_lab; assert fpga_lab.__version__ == version('fpga-lab')"
           python -m pip check
+      - name: Run tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q
