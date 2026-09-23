@@ -19,6 +19,9 @@ def test_wrapper_keeps_getters_and_adds_streaming_hook():
     assert "sim_set_temporal_source" in source
     assert "sim_set_temporal_probe_word" in source
     assert "sim_temporal_probe_hits" in source
+    assert "sim_temporal_probe_pulse_samples" in source
+    assert "sim_temporal_probe_pulse_valid" in source
+    assert '#include "temporal_pulse.h"' in source
     assert "sample_temporal();" in source
     assert "sim_streaming_on_posedge();" in source
     assert "sim_streaming_reset();" in source

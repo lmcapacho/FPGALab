@@ -86,11 +86,15 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._active[terminal] = brightness > 0.0
         self.update()
 
-    def set_temporal_observation(self, terminal: str, duty_cycle: float, edge_rate_hz: float) -> None:
+    def set_temporal_observation(
+        self, terminal: str, duty_cycle: float, edge_rate_hz: float,
+        pulse_high_seconds: float | None = None,
+    ) -> None:
         """Publish a raw virtual-time signal window separately from visual LED persistence."""
         self._temporal_observations[terminal] = {
             "duty_cycle": max(0.0, min(float(duty_cycle), 1.0)),
             "edge_rate_hz": max(0.0, float(edge_rate_hz)),
+            "pulse_high_seconds": pulse_high_seconds,
         }
         self.update()
 

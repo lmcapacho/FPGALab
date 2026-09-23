@@ -962,7 +962,8 @@ class PeripheralsPanel(QWidget):
         for index, (item, terminal) in enumerate(self._temporal_bindings):
             model = self._temporal_models[index]
             edge_rate = temporal.edges[index] / temporal.elapsed_seconds if temporal.elapsed_seconds > 0 else 0.0
-            item.set_temporal_observation(terminal, temporal.hits[index] / temporal.samples, edge_rate)
+            pulse_width = temporal.pulse_high_seconds[index] if index < len(temporal.pulse_high_seconds) else None
+            item.set_temporal_observation(terminal, temporal.hits[index] / temporal.samples, edge_rate, pulse_width)
             final_level = bool(temporal.ends[index])
             high_samples = temporal.hits[index]
             if edge_rate < _VISUAL_FUSION_EDGE_RATE_HZ:

@@ -1,0 +1,37 @@
+{
+  "api_version": 1,
+  "id": "pulse_servo",
+  "package": {
+    "version": "1.0.0",
+    "author": {
+      "name": "Luis Miguel Capacho and contributors",
+      "url": "https://github.com/lmcapacho/FPGALab"
+    },
+    "license": "AGPL-3.0-or-later",
+    "repository": "https://github.com/lmcapacho/FPGALab",
+    "compatibility": {"minimum_fpgalab": "0.1.0rc4"}
+  },
+  "label": "Pulse servo",
+  "category": "output",
+  "description": "Visual servo position controlled by the completed high-pulse width of one FPGA output.",
+  "keywords": ["servo", "motor", "pulse width", "actuator", "output"],
+  "icon": "icon.svg",
+  "simulation": {"class": "gpio_temporal", "temporal": {"mode": "per_terminal"}},
+  "terminals": [
+    {"name": "signal", "direction": "output", "width": 1, "required": true}
+  ],
+  "properties": {
+    "color": {"type": "color", "default": "#38bdf8", "label": "Arm color"}
+  },
+  "visual": {
+    "renderer": "pulse_servo",
+    "size": [146, 150],
+    "chrome": "compact",
+    "terminal": "signal",
+    "pulse_min_us": 1000,
+    "pulse_max_us": 2000,
+    "angle_min_degrees": -90,
+    "angle_max_degrees": 90,
+    "color_property": "color"
+  }
+}

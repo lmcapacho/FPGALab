@@ -145,6 +145,8 @@ class VerilatorSimulation:
         self._temporal_probe_hits = self._function("sim_temporal_probe_hits", ctypes.c_uint64, (ctypes.c_uint32,))
         self._temporal_probe_edges = self._function("sim_temporal_probe_edges", ctypes.c_uint64, (ctypes.c_uint32,))
         self._temporal_probe_end = self._function("sim_temporal_probe_end", ctypes.c_uint8, (ctypes.c_uint32,))
+        self._temporal_probe_pulse_samples = self._function("sim_temporal_probe_pulse_samples", ctypes.c_uint64, (ctypes.c_uint32,))
+        self._temporal_probe_pulse_valid = self._function("sim_temporal_probe_pulse_valid", ctypes.c_uint8, (ctypes.c_uint32,))
         self._set_clk = self._function("sim_set_clk", None, (ctypes.c_uint8,))
         self._get_clk = self._function("sim_get_clk", ctypes.c_uint8)
         self._setters = {
@@ -240,6 +242,13 @@ class VerilatorSimulation:
             [bool(self._temporal_probe_end(index)) for index in range(count)],
             [int(self._temporal_probe_edges(index)) for index in range(count)],
         )
+
+    def temporal_pulse_window(self) -> list[int | None]:
+        """Latest completed high-pulse sample count per probe, across frame boundaries."""
+        return [
+            int(self._temporal_probe_pulse_samples(index)) if self._temporal_probe_pulse_valid(index) else None
+            for index in range(int(self._temporal_probe_count()))
+        ]
 
     @property
     def clk(self) -> bool:

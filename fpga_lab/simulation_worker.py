@@ -34,6 +34,12 @@ class TemporalFrame:
     ends: tuple[bool, ...] = ()
     edges: tuple[int, ...] = ()
     elapsed_seconds: float = 0.0
+    pulse_high_seconds: tuple[float | None, ...] = ()
+
+
+def pulse_samples_to_seconds(samples: int | None, divisor: int, clock_hz: int) -> float | None:
+    """Convert observation samples to virtual time, never wall-clock time."""
+    return samples * divisor / clock_hz if samples is not None else None
 
 
 @dataclass(frozen=True)
@@ -73,7 +79,8 @@ class SimulationWorker(QObject):
         self._clock_hz = clock_hz
         self._ui_refresh_hz = ui_refresh_hz
         self._observation_hz = observation_hz
-        self._simulation.set_observation_divisor(max(1, (clock_hz + observation_hz - 1) // observation_hz))
+        self._observation_divisor = max(1, (clock_hz + observation_hz - 1) // observation_hz)
+        self._simulation.set_observation_divisor(self._observation_divisor)
         self._timer: QTimer | None = None
         self._last_frame_time = 0.0
         self._cycle_remainder = 0.0
@@ -206,6 +213,7 @@ class SimulationWorker(QObject):
             self._simulation.ticks(cycles)
             windows = self._simulation.observed_windows(cycles)
             temporal_hits, temporal_samples, temporal_ends, temporal_edges = self._simulation.temporal_probe_window()
+            temporal_pulses = self._simulation.temporal_pulse_window()
             virtual_elapsed = cycles / self._clock_hz if self._clock_hz else 0.0
             leds = []
             for index, model in enumerate(self._led_models):
@@ -231,7 +239,11 @@ class SimulationWorker(QObject):
                 virtual_hz=self._measured_virtual_hz,
                 cycles=cycles,
                 temporal=TemporalFrame(
-                    tuple(temporal_hits), temporal_samples, tuple(temporal_ends), tuple(temporal_edges), virtual_elapsed
+                    tuple(temporal_hits), temporal_samples, tuple(temporal_ends), tuple(temporal_edges), virtual_elapsed,
+                    tuple(
+                        pulse_samples_to_seconds(samples, self._observation_divisor, self._clock_hz)
+                        for samples in temporal_pulses
+                    ),
                 ),
             ))
         except Exception as exc:

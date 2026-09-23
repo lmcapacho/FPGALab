@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+import math
 import re
 from typing import Any
 from urllib.parse import urlparse
@@ -135,6 +136,7 @@ def parse_manifest(
     _validate_led_array_visual(visual, terminals, properties, source, identifier)
     _validate_state_svg_visual(visual, terminals, source, identifier, resource_root)
     _validate_signal_meter_visual(visual, terminals, properties, simulation, source, identifier)
+    _validate_pulse_servo_visual(visual, terminals, properties, simulation, source, identifier)
     category = str(raw.get("category", "output")).strip().casefold()
     if not category:
         raise ValueError(f"{source}: {identifier} category must not be empty")
@@ -336,6 +338,31 @@ def _validate_signal_meter_visual(
     color_property = visual.get("color_property", "color")
     if properties.get(color_property, {}).get("type") != "color":
         raise ValueError(f"{source}: {identifier} signal_meter.color_property must reference a color property")
+
+
+def _validate_pulse_servo_visual(
+    visual: dict[str, Any], terminals: list[TerminalSpec], properties: dict[str, dict[str, Any]],
+    simulation: dict[str, Any], source: str, identifier: str,
+) -> None:
+    if visual.get("renderer") != "pulse_servo":
+        return
+    output_names = {terminal.name for terminal in terminals if terminal.direction == "output" and terminal.width == 1}
+    if visual.get("terminal") not in output_names:
+        raise ValueError(f"{source}: {identifier} pulse_servo.terminal must name a one-bit output")
+    temporal = simulation.get("temporal")
+    if simulation.get("class") != "gpio_temporal" or not isinstance(temporal, dict) or temporal.get("mode") != "per_terminal":
+        raise ValueError(f"{source}: {identifier} pulse_servo requires gpio_temporal per_terminal sampling")
+    for name in ("pulse_min_us", "pulse_max_us", "angle_min_degrees", "angle_max_degrees"):
+        value = visual.get(name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"{source}: {identifier} pulse_servo.{name} must be a finite number")
+    if not 0 < visual["pulse_min_us"] < visual["pulse_max_us"] <= 1_000_000:
+        raise ValueError(f"{source}: {identifier} pulse_servo pulse range is invalid")
+    if not -360 <= visual["angle_min_degrees"] < visual["angle_max_degrees"] <= 360:
+        raise ValueError(f"{source}: {identifier} pulse_servo angle range is invalid")
+    color_property = visual.get("color_property", "color")
+    if properties.get(color_property, {}).get("type") != "color":
+        raise ValueError(f"{source}: {identifier} pulse_servo.color_property must reference a color property")
 
 
 def _optional_color_depth(simulation: dict[str, Any], source: str, identifier: str) -> int | None:

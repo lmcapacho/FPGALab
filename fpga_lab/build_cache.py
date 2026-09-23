@@ -19,7 +19,7 @@ from .i18n import t
 from .profile import BoardProfile
 from .toolchain import resolve_verilator
 
-_CACHE_FORMAT = 5
+_CACHE_FORMAT = 6  # Native temporal-pulse ABI requires a rebuilt wrapper.
 _INCREMENTAL_FORMAT = 2  # Old Makefiles reference PyInstaller's vanished _MEI directory.
 _NATIVE_DIR = Path(__file__).resolve().parent / "native"
 _MIN_CACHE_BUDGET = 128 * 1024 * 1024

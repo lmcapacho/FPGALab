@@ -44,6 +44,23 @@ def test_external_pwm_meter_uses_temporal_output_without_python_plugin():
     assert image.pixelColor(30, 49) != image.pixelColor(80, 49)
 
 
+def test_external_servo_renders_from_completed_pulse_without_plugin_code():
+    root = Path(__file__).parents[1] / "examples" / "peripherals" / "pulse_servo"
+    spec = parse_manifest(json.loads((root / "manifest.json").read_text(encoding="utf-8")), resource_root=root)
+    renderer = renderer_for(spec.visual["renderer"], spec.visual, spec.resource_root)
+    peripheral = PeripheralInstance("servo_1", "pulse_servo", {}, {})
+    for pulse in (0.001, 0.0015, 0.002):
+        image = QImage(146, 150, QImage.Format.Format_ARGB32)
+        image.fill(0)
+        painter = QPainter(image)
+        renderer.paint(painter, None, peripheral, {
+            "powered": True,
+            "temporal": {"signal": {"pulse_high_seconds": pulse}},
+        })
+        painter.end()
+        assert image.pixelColor(73, 75).alpha() > 0
+
+
 def test_bcd_display_declares_four_bits_and_shows_hexadecimal_codes():
     display = load_catalog()["bcd_display"]
 

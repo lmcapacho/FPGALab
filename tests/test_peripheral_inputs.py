@@ -200,8 +200,9 @@ def test_temporal_output_preserves_raw_pwm_duty_separately_from_led_brightness(t
     assert terminal == "anode"
 
     for hits, expected in ((25, 0.25), (50, 0.5), (75, 0.75)):
-        panel._update_temporal_outputs(TemporalFrame((hits,), 100, (True,), (100,), 0.1))
+        panel._update_temporal_outputs(TemporalFrame((hits,), 100, (True,), (100,), 0.1, (0.0015,)))
         assert item._temporal_observations["anode"]["duty_cycle"] == expected
+        assert item._temporal_observations["anode"]["pulse_high_seconds"] == 0.0015
     assert item._brightness["anode"] != 0.75
     panel.deleteLater()
 

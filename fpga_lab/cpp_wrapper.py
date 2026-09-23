@@ -62,6 +62,7 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
 #include "{model_class}.h"
 #include "verilated.h"
 #include "sim_streaming.h"
+#include "temporal_pulse.h"
 #include <cstdint>
 
 static {model_class}* g_top = nullptr;
@@ -86,6 +87,7 @@ static uint32_t g_temporal_source_count = 0;
 static uint64_t g_temporal_hits[kTemporalProbeLimit] = {{0}};
 static uint64_t g_temporal_edges[kTemporalProbeLimit] = {{0}};
 static uint8_t g_temporal_previous[kTemporalProbeLimit] = {{0}};
+static TemporalPulse g_temporal_pulses[kTemporalProbeLimit];
 static uint8_t g_temporal_end[kTemporalProbeLimit] = {{0}};
 static uint32_t g_temporal_probe_count = 0;
 static uint64_t g_temporal_samples = 0;
@@ -119,6 +121,7 @@ static void sample_temporal() {{
         if (active != g_temporal_previous[probe]) ++g_temporal_edges[probe];
         g_temporal_previous[probe] = active;
         g_temporal_end[probe] = active;
+        g_temporal_pulses[probe].sample(active != 0);
     }}
 }}
 
@@ -165,6 +168,10 @@ void init_sim() {{
 void reset_sim() {{
     if (!g_top) init_sim();
     sim_streaming_reset();
+    for (uint32_t probe = 0; probe < g_temporal_probe_count; ++probe) {{
+        g_temporal_previous[probe] = 0;
+        g_temporal_pulses[probe] = TemporalPulse{{}};
+    }}
     g_top->final();
     delete g_top;
     delete g_context;
@@ -221,6 +228,8 @@ void sim_set_temporal_probe_count(uint32_t count) {{
     g_temporal_probe_count = count <= kTemporalProbeLimit ? count : 0;
     for (uint32_t probe = 0; probe < g_temporal_probe_count; ++probe) {{
         g_temporal_possible[probe] = 1;
+        g_temporal_previous[probe] = 0;
+        g_temporal_pulses[probe] = TemporalPulse{{}};
         for (uint32_t word = 0; word < kTemporalWordLimit; ++word) {{
             g_temporal_mask[probe][word] = 0;
             g_temporal_expected[probe][word] = 0;
@@ -239,6 +248,8 @@ uint64_t sim_temporal_probe_samples() {{ return g_temporal_samples; }}
 uint64_t sim_temporal_probe_hits(uint32_t probe) {{ return probe < g_temporal_probe_count ? g_temporal_hits[probe] : 0; }}
 uint64_t sim_temporal_probe_edges(uint32_t probe) {{ return probe < g_temporal_probe_count ? g_temporal_edges[probe] : 0; }}
 uint8_t sim_temporal_probe_end(uint32_t probe) {{ return probe < g_temporal_probe_count ? g_temporal_end[probe] : 0; }}
+uint64_t sim_temporal_probe_pulse_samples(uint32_t probe) {{ return probe < g_temporal_probe_count ? g_temporal_pulses[probe].last_completed_samples : 0; }}
+uint8_t sim_temporal_probe_pulse_valid(uint32_t probe) {{ return probe < g_temporal_probe_count && g_temporal_pulses[probe].has_completed_pulse ? 1 : 0; }}
 
 {setters}
 
