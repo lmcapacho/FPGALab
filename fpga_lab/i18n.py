@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QSettings, pyqtSignal
+from PyQt6.QtCore import QCoreApplication, QLibraryInfo, QObject, QSettings, QTranslator, pyqtSignal
 
 
 def _load_catalog(language: str) -> dict[str, str]:
@@ -58,6 +58,45 @@ class LanguageManager(QObject):
 
 
 language_manager = LanguageManager()
+
+
+class QtDialogTranslations(QObject):
+    """Keep Qt's built-in dialog buttons in the selected interface language."""
+
+    def __init__(self, app: QCoreApplication) -> None:
+        super().__init__(app)
+        self._app = app
+        self._translator: QTranslator | None = None
+        language_manager.language_changed.connect(self.set_language)
+        self.set_language(language_manager.language)
+
+    def set_language(self, language: str) -> None:
+        if self._translator is not None:
+            self._app.removeTranslator(self._translator)
+            self._translator.deleteLater()
+            self._translator = None
+        if language == "en":
+            return
+        translator = QTranslator(self)
+        filename = f"qtbase_{language}.qm"
+        translation_dirs = (
+            Path(__file__).resolve().parent / "translations",
+            Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)),
+        )
+        for directory in translation_dirs:
+            if translator.load(str(directory / filename)):
+                self._app.installTranslator(translator)
+                self._translator = translator
+                return
+        translator.deleteLater()
+
+    def dispose(self) -> None:
+        """Disconnect and remove the translator before this manager is discarded."""
+        language_manager.language_changed.disconnect(self.set_language)
+        if self._translator is not None:
+            self._app.removeTranslator(self._translator)
+            self._translator.deleteLater()
+            self._translator = None
 
 
 def t(source: str, /, **values: object) -> str:

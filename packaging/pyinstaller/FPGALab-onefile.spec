@@ -3,11 +3,14 @@
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files
+from PyQt6.QtCore import QLibraryInfo
 
 
 repository_root = Path(SPECPATH).parents[1]
 datas = collect_data_files("fpga_lab")
 datas += [(str(repository_root / name), ".") for name in ("LICENSE", "NOTICE", "AUTHORS.md", "AI_USAGE.md")]
+qtbase_es = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) / "qtbase_es.qm"
+datas.append((str(qtbase_es), "fpga_lab/translations"))
 
 a = Analysis(
     [str(Path(SPECPATH) / "launcher.py")],

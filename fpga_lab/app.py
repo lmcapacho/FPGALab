@@ -17,7 +17,7 @@ from .branding import application_icon
 from .build_cache import VerilatorBuildCache
 from .compiler import BuildCancelled
 from .ice_project import IcestudioProject, IcestudioProjectError
-from .i18n import t
+from .i18n import QtDialogTranslations, t
 from .lab_workspace import LabWorkspace
 from .main_window import FPGALabMainWindow
 from .profile import BoardProfile, bundled_profile
@@ -362,6 +362,7 @@ def main() -> None:
     app.setApplicationName("FPGALab")
     app.setApplicationDisplayName("FPGALab")
     app.setOrganizationName("FPGALab")
+    qt_dialog_translations = QtDialogTranslations(app)
     theme_mode = load_theme_mode()
     app.setPalette(application_palette(theme_mode))
     app.setStyleSheet(application_stylesheet(theme_mode))

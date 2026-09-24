@@ -2,10 +2,11 @@ from pathlib import Path
 
 from PyQt6.QtCore import QSettings
 from PyQt6.QtGui import QPalette
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QDialogButtonBox, QMessageBox
 
 from fpga_lab.board_editor import BoardLayoutEditor
 from fpga_lab.board_layout import BoardLayout, bundled_layout
+from fpga_lab.i18n import QtDialogTranslations, language_manager
 from fpga_lab.lab_workspace import LabWorkspace
 from fpga_lab.main_window import FPGALabMainWindow
 from fpga_lab.theme import (
@@ -60,6 +61,36 @@ def test_theme_preference_is_validated_and_persisted(tmp_path):
     assert load_theme_mode(settings) == "light"
     settings.setValue("ui/theme", "unknown")
     assert load_theme_mode(settings) == "dark"
+
+
+def test_standard_dialog_buttons_follow_interface_language(monkeypatch):
+    application = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(language_manager, "_language", "en")
+    translations = QtDialogTranslations(application)
+    try:
+        monkeypatch.setattr(language_manager, "_language", "es")
+        language_manager.language_changed.emit("es")
+        message = QMessageBox()
+        message.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
+        )
+        assert message.button(QMessageBox.StandardButton.Yes).text().replace("&", "") == "Sí"
+        assert message.button(QMessageBox.StandardButton.No).text().replace("&", "") == "No"
+        assert message.button(QMessageBox.StandardButton.Cancel).text() == "Cancelar"
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        assert buttons.button(QDialogButtonBox.StandardButton.Ok).text() == "Aceptar"
+        assert buttons.button(QDialogButtonBox.StandardButton.Cancel).text() == "Cancelar"
+
+        monkeypatch.setattr(language_manager, "_language", "en")
+        language_manager.language_changed.emit("en")
+        english = QMessageBox()
+        english.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        assert english.button(QMessageBox.StandardButton.Yes).text().replace("&", "") == "Yes"
+    finally:
+        translations.dispose()
+        translations.deleteLater()
 
 
 def test_theme_button_switches_palette_and_user_preference(tmp_path):
