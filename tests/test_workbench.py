@@ -11,12 +11,37 @@ from PyQt6.QtCore import QPointF, QSettings
 from PyQt6.QtWidgets import QApplication, QGraphicsView, QMessageBox
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
+from fpga_lab.i18n import language_manager
 from fpga_lab.peripherals_panel import PeripheralsPanel
 from fpga_lab.virtual_lab import FPGAVirtualLab
 from fpga_lab.workbench.annotation import WorkbenchAnnotationItem
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
+
+
+def test_annotation_menu_updates_when_language_changes(tmp_path, monkeypatch):
+    monkeypatch.setattr(language_manager, "_language", "en")
+    lab = tmp_path / "annotations.lab"
+    lab.write_text('{"peripherals": []}', encoding="utf-8")
+    panel = PeripheralsPanel(BoardDefinition.load(bundled_board_definition()), None, lab)
+    assert [action.text() for action in panel._annotation_menu.actions()] == [
+        "Text", "Rectangle", "Ellipse", "Line",
+    ]
+
+    monkeypatch.setattr(language_manager, "_language", "es")
+    language_manager.language_changed.emit("es")
+    assert panel._annotation_button.text() == "Anotar"
+    assert [action.text() for action in panel._annotation_menu.actions()] == [
+        "Texto", "Rectángulo", "Elipse", "Línea",
+    ]
+    monkeypatch.setattr(language_manager, "_language", "en")
+    language_manager.language_changed.emit("en")
+    assert [action.text() for action in panel._annotation_menu.actions()] == [
+        "Text", "Rectangle", "Ellipse", "Line",
+    ]
+    panel.close()
+    panel.deleteLater()
 
 
 def test_board_workbench_split_is_remembered_per_user(tmp_path):

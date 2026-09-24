@@ -308,8 +308,11 @@ class PeripheralsPanel(QWidget):
         self._redo_button = QPushButton()
         self._annotation_button = QPushButton()
         self._annotation_menu = QMenu(self)
+        self._annotation_actions = {}
         for kind, label in (("text", "Text"), ("rectangle", "Rectangle"), ("ellipse", "Ellipse"), ("line", "Line")):
-            self._annotation_menu.addAction(t(label), lambda checked=False, kind=kind: self._add_annotation(kind))
+            self._annotation_actions[label] = self._annotation_menu.addAction(
+                t(label), lambda checked=False, kind=kind: self._add_annotation(kind)
+            )
         self._annotation_button.setMenu(self._annotation_menu)
         style_button(self._annotation_button, "secondary")
         style_button(self._undo_button, "icon", "undo")
@@ -371,6 +374,8 @@ class PeripheralsPanel(QWidget):
         self._workbench_hint.setText(t("Virtual workbench"))
         self._annotation_button.setText(t("Annotate"))
         self._annotation_button.setToolTip(t("Add text or shapes to the Lab"))
+        for label, action in self._annotation_actions.items():
+            action.setText(t(label))
         self._workbench_hint.setToolTip(t("Drag empty space to select multiple parts. Shift+click changes the selection. Drag a selected part to move the group. Use the wheel to zoom. Ctrl+drag or middle-drag pans."))
         self._undo_button.setToolTip(t("Undo (Ctrl+Z)"))
         self._redo_button.setToolTip(t("Redo (Ctrl+Y or Ctrl+Shift+Z)"))
