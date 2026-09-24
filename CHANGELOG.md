@@ -13,6 +13,7 @@ All notable changes to FPGALab are documented in this file.
 - Reusable SVG renderers for digital states, interactive switches and buttons, LED arrays, PWM meters, and pulse-controlled servo visuals.
 - Temporal observations for duty cycle, edge rate, and completed high-pulse width, with external example packages.
 - Workbench annotations: Markdown text and editable lines, rectangles, circles, and ellipses.
+- Bilingual reference documentation for the external peripheral API, package format, and visual renderers.
 - The pytest suite in CI, including native pulse-measurement checks.
 
 ### Changed
@@ -22,6 +23,10 @@ All notable changes to FPGALab are documented in this file.
 
 ### Fixed
 
+- Place newly added peripherals at the visible workbench camera center and preserve the current zoom and framing.
+- Distinguish peripheral, annotation, and mixed selections in deletion confirmations and status messages.
+- Update annotation menu labels immediately when switching languages and translate Qt's standard dialog buttons.
+- Keep popup menu text legible in the dark theme on Windows.
 - Keep native build sources in the persistent incremental workspace, so Windows one-file builds remain compilable after FPGALab restarts.
 - Open the project browser in the most recently used design folder.
 
