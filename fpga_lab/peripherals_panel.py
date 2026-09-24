@@ -427,14 +427,30 @@ class PeripheralsPanel(QWidget):
             return
         if not selected:
             return
+        def confirm_update(identifier: str, old_version: str | None, new_version: str) -> bool:
+            answer = QMessageBox.question(
+                self, t("Update peripheral"),
+                t("Update {identifier} from {old_version} to {new_version}? The installed package files will be replaced; Labs and their connections will be preserved.",
+                  identifier=identifier, old_version=old_version or t("unversioned"), new_version=new_version),
+            )
+            return answer == QMessageBox.StandardButton.Yes
+
         try:
-            identifier = install_package(Path(selected))
+            result = install_package(Path(selected), confirm_update=confirm_update)
+            if result.action == "cancelled":
+                return
+            if result.action == "unchanged":
+                QMessageBox.information(self, t("Peripheral unchanged"), t("Peripheral {identifier} is already installed with identical files.", identifier=result.identifier))
+                return
             self._catalog_panel.set_specs(load_catalog())
             self._reload()
         except (ValueError, OSError) as exc:
             QMessageBox.warning(self, t("Cannot install peripheral"), str(exc))
             return
-        QMessageBox.information(self, t("Peripheral installed"), t("Peripheral {identifier} is ready to add.", identifier=identifier))
+        if result.action == "updated":
+            QMessageBox.information(self, t("Peripheral updated"), t("Peripheral {identifier} was updated. Existing Labs and connections were preserved.", identifier=result.identifier))
+        else:
+            QMessageBox.information(self, t("Peripheral installed"), t("Peripheral {identifier} is ready to add.", identifier=result.identifier))
 
     def _uninstall_peripheral(self, identifier: str) -> None:
         answer = QMessageBox.question(

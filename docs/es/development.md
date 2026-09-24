@@ -36,7 +36,9 @@ Copia allí el directorio completo del periférico y reinicia FPGALab. Por ejemp
 
 Antes de instalar un paquete, valida su carpeta con `python -m fpga_lab.peripherals.validate ruta/al/periferico`. El comando comprueba el manifiesto, el renderizador, los SVG referenciados, el nombre de la carpeta y la versión mínima de FPGALab; devuelve código de salida 0 si todo está listo. Puedes pasar varias carpetas. La validación no instala ni ejecuta código del paquete.
 
-También puedes abrir el catálogo en la mesa y elegir «Instalar periférico…» para importar una carpeta o un ZIP. El ZIP debe contener una única carpeta raíz con `manifest.json` y sus recursos; por ejemplo, `simple_relay/manifest.json`. FPGALab valida antes de copiar al catálogo del usuario y no sobrescribe periféricos existentes. Un paquete que exige una versión más nueva no se instala.
+También puedes abrir el catálogo en la mesa y elegir «Instalar periférico…» para importar una carpeta o un ZIP. El ZIP debe contener una única carpeta raíz con `manifest.json` y sus recursos; por ejemplo, `simple_relay/manifest.json`. FPGALab valida antes de copiar al catálogo del usuario. Un paquete que exige una versión más nueva de FPGALab no se instala.
+
+Si el ID ya está instalado, un paquete con archivos idénticos no cambia nada. Para actualizarlo, el nuevo manifiesto debe tener una `package.version` mayor; FPGALab pide confirmación y conserva el paquete anterior si el reemplazo falla. Una versión igual con archivos distintos o una versión anterior se rechaza. Los Labs y sus conexiones no se modifican.
 
 El botón de instalación está junto a la búsqueda. Cada periférico instalado por el usuario muestra su propio icono de desinstalación en el catálogo; los integrados no. La desinstalación conserva los datos de los Labs que lo usen; esos elementos se muestran como no disponibles hasta reinstalar el paquete.
 

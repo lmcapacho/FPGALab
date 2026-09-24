@@ -36,7 +36,9 @@ Copy a complete peripheral directory into that location and restart FPGALab. For
 
 Before installing a package, run `python -m fpga_lab.peripherals.validate path/to/peripheral`. The command checks the manifest, renderer, referenced SVGs, directory name, and minimum FPGALab version; it exits with status 0 when ready. You may pass multiple folders. Validation neither installs nor executes package code.
 
-You can also open the workbench catalog and choose “Install peripheral…” to import a folder or ZIP. The ZIP must contain a single root folder with `manifest.json` and its resources, such as `simple_relay/manifest.json`. FPGALab validates before copying to the user catalog and never overwrites an installed peripheral. Packages requiring a newer version are rejected.
+You can also open the workbench catalog and choose “Install peripheral…” to import a folder or ZIP. The ZIP must contain a single root folder with `manifest.json` and its resources, such as `simple_relay/manifest.json`. FPGALab validates before copying to the user catalog. Packages requiring a newer FPGALab version are rejected.
+
+If the ID is already installed, identical files leave it unchanged. An update needs a higher `package.version`; FPGALab asks for confirmation and restores the previous package if replacement fails. A changed package with the same or a lower version is rejected. Labs and their connections are not modified.
 
 The install button sits beside search. Each user-installed peripheral has its own uninstall icon in the catalog; bundled peripherals do not. Uninstallation preserves Labs that use it; those elements appear unavailable until the package is reinstalled.
 
