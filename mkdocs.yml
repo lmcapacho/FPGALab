@@ -50,4 +50,5 @@ nav:
   - Getting started: getting-started.md
   - Labs and workbench: labs-and-workbench.md
   - Toolchain and troubleshooting: troubleshooting.md
+  - External peripheral API: peripheral-api.md
   - Architecture and contribution: development.md

@@ -7,6 +7,7 @@ FPGALab is a desktop virtual FPGA laboratory for Icestudio and Verilog designs. 
 - Follow [Getting started](getting-started.md) to run your first design.
 - Learn how to create, import, and share [Labs](labs-and-workbench.md).
 - Use [Toolchain and troubleshooting](troubleshooting.md) when FPGALab cannot find Verilator or a compiler.
+- Use the [external peripheral API](peripheral-api.md) to create and install your own components.
 - Read [Architecture and contribution](development.md) to extend the project.
 
 ## Current scope
