@@ -398,6 +398,16 @@ def _validate_measured_svg_visual(
     width, height = visual["size"]
     if not (0 <= visual["origin"][0] <= width and 0 <= visual["origin"][1] <= height - 24):
         raise ValueError(f"{source}: {identifier} measured_svg.origin is outside the artwork")
+    label = visual.get("value_label")
+    if label is not None:
+        rect = label.get("rect") if isinstance(label, dict) else None
+        if not isinstance(label, dict) or label.get("format") != "percent" or not (
+            isinstance(rect, list) and len(rect) == 4
+            and all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) for value in rect)
+            and rect[0] >= 0 and rect[1] >= 0 and rect[2] > 0 and rect[3] > 0
+            and rect[0] + rect[2] <= width and rect[1] + rect[3] <= height - 24
+        ) or visual["measurement"] != "duty_cycle" or visual["output_range"] != [0, 1]:
+            raise ValueError(f"{source}: {identifier} measured_svg.value_label needs a bounded percent rectangle and 0–1 duty output")
     for key in ("base_svg", "moving_svg"):
         resource = visual.get(key)
         if not isinstance(resource, str) or not resource:

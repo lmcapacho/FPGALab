@@ -20,14 +20,19 @@
   "terminals": [
     {"name": "signal", "direction": "output", "width": 1, "required": true}
   ],
-  "properties": {
-    "color": {"type": "color", "default": "#38bdf8", "label": "Color"}
-  },
+  "properties": {},
   "visual": {
-    "renderer": "signal_meter",
+    "renderer": "measured_svg",
     "size": [132, 94],
     "chrome": "compact",
     "terminal": "signal",
-    "color_property": "color"
+    "measurement": "duty_cycle",
+    "input_range": [0, 1],
+    "output_range": [0, 1],
+    "transform": "scale_x",
+    "origin": [12, 54],
+    "base_svg": "body.svg",
+    "moving_svg": "fill.svg",
+    "value_label": {"format": "percent", "rect": [12, 10, 108, 30]}
   }
 }

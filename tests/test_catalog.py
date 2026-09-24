@@ -92,7 +92,7 @@ def test_external_examples_declare_publishable_package_metadata():
         assert spec.package.minimum_fpgalab
 
 
-def test_signal_meter_requires_a_temporal_one_bit_output():
+def test_measured_svg_meter_requires_a_temporal_one_bit_output():
     root = Path(__file__).parents[1] / "examples" / "peripherals" / "pwm_meter"
     base = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     for mutation in ("terminal", "simulation", "width"):
@@ -106,9 +106,17 @@ def test_signal_meter_requires_a_temporal_one_bit_output():
         try:
             parse_manifest(raw, resource_root=root)
         except ValueError as error:
-            assert "signal_meter" in str(error)
+            assert "measured_svg" in str(error)
         else:
-            raise AssertionError(f"Invalid signal meter {mutation} was accepted")
+            raise AssertionError(f"Invalid measured SVG meter {mutation} was accepted")
+    invalid_label = json.loads(json.dumps(base))
+    invalid_label["visual"]["value_label"]["rect"] = [12, 10, 200, 30]
+    try:
+        parse_manifest(invalid_label, resource_root=root)
+    except ValueError as error:
+        assert "measured_svg.value_label" in str(error)
+    else:
+        raise AssertionError("Out-of-bounds percentage label was accepted")
 
 
 def test_external_servo_manifest_validates_pulse_range_and_terminal():

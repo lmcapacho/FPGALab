@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
-from PyQt6.QtCore import QRectF
+from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtSvg import QSvgRenderer
 
+from ...theme import color as theme_color
 from .base import NullInputMixin
 
 
@@ -17,6 +18,7 @@ class MeasuredSvgRenderer(NullInputMixin):
         self._output_range = tuple(visual["output_range"])
         self._transform = visual["transform"]
         self._origin = tuple(visual["origin"])
+        self._value_label = visual.get("value_label")
         self._base = QSvgRenderer(str(resource_root / visual["base_svg"])) if resource_root else None
         self._moving = QSvgRenderer(str(resource_root / visual["moving_svg"])) if resource_root else None
 
@@ -43,17 +45,24 @@ class MeasuredSvgRenderer(NullInputMixin):
         if self._base and self._base.isValid():
             self._base.render(painter, target)
         value = self.mapped_value(state)
-        if not self._moving or not self._moving.isValid():
-            return
-        if value is None:
-            value = (self._output_range[0] + self._output_range[1]) / 2 if self._transform == "rotate" else 0
-        painter.save()
-        x, y = self._origin
-        painter.translate(x, y)
-        if self._transform == "rotate":
-            painter.rotate(value)
-        else:
-            painter.scale(value, 1)
-        painter.translate(-x, -y)
-        self._moving.render(painter, target)
-        painter.restore()
+        if self._moving and self._moving.isValid():
+            painted_value = value
+            if painted_value is None:
+                painted_value = (self._output_range[0] + self._output_range[1]) / 2 if self._transform == "rotate" else 0
+            painter.save()
+            x, y = self._origin
+            painter.translate(x, y)
+            if self._transform == "rotate":
+                painter.rotate(painted_value)
+            else:
+                painter.scale(painted_value, 1)
+            painter.translate(-x, -y)
+            self._moving.render(painter, target)
+            painter.restore()
+        if self._value_label is not None:
+            config = self._value_label
+            painter.save()
+            painter.setPen(theme_color("text"))
+            text = "—" if value is None else f"{value * 100:.0f}%"
+            painter.drawText(QRectF(*config["rect"]), Qt.AlignmentFlag.AlignCenter, text)
+            painter.restore()
