@@ -2,7 +2,7 @@
   "api_version": 1,
   "id": "pulse_servo",
   "package": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": {
       "name": "Luis Miguel Capacho",
       "url": "https://github.com/lmcapacho/FPGALab"

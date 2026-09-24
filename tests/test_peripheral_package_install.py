@@ -72,7 +72,7 @@ def test_update_requires_newer_version_and_confirmation(tmp_path):
     confirmed = []
     result = install_package(newer, destination_root=root, confirm_update=lambda *args: confirmed.append(args) or True)
     assert result.action == "updated"
-    assert confirmed == [("simple_relay", "1.0.0", "1.1.0")]
+    assert confirmed == [("simple_relay", "1.0.1", "1.1.0")]
     assert json.loads((root / "simple_relay" / "manifest.json").read_text())["package"]["version"] == "1.1.0"
     assert install_package(newer, destination_root=root).action == "unchanged"
 
@@ -80,7 +80,7 @@ def test_update_requires_newer_version_and_confirmation(tmp_path):
 def test_reject_same_version_with_changed_files_and_downgrade(tmp_path):
     root = tmp_path / "installed"
     install_package(EXAMPLE, destination_root=root)
-    for version in ("1.0.0", "0.9.0"):
+    for version in ("1.0.1", "0.9.0"):
         source = _changed_package(tmp_path / version, version)
         with pytest.raises(ValueError, match="newer package version"):
             install_package(source, destination_root=root, confirm_update=lambda *_: True)

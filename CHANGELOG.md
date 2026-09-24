@@ -4,22 +4,26 @@ All notable changes to FPGALab are documented in this file.
 
 ## Unreleased
 
-### Fixed
-
-- Keep native build sources in the persistent incremental workspace, so Windows one-file builds remain compilable after FPGALab restarts.
+## 0.1.0rc4
 
 ### Added
 
-- Light and dark interface themes with an accessible sun/moon selector and per-user persistence.
-- Declarative user peripheral discovery and a reusable LED-array renderer, validated by an external 8-LED bar example.
-- Generic `state_svg` rendering with safe manifest rules, validated by an external no-code relay example.
-- Declarative clickable regions and latched digital inputs for no-code `state_svg` peripherals, with an external switch example.
-- Declarative press/release regions for momentary `state_svg` inputs, with safe cancellation and an external button example.
-- Optional versioned package metadata for external peripherals, including authorship, license, repository, and minimum FPGALab compatibility.
+- Light and dark themes with a sun/moon selector and per-user persistence.
+- External declarative peripherals with a searchable catalog, package validation, folder/ZIP installation, safe updates, and uninstallation.
+- Reusable SVG renderers for digital states, interactive switches and buttons, LED arrays, PWM meters, and pulse-controlled servo visuals.
+- Temporal observations for duty cycle, edge rate, and completed high-pulse width, with external example packages.
+- Workbench annotations: Markdown text and editable lines, rectangles, circles, and ellipses.
+- The pytest suite in CI, including native pulse-measurement checks.
 
 ### Changed
 
-- Open Labs from newer installations in a safe compatibility mode: unavailable peripherals and obsolete terminals remain preserved, visible, and inactive instead of preventing the Lab from opening.
+- Open Labs from newer installations in compatibility mode: unavailable peripherals and obsolete terminals stay preserved and inactive.
+- Package metadata now distinguishes the original author from optional contributors and maintainers.
+
+### Fixed
+
+- Keep native build sources in the persistent incremental workspace, so Windows one-file builds remain compilable after FPGALab restarts.
+- Open the project browser in the most recently used design folder.
 
 ## 0.1.0rc3 — 2026-09-16
 

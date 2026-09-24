@@ -2,14 +2,14 @@
   "api_version": 1,
   "id": "simple_relay",
   "package": {
-    "version": "1.0.0",
+    "version": "1.0.1",
     "author": {
       "name": "Luis Miguel Capacho",
       "url": "https://github.com/lmcapacho/FPGALab"
     },
     "license": "AGPL-3.0-or-later",
     "repository": "https://github.com/lmcapacho/FPGALab",
-    "compatibility": {"minimum_fpgalab": "0.1.0rc3"}
+    "compatibility": {"minimum_fpgalab": "0.1.0rc4"}
   },
   "label": "Simple relay",
   "category": "output",
