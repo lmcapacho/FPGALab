@@ -884,25 +884,37 @@ class PeripheralsPanel(QWidget):
     def _delete(self, peripheral):
         self._delete_many([peripheral])
 
-    def _delete_many(self, peripherals) -> None:
-        identifiers = {peripheral["id"] if isinstance(peripheral, dict) else peripheral.peripheral_id for peripheral in peripherals}
-        if not identifiers:
+    def _delete_many(self, selected) -> None:
+        annotation_ids = {item["id"] for item in selected if isinstance(item, dict)}
+        peripheral_ids = {item.peripheral_id for item in selected if not isinstance(item, dict)}
+        count = len(annotation_ids) + len(peripheral_ids)
+        if not count:
             return
-        prompt = (
-            t("Delete {identifier}?", identifier=next(iter(identifiers)))
-            if len(identifiers) == 1
-            else t("Delete {count} selected peripherals?", count=len(identifiers))
-        )
-        answer = QMessageBox.question(self, t("Delete peripheral"), prompt)
+        if count == 1:
+            identifier = next(iter(annotation_ids or peripheral_ids))
+            title = t("Delete annotation") if annotation_ids else t("Delete peripheral")
+            prompt = t("Delete {identifier}?", identifier=identifier)
+            message = (
+                t("Annotation {identifier} deleted", identifier=identifier)
+                if annotation_ids else t("{identifier} deleted", identifier=identifier)
+            )
+        elif annotation_ids and peripheral_ids:
+            title = t("Delete selected items")
+            prompt = t("Delete {count} selected items (peripherals and annotations)?", count=count)
+            message = t("{count} items deleted", count=count)
+        elif annotation_ids:
+            title = t("Delete annotations")
+            prompt = t("Delete {count} selected annotations?", count=count)
+            message = t("{count} annotations deleted", count=count)
+        else:
+            title = t("Delete peripherals")
+            prompt = t("Delete {count} selected peripherals?", count=count)
+            message = t("{count} peripherals deleted", count=count)
+        answer = QMessageBox.question(self, title, prompt)
         if answer != QMessageBox.StandardButton.Yes: return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
-        raw["peripherals"] = [item for item in raw.get("peripherals", []) if item["id"] not in identifiers]
-        raw["annotations"] = [item for item in raw.get("annotations", []) if item.get("id") not in identifiers]
-        message = (
-            t("{identifier} deleted", identifier=next(iter(identifiers)))
-            if len(identifiers) == 1
-            else t("{count} peripherals deleted", count=len(identifiers))
-        )
+        raw["peripherals"] = [item for item in raw.get("peripherals", []) if item["id"] not in peripheral_ids]
+        raw["annotations"] = [item for item in raw.get("annotations", []) if item.get("id") not in annotation_ids]
         self._commit(raw, message)
 
     def _duplicate(self, peripheral) -> None:

@@ -253,6 +253,7 @@ def test_group_movement_can_be_undone_and_redone(tmp_path):
 
 
 def test_multiple_selected_peripherals_are_deleted_as_one_undoable_action(tmp_path, monkeypatch):
+    monkeypatch.setattr(language_manager, "_language", "es")
     board = BoardDefinition.load(bundled_board_definition())
     lab = tmp_path / "delete-group.lab"
     lab.write_text(json.dumps({
@@ -266,13 +267,18 @@ def test_multiple_selected_peripherals_are_deleted_as_one_undoable_action(tmp_pa
         item.peripheral for item in panel._workbench_scene.items()
         if hasattr(item, "peripheral")
     ]
+    questions = []
+    messages = []
+    panel.changed.connect(messages.append)
     monkeypatch.setattr(
         QMessageBox,
         "question",
-        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
+        lambda parent, title, prompt: (questions.append((title, prompt)) or QMessageBox.StandardButton.Yes),
     )
 
     panel._delete_many(peripherals)
+    assert questions == [("Eliminar periféricos", "¿Eliminar los 2 periféricos seleccionados?")]
+    assert messages[-1] == "2 periféricos eliminados"
     deleted = json.loads(lab.read_text(encoding="utf-8"))
     panel.undo()
     restored = json.loads(lab.read_text(encoding="utf-8"))
@@ -280,6 +286,54 @@ def test_multiple_selected_peripherals_are_deleted_as_one_undoable_action(tmp_pa
     assert deleted["peripherals"] == []
     assert {item["id"] for item in restored["peripherals"]} == {"led_1", "led_2"}
     assert panel._history_index == 0
+    panel.deleteLater()
+
+
+def test_delete_messages_distinguish_annotations_and_mixed_selections(tmp_path, monkeypatch):
+    monkeypatch.setattr(language_manager, "_language", "es")
+    lab = tmp_path / "delete-annotations.lab"
+    lab.write_text(json.dumps({
+        "peripherals": [{"id": "led_1", "type": "led", "connections": {}, "properties": {}}],
+        "annotations": [
+            {"id": "text_1", "type": "text", "text": "Note", "position": [0, 0], "width": 120, "height": 60},
+            {"id": "text_2", "type": "text", "text": "Note", "position": [150, 0], "width": 120, "height": 60},
+        ],
+    }), encoding="utf-8")
+    panel = PeripheralsPanel(BoardDefinition.load(bundled_board_definition()), None, lab)
+    annotations = [item.data for item in panel._workbench_scene.items() if isinstance(item, WorkbenchAnnotationItem)]
+    first_annotation = next(item for item in annotations if item["id"] == "text_1")
+    peripheral = next(item.peripheral for item in panel._workbench_scene.items() if hasattr(item, "peripheral"))
+    questions = []
+    messages = []
+    panel.changed.connect(messages.append)
+
+    def confirm(parent, title, prompt):
+        questions.append((title, prompt))
+        return QMessageBox.StandardButton.Yes
+
+    monkeypatch.setattr(QMessageBox, "question", confirm)
+
+    panel._delete_many(annotations)
+    assert questions[-1] == ("Eliminar anotaciones", "¿Eliminar las 2 anotaciones seleccionadas?")
+    assert messages[-1] == "2 anotaciones eliminadas"
+    assert json.loads(lab.read_text(encoding="utf-8"))["annotations"] == []
+    panel.undo()
+
+    panel._delete_many([first_annotation, peripheral])
+    assert questions[-1] == (
+        "Eliminar elementos seleccionados",
+        "¿Eliminar los 2 elementos seleccionados (periféricos y anotaciones)?",
+    )
+    assert messages[-1] == "2 elementos eliminados"
+    saved = json.loads(lab.read_text(encoding="utf-8"))
+    assert saved["peripherals"] == []
+    assert len(saved["annotations"]) == 1
+    panel.undo()
+
+    panel._delete_many([first_annotation])
+    assert questions[-1] == ("Eliminar anotación", "¿Eliminar text_1?")
+    assert messages[-1] == "Anotación text_1 eliminada"
+    assert len(json.loads(lab.read_text(encoding="utf-8"))["peripherals"]) == 1
     panel.deleteLater()
 
 
