@@ -137,6 +137,7 @@ def parse_manifest(
     _validate_state_svg_visual(visual, terminals, source, identifier, resource_root)
     _validate_signal_meter_visual(visual, terminals, properties, simulation, source, identifier)
     _validate_pulse_servo_visual(visual, terminals, properties, simulation, source, identifier)
+    _validate_measured_svg_visual(visual, terminals, simulation, source, identifier, resource_root)
     category = str(raw.get("category", "output")).strip().casefold()
     if not category:
         raise ValueError(f"{source}: {identifier} category must not be empty")
@@ -363,6 +364,49 @@ def _validate_pulse_servo_visual(
     color_property = visual.get("color_property", "color")
     if properties.get(color_property, {}).get("type") != "color":
         raise ValueError(f"{source}: {identifier} pulse_servo.color_property must reference a color property")
+
+
+def _validate_measured_svg_visual(
+    visual: dict[str, Any], terminals: list[TerminalSpec], simulation: dict[str, Any],
+    source: str, identifier: str, resource_root: Path | None,
+) -> None:
+    if visual.get("renderer") != "measured_svg":
+        return
+    outputs = {terminal.name for terminal in terminals if terminal.direction == "output" and terminal.width == 1}
+    if visual.get("terminal") not in outputs:
+        raise ValueError(f"{source}: {identifier} measured_svg.terminal must name a one-bit output")
+    temporal = simulation.get("temporal")
+    if simulation.get("class") != "gpio_temporal" or not isinstance(temporal, dict) or temporal.get("mode") != "per_terminal":
+        raise ValueError(f"{source}: {identifier} measured_svg requires gpio_temporal per_terminal sampling")
+    if visual.get("measurement") not in {"duty_cycle", "pulse_high_seconds"}:
+        raise ValueError(f"{source}: {identifier} measured_svg.measurement is unsupported")
+    if visual.get("transform") not in {"rotate", "scale_x"}:
+        raise ValueError(f"{source}: {identifier} measured_svg.transform is unsupported")
+    for key in ("input_range", "output_range", "origin"):
+        values = visual.get(key)
+        if not isinstance(values, list) or len(values) != 2 or any(
+            isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+            for value in values
+        ):
+            raise ValueError(f"{source}: {identifier} measured_svg.{key} must have two finite numbers")
+    if visual["input_range"][0] >= visual["input_range"][1]:
+        raise ValueError(f"{source}: {identifier} measured_svg.input_range must increase")
+    if visual["measurement"] == "duty_cycle" and not (0 <= visual["input_range"][0] < visual["input_range"][1] <= 1):
+        raise ValueError(f"{source}: {identifier} measured_svg duty range must stay within 0–1")
+    if visual["transform"] == "scale_x" and any(value < 0 for value in visual["output_range"]):
+        raise ValueError(f"{source}: {identifier} measured_svg scale_x values must be nonnegative")
+    width, height = visual["size"]
+    if not (0 <= visual["origin"][0] <= width and 0 <= visual["origin"][1] <= height - 24):
+        raise ValueError(f"{source}: {identifier} measured_svg.origin is outside the artwork")
+    for key in ("base_svg", "moving_svg"):
+        resource = visual.get(key)
+        if not isinstance(resource, str) or not resource:
+            raise ValueError(f"{source}: {identifier} measured_svg.{key} must name an SVG")
+        path = PurePosixPath(resource)
+        if path.is_absolute() or ".." in path.parts or path.suffix.casefold() != ".svg":
+            raise ValueError(f"{source}: {identifier} measured_svg.{key} must be a relative SVG")
+        if resource_root is not None and not (resource_root / resource).is_file():
+            raise ValueError(f"{source}: {identifier} missing measured_svg resource {resource!r}")
 
 
 def _optional_color_depth(simulation: dict[str, Any], source: str, identifier: str) -> int | None:

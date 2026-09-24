@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="146" height="126" viewBox="0 0 146 126">
+  <rect x="17" y="38" width="112" height="74" rx="11" fill="#26364b" stroke="#60748d" stroke-width="2"/>
+  <rect x="26" y="47" width="94" height="56" rx="6" fill="#33465d"/>
+  <circle cx="73" cy="65" r="12" fill="#182536" stroke="#8395ab" stroke-width="2"/>
+  <text x="73" y="96" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#cbd5e1">SERVO</text>
+</svg>

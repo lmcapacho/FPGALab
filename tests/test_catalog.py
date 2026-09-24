@@ -115,15 +115,15 @@ def test_external_servo_manifest_validates_pulse_range_and_terminal():
     root = Path(__file__).parents[1] / "examples" / "peripherals" / "pulse_servo"
     original = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     spec = parse_manifest(original, resource_root=root)
-    assert spec.visual["renderer"] == "pulse_servo"
+    assert spec.visual["renderer"] == "measured_svg"
     assert spec.temporal == {"mode": "per_terminal"}
-    for field, value in (("terminal", "missing"), ("pulse_min_us", 2100), ("angle_max_degrees", -100)):
+    for field, value in (("terminal", "missing"), ("input_range", [0.002, 0.001]), ("base_svg", "../escape.svg")):
         invalid = json.loads(json.dumps(original))
         invalid["visual"][field] = value
         try:
             parse_manifest(invalid, resource_root=root)
         except ValueError as error:
-            assert "pulse_servo" in str(error)
+            assert "measured_svg" in str(error)
         else:
             raise AssertionError(f"Invalid servo {field} was accepted")
 

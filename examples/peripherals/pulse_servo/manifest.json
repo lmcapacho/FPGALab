@@ -20,18 +20,18 @@
   "terminals": [
     {"name": "signal", "direction": "output", "width": 1, "required": true}
   ],
-  "properties": {
-    "color": {"type": "color", "default": "#38bdf8", "label": "Arm color"}
-  },
+  "properties": {},
   "visual": {
-    "renderer": "pulse_servo",
+    "renderer": "measured_svg",
     "size": [146, 150],
     "chrome": "compact",
     "terminal": "signal",
-    "pulse_min_us": 1000,
-    "pulse_max_us": 2000,
-    "angle_min_degrees": -90,
-    "angle_max_degrees": 90,
-    "color_property": "color"
+    "measurement": "pulse_high_seconds",
+    "input_range": [0.001, 0.002],
+    "output_range": [-90, 90],
+    "transform": "rotate",
+    "origin": [73, 65],
+    "base_svg": "body.svg",
+    "moving_svg": "arm.svg"
   }
 }

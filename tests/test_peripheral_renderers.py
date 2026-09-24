@@ -48,7 +48,11 @@ def test_external_servo_renders_from_completed_pulse_without_plugin_code():
     root = Path(__file__).parents[1] / "examples" / "peripherals" / "pulse_servo"
     spec = parse_manifest(json.loads((root / "manifest.json").read_text(encoding="utf-8")), resource_root=root)
     renderer = renderer_for(spec.visual["renderer"], spec.visual, spec.resource_root)
+    assert renderer.mapped_value({"powered": True, "temporal": {"signal": {"pulse_high_seconds": 0.001}}}) == -90
+    assert renderer.mapped_value({"powered": True, "temporal": {"signal": {"pulse_high_seconds": 0.0015}}}) == 0
+    assert renderer.mapped_value({"powered": True, "temporal": {"signal": {"pulse_high_seconds": 0.002}}}) == 90
     peripheral = PeripheralInstance("servo_1", "pulse_servo", {}, {})
+    rendered = []
     for pulse in (0.001, 0.0015, 0.002):
         image = QImage(146, 150, QImage.Format.Format_ARGB32)
         image.fill(0)
@@ -59,6 +63,21 @@ def test_external_servo_renders_from_completed_pulse_without_plugin_code():
         })
         painter.end()
         assert image.pixelColor(73, 75).alpha() > 0
+        rendered.append(image)
+    assert rendered[1].pixelColor(73, 25) != rendered[0].pixelColor(73, 25)
+    assert rendered[1].pixelColor(73, 25) != rendered[2].pixelColor(73, 25)
+
+
+def test_measured_svg_can_map_duty_cycle_to_horizontal_scale():
+    root = Path(__file__).parents[1] / "examples" / "peripherals" / "pulse_servo"
+    raw = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    raw["visual"].update({
+        "measurement": "duty_cycle", "input_range": [0, 1],
+        "output_range": [0, 1], "transform": "scale_x", "origin": [0, 65],
+    })
+    spec = parse_manifest(raw, resource_root=root)
+    renderer = renderer_for(spec.visual["renderer"], spec.visual, root)
+    assert renderer.mapped_value({"powered": True, "temporal": {"signal": {"duty_cycle": 0.4}}}) == 0.4
 
 
 def test_bcd_display_declares_four_bits_and_shows_hexadecimal_codes():

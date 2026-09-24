@@ -53,6 +53,8 @@ def validate_package(directory: Path, *, current_version: str = __version__) -> 
         resources.append(spec.icon)
     if spec.visual["renderer"] == "state_svg":
         resources.extend(spec.visual["states"].values())
+    if spec.visual["renderer"] == "measured_svg":
+        resources.extend((spec.visual["base_svg"], spec.visual["moving_svg"]))
     for resource in dict.fromkeys(resources):
         path = (directory / resource).resolve()
         if not path.is_relative_to(directory.resolve()) or path.suffix.lower() != ".svg":
