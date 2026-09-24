@@ -28,6 +28,8 @@ def test_dark_and_light_styles_share_semantic_structure():
         assert palette() == expected
         assert expected.canvas in stylesheet
         assert expected.accent in stylesheet
+        assert f"QMenu {{ background: {expected.surface_raised}; color: {expected.text};" in stylesheet
+        assert f"QMenu::item:selected {{ background: {expected.accent}; color: {expected.accent_text};" in stylesheet
         native_palette = application_palette(mode)
         assert native_palette.color(QPalette.ColorRole.Highlight).name() == expected.accent
         assert native_palette.color(QPalette.ColorRole.HighlightedText).name() == expected.accent_text

@@ -192,6 +192,11 @@ def application_stylesheet(mode: str = "dark") -> str:
     QComboBox QAbstractItemView::item:hover {{ background: {p.accent}; color: {p.accent_text}; }}
     QComboBox QAbstractItemView::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
     QComboBox QAbstractItemView::item:disabled {{ background: {p.surface_raised}; color: {p.text_muted}; }}
+    QMenu {{ background: {p.surface_raised}; color: {p.text}; border: 1px solid {p.border_strong}; padding: 4px; }}
+    QMenu::item {{ background: transparent; color: {p.text}; padding: 6px 16px; border-radius: {Metrics.RADIUS_SM}px; }}
+    QMenu::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
+    QMenu::item:disabled {{ color: {p.text_muted}; }}
+    QMenu::separator {{ height: 1px; background: {p.border}; margin: 4px 8px; }}
     QComboBox#languageSelector {{ padding: 0 14px 0 5px; }}
     QComboBox#languageSelector::drop-down {{ width: 14px; }}
     QComboBox#languageSelector::down-arrow {{ width: 8px; height: 8px; }}
