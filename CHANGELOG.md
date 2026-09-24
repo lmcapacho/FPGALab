@@ -4,7 +4,7 @@ All notable changes to FPGALab are documented in this file.
 
 ## Unreleased
 
-## 0.1.0rc4
+## 0.1.0rc4 — 2026-09-24
 
 ### Added
 
