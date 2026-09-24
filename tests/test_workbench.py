@@ -12,8 +12,9 @@ from PyQt6.QtWidgets import QApplication, QGraphicsView, QMessageBox
 
 from fpga_lab.board import BoardDefinition, bundled_board_definition
 from fpga_lab.i18n import language_manager
-from fpga_lab.peripherals_panel import PeripheralsPanel
+from fpga_lab.peripherals_panel import PeripheralConfigDialog, PeripheralsPanel
 from fpga_lab.virtual_lab import FPGAVirtualLab
+from fpga_lab.wiring import PeripheralInstance
 from fpga_lab.workbench.annotation import WorkbenchAnnotationItem
 
 
@@ -174,6 +175,37 @@ def test_workbench_camera_is_persisted_with_zoom(tmp_path):
     assert restored.workbench._zoom == 0.5
     panel.deleteLater()
     restored.deleteLater()
+
+
+def test_new_peripheral_appears_at_current_camera_center(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab = tmp_path / "new-at-camera.lab"
+    lab.write_text('{"peripherals": []}', encoding="utf-8")
+    panel = PeripheralsPanel(board, None, lab)
+    panel.resize(760, 520)
+    panel.show()
+    _APPLICATION.processEvents()
+    panel.workbench.set_zoom(0.5)
+    panel.workbench.centerOn(QPointF(1200.0, -850.0))
+    camera_before = panel.workbench.camera_center()
+
+    draft = PeripheralInstance("led_1", "led", {}, {})
+    dialog = PeripheralConfigDialog(draft, board, parent=panel)
+    panel._save_new_peripheral(dialog, "led", set())
+
+    raw = json.loads(lab.read_text(encoding="utf-8"))
+    item = next(item for item in panel._workbench_scene.items() if hasattr(item, "peripheral"))
+    visual_center = item.sceneBoundingRect().center()
+    camera_after = panel.workbench.camera_center()
+    assert raw["workbench"]["zoom"] == 0.5
+    assert raw["workbench"]["center"] == [round(camera_before.x(), 2), round(camera_before.y(), 2)]
+    assert abs(visual_center.x() - camera_before.x()) < 2
+    assert abs(visual_center.y() - camera_before.y()) < 2
+    assert abs(camera_after.x() - camera_before.x()) < 5
+    assert abs(camera_after.y() - camera_before.y()) < 5
+    assert panel.workbench.viewport().rect().contains(panel.workbench.mapFromScene(visual_center))
+    panel.close()
+    panel.deleteLater()
 
 
 def test_canvas_pan_pauses_outside_the_workbench_without_a_reentry_jump(tmp_path):

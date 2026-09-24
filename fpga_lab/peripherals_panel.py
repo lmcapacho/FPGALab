@@ -1099,7 +1099,21 @@ class PeripheralsPanel(QWidget):
         if value["id"] in existing:
             dialog.show_error(t("A peripheral with that identifier already exists."))
             return
+        camera = self.workbench.camera_center()
+        preview = WorkbenchPeripheralItem(
+            PeripheralInstance(value["id"], kind, value["connections"], value["properties"]),
+            self._configure, self._save_position, self._drive_input,
+        )
+        item_center = preview.boundingRect().center()
+        value["properties"]["position"] = [
+            round(camera.x() - item_center.x(), 1),
+            round(camera.y() - item_center.y(), 1),
+        ]
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        workbench_state = raw.get("workbench")
+        if not isinstance(workbench_state, dict):
+            workbench_state = raw["workbench"] = {}
+        workbench_state["center"] = [round(camera.x(), 2), round(camera.y(), 2)]
         raw.setdefault("peripherals", []).append(value)
         error = self._validation_error(raw)
         if error:
