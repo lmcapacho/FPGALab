@@ -31,6 +31,12 @@ class TerminalSpec:
 
 
 @dataclass(frozen=True)
+class PackagePerson:
+    name: str
+    url: str | None = None
+
+
+@dataclass(frozen=True)
 class PackageMetadata:
     """Optional distribution identity for a shareable peripheral package."""
 
@@ -40,6 +46,8 @@ class PackageMetadata:
     license: str
     repository: str | None
     minimum_fpgalab: str
+    contributors: tuple[PackagePerson, ...] = ()
+    maintainers: tuple[PackagePerson, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -199,6 +207,8 @@ def _optional_package_metadata(raw: Any, source: str, identifier: str) -> Packag
     minimum = compatibility.get("minimum_fpgalab")
     if not isinstance(minimum, str) or _FPGALAB_VERSION.fullmatch(minimum) is None:
         raise ValueError(f"{source}: {identifier} minimum_fpgalab must be a FPGALab version")
+    contributors = _optional_package_people(raw.get("contributors", []), "contributors", source, identifier)
+    maintainers = _optional_package_people(raw.get("maintainers", []), "maintainers", source, identifier)
     return PackageMetadata(
         version,
         author["name"].strip(),
@@ -206,7 +216,28 @@ def _optional_package_metadata(raw: Any, source: str, identifier: str) -> Packag
         license_id,
         repository,
         minimum,
+        contributors,
+        maintainers,
     )
+
+
+def _optional_package_people(raw: Any, field: str, source: str, identifier: str) -> tuple[PackagePerson, ...]:
+    if not isinstance(raw, list):
+        raise ValueError(f"{source}: {identifier} package.{field} must be a list of people")
+    people = []
+    names = set()
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not item["name"].strip():
+            raise ValueError(f"{source}: {identifier} package.{field}[{index}] needs a name")
+        name = item["name"].strip()
+        url = item.get("url")
+        if url is not None and not _valid_web_url(url):
+            raise ValueError(f"{source}: {identifier} package.{field}[{index}].url must be an HTTP(S) URL")
+        if name.casefold() in names:
+            raise ValueError(f"{source}: {identifier} package.{field} contains duplicate names")
+        names.add(name.casefold())
+        people.append(PackagePerson(name, url))
+    return tuple(people)
 
 
 def _valid_web_url(value: Any) -> bool:

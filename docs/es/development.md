@@ -44,6 +44,8 @@ Por ahora los periféricos externos son declarativos: pueden usar las propiedade
 
 Los manifiestos compartibles pueden incluir un objeto opcional `package` con `version` semántica, nombre del autor y URL opcional, identificador de licencia con formato SPDX, URL opcional del repositorio y `compatibility.minimum_fpgalab`. Los manifiestos antiguos e integrados siguen siendo válidos sin este objeto. Los ejemplos externos incluyen metadatos completos como referencia para las futuras herramientas de distribución.
 
+`package.author` identifica a quien creó originalmente el paquete. Si después otras personas lo modifican o mantienen, añade `package.contributors` o `package.maintainers` como listas opcionales de objetos `{"name": "Nombre", "url": "https://…"}`; `url` es opcional. No incluyas personas sin una contribución real. Los paquetes existentes no necesitan estos campos.
+
 ### API declarativa de periféricos v1
 
 Un paquete es una carpeta con `manifest.json` y recursos SVG locales. El manifiesto define nombres y direcciones de terminales, propiedades editables, clase de simulación y renderizador integrado. No se carga código Python del usuario. `gpio_sampled` observa el último nivel de salida en cada actualización de interfaz; `gpio_temporal` con `temporal.mode: per_terminal` observa la fracción de ciclos virtuales en alto y la cantidad de transiciones entre actualizaciones. El renderizador temporal recibe `duty_cycle` (0–1) y `edge_rate_hz` por terminal, separados de `brightness`, que tiene persistencia visual propia de un LED. El intervalo usa tiempo virtual de simulación, no tiempo real. Estos datos no equivalen a un bus serie decodificado ni a la forma de onda exacta de cada pulso.

@@ -154,6 +154,41 @@ def test_package_metadata_rejects_invalid_versions_and_urls():
             raise AssertionError(f"Invalid package {field} was accepted")
 
 
+def test_optional_contributors_and_maintainers_preserve_original_author():
+    manifest = Path(__file__).parents[1] / "examples/peripherals/simple_relay/manifest.json"
+    raw = json.loads(manifest.read_text(encoding="utf-8"))
+    legacy = parse_manifest(raw).package
+    assert legacy is not None
+    assert legacy.contributors == legacy.maintainers == ()
+    raw["package"]["contributors"] = [{"name": "Ada Example", "url": "https://example.org/ada"}]
+    raw["package"]["maintainers"] = [{"name": "Bea Example"}]
+    package = parse_manifest(raw).package
+    assert package is not None
+    assert package.author_name == "Luis Miguel Capacho"
+    assert package.contributors[0].name == "Ada Example"
+    assert package.contributors[0].url == "https://example.org/ada"
+    assert package.maintainers[0].name == "Bea Example"
+
+
+def test_package_people_reject_invalid_shapes_and_duplicates():
+    manifest = Path(__file__).parents[1] / "examples/peripherals/simple_relay/manifest.json"
+    base = json.loads(manifest.read_text(encoding="utf-8"))
+    for field, value in (
+        ("contributors", "someone"),
+        ("contributors", [{"name": ""}]),
+        ("maintainers", [{"name": "A", "url": "file:///tmp/a"}]),
+        ("contributors", [{"name": "A"}, {"name": "a"}]),
+    ):
+        raw = json.loads(json.dumps(base))
+        raw["package"][field] = value
+        try:
+            parse_manifest(raw)
+        except ValueError as error:
+            assert f"package.{field}" in str(error)
+        else:
+            raise AssertionError(f"Invalid package {field} was accepted")
+
+
 def test_legacy_terminal_shapes():
     assert PERIPHERAL_TERMINALS["led"] == {"anode": "output"}
     assert PERIPHERAL_TERMINALS["seven_segment"]["g"] == "output"

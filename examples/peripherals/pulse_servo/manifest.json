@@ -4,7 +4,7 @@
   "package": {
     "version": "1.0.0",
     "author": {
-      "name": "Luis Miguel Capacho and contributors",
+      "name": "Luis Miguel Capacho",
       "url": "https://github.com/lmcapacho/FPGALab"
     },
     "license": "AGPL-3.0-or-later",

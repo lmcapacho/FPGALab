@@ -44,6 +44,8 @@ External peripherals are currently declarative: they may use supported manifest 
 
 Shareable manifests may include an optional `package` object with a semantic `version`, author name and optional URL, SPDX-style license identifier, optional repository URL, and `compatibility.minimum_fpgalab`. Legacy and bundled manifests remain valid without this object. The external examples include complete package metadata as the reference for future distribution tooling.
 
+`package.author` identifies the original package creator. For later contributions or ongoing maintenance, optional `package.contributors` and `package.maintainers` accept lists of `{"name": "Name", "url": "https://…"}` objects; `url` is optional. List only people who have actually contributed. Existing packages need no changes.
+
 ### Declarative peripheral API v1
 
 A package is one directory containing `manifest.json` and local SVG resources. The manifest fixes terminal names and directions, editable properties, a simulation class, and a stock renderer. No user Python is loaded. `gpio_sampled` observes the last output level at each interface update; `gpio_temporal` with `temporal.mode: per_terminal` observes the fraction of virtual cycles high and edge count between updates. A temporal renderer receives each terminal's `duty_cycle` (0–1) and `edge_rate_hz` separately from the LED-specific, visually smoothed `brightness`. The interval is virtual simulation time, not wall-clock time. These observations are not a decoded serial bus or an exact pulse-by-pulse waveform.
