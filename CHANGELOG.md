@@ -8,6 +8,8 @@ All notable changes to FPGALab are documented in this file.
 
 - Peripheral API v2 edge streams: bounded, virtual-cycle-accurate capture of digital output transitions, with an installable UART 8N1 terminal example.
 - Cycle-scheduled digital input driving and a UART terminal TX field, allowing the external terminal to send text into a clocked FPGA design.
+- Scrollable UART receive history with copy and clear controls; the output remains visible after Stop until the next run replaces the model.
+- UART text entry now takes precedence over workbench button shortcuts while its input is focused.
 
 ## 0.1.0rc4 — 2026-09-24
 

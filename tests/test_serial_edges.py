@@ -9,6 +9,9 @@ import subprocess
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PyQt6.QtCore import QPoint, QPointF, Qt
+from PyQt6.QtGui import QWheelEvent
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 _APPLICATION = QApplication.instance() or QApplication([])
@@ -138,6 +141,19 @@ def test_uart_renderer_receives_byte_stream_and_resets_on_power_off():
     renderer.feed_edges(peripheral, "rx", events[:3], 450, 1_000_000, 0)
     renderer.feed_edges(peripheral, "rx", events[3:], 1100, 1_000_000, 0)
     assert renderer._text == "A"
+    renderer.suspend_stream()
+    assert renderer._text == "A"
+    assert renderer._decoder is None
+    renderer.output_limit = 16
+    more = [
+        EdgeEvent(edge.cycle, 0, edge.level)
+        for index in range(20)
+        for edge in _uart_edges(ord("B"), 100 + index * 1100)
+    ]
+    renderer.feed_edges(peripheral, "rx", more, 22_100, 1_000_000, 0)
+    assert renderer._text == "B" * 16
+    renderer.clear_output()
+    assert renderer._text == ""
     image = QImage(300, 170, QImage.Format.Format_ARGB32)
     painter = QPainter(image)
     try:
@@ -182,21 +198,116 @@ def test_external_manifest_channels_reach_the_workbench(tmp_path, monkeypatch):
         panel.update_frame(frame)
         items = [item for item in panel._workbench_scene.items() if isinstance(item, WorkbenchPeripheralItem)]
         assert len(items) == 1
-        assert items[0]._renderer._text == "A"
+        terminal = items[0]
+        assert terminal._renderer._text == "A"
+        assert terminal._rx_output.toPlainText() == "A"
+        panel.set_powered(False)
+        assert terminal._rx_output.toPlainText() == "A"
+        panel.set_powered(True)
+        next_edges = tuple(EdgeEvent(edge.cycle, 0, edge.level) for edge in _uart_edges(ord("B"), 100))
+        panel.update_frame(SimulationFrame(
+            led_brightness=(0.0,) * 8,
+            outputs={"tx": 1},
+            edge_stream=EdgeFrame(1100, 1_000_000, next_edges, 0),
+        ))
+        assert terminal._rx_output.toPlainText() == "AB"
+        terminal._rx_copy_button.click()
+        assert QApplication.clipboard().text() == "AB"
+        terminal._rx_clear_button.click()
+        assert terminal._rx_output.toPlainText() == ""
+        assert terminal._renderer._text == ""
+        assert terminal._rx_copy_button.isEnabled() is False
+        terminal._append_received_text("line\n" * 80)
+        panel.resize(600, 400)
+        panel.show()
+        _APPLICATION.processEvents()
+        panel.workbench.restore_camera()
+        _APPLICATION.processEvents()
+        scrollbar = terminal._rx_output.verticalScrollBar()
+        assert scrollbar.maximum() > 0
+        scrollbar.setValue(0)
+        zoom = panel.workbench._zoom
+        point = panel.workbench.mapFromScene(terminal.scenePos() + QPointF(50, 105))
+        assert panel.workbench.viewport().rect().contains(point)
+        wheel = QWheelEvent(
+            QPointF(point), QPointF(panel.workbench.viewport().mapToGlobal(point)),
+            QPoint(), QPoint(0, -120), Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False,
+        )
+        _APPLICATION.sendEvent(panel.workbench.viewport(), wheel)
+        assert panel.workbench._zoom == zoom
+        assert scrollbar.value() > 0
+        scrollbar.setValue(0)
+        terminal._append_received_text("still receiving\n")
+        assert scrollbar.value() == 0
+        scrollbar.setValue(scrollbar.maximum())
+        terminal._append_received_text("latest line\n")
+        assert scrollbar.value() == scrollbar.maximum()
+        terminal._clear_received_text()
         sent = []
         panel.serial_text_requested.connect(lambda *args: sent.append(args))
-        items[0]._text_input.setText("Hi")
-        items[0]._submit_text()
+        terminal._text_input.setText("Hi")
+        terminal._submit_text()
         assert sent == [(0, 10_000, "Hi")]
-        assert items[0]._text_input.text() == "Hi"
+        assert terminal._text_input.text() == "Hi"
         panel.serial_send_result(0, "Hi", True)
-        assert items[0]._text_input.text() == ""
-        items[0]._text_input.setText("Retry")
-        items[0]._submit_text()
+        assert terminal._text_input.text() == ""
+        terminal._text_input.setText("Retry")
+        terminal._submit_text()
         panel.serial_send_result(0, "Retry", False)
-        assert items[0]._text_input.text() == "Retry"
-        assert items[0]._send_button.isEnabled()
+        assert terminal._text_input.text() == "Retry"
+        assert terminal._send_button.isEnabled()
         panel.deleteLater()
+    finally:
+        load_catalog.cache_clear()
+
+
+def test_uart_text_input_keeps_button_shortcut_letters(tmp_path, monkeypatch):
+    from fpga_lab.peripherals.catalog import load_catalog
+    from fpga_lab.virtual_lab import FPGAVirtualLab
+    from fpga_lab.workbench.item import WorkbenchPeripheralItem
+
+    catalog = tmp_path / "catalog"
+    shutil.copytree(Path(__file__).parents[1] / "examples/peripherals/uart_terminal", catalog / "uart_terminal")
+    monkeypatch.setenv("FPGALAB_PERIPHERALS_DIR", str(catalog))
+    load_catalog.cache_clear()
+    try:
+        lab_file = tmp_path / "lab.json"
+        lab_file.write_text(json.dumps({"peripherals": [
+            {"id": "uart_1", "type": "uart_terminal", "connections": {}, "properties": {}},
+            {"id": "button_1", "type": "button", "connections": {},
+             "properties": {"shortcut": "A"}},
+        ]}), encoding="utf-8")
+        lab = FPGAVirtualLab(lab_file=lab_file)
+        lab.resize(1100, 600)
+        lab.show()
+        lab._peripherals.set_powered(True)
+        _APPLICATION.processEvents()
+        terminal = next(
+            item for item in lab._peripherals._workbench_scene.items()
+            if isinstance(item, WorkbenchPeripheralItem) and item.peripheral.kind == "uart_terminal"
+        )
+        view = lab._peripherals.workbench
+        view.restore_camera()
+        point = view.mapFromScene(terminal.scenePos() + QPointF(30, 190))
+        assert view.viewport().rect().contains(point)
+        QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, pos=point)
+        _APPLICATION.processEvents()
+        QTest.keyClicks(view.viewport(), "a")
+        assert terminal._text_input.text() == "a"
+        button = next(
+            item for item in lab._peripherals._workbench_scene.items()
+            if isinstance(item, WorkbenchPeripheralItem) and item.peripheral.kind == "button"
+        )
+        assert not button._pressed
+        view.scene().clearFocus()
+        view.setFocus()
+        QTest.keyPress(view.viewport(), Qt.Key.Key_A)
+        assert button._pressed
+        QTest.keyRelease(view.viewport(), Qt.Key.Key_A)
+        assert not button._pressed
+        lab.close()
+        lab.deleteLater()
     finally:
         load_catalog.cache_clear()
 

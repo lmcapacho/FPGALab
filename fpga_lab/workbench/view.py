@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, Qt, pyqtSignal
-from PyQt6.QtWidgets import QGraphicsView
+from PyQt6.QtWidgets import QGraphicsProxyWidget, QGraphicsView
 
 from .item import WorkbenchPeripheralItem
 from .annotation import WorkbenchAnnotationItem
@@ -141,7 +141,11 @@ class WorkbenchView(QGraphicsView):
         super().mouseMoveEvent(event)
 
     def wheelEvent(self, event):
-        """Use the wheel exclusively for cursor-centered canvas zoom."""
+        """Scroll an embedded monitor; otherwise zoom around the cursor."""
+        hovered = self.itemAt(event.position().toPoint())
+        if isinstance(hovered, QGraphicsProxyWidget) and hovered.widget() is not None and hovered.widget().property("scrollWheelContent"):
+            super().wheelEvent(event)
+            return
         delta = event.angleDelta().y() or event.angleDelta().x()
         steps = delta / 120
         if steps:

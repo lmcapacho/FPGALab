@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, Qt
-from PyQt6.QtGui import QBrush, QFont, QFontMetrics, QPainter, QPen
+from PyQt6.QtGui import QBrush, QFont, QFontMetrics, QPainter, QPen, QTextCursor
 from PyQt6.QtWidgets import (
-    QGraphicsItem, QGraphicsProxyWidget, QGraphicsRectItem,
-    QHBoxLayout, QLineEdit, QPushButton, QWidget,
+    QApplication, QGraphicsItem, QGraphicsProxyWidget, QGraphicsRectItem,
+    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
 from ..peripherals.catalog import spec_for
@@ -61,11 +61,56 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._text_input: QLineEdit | None = None
         self._send_button: QPushButton | None = None
         self._pending_text: str | None = None
+        self._rx_output: QPlainTextEdit | None = None
+        self._rx_copy_button: QPushButton | None = None
+        self._rx_clear_button: QPushButton | None = None
+        if hasattr(self._renderer, "text_output_rect"):
+            region = self._renderer.text_output_rect()
+            if region is not None:
+                x, y, output_width, output_height = region
+                container = QWidget()
+                container.setObjectName("uartOutputContainer")
+                column = QVBoxLayout(container)
+                column.setContentsMargins(0, 0, 0, 0)
+                column.setSpacing(3)
+                actions = QHBoxLayout()
+                actions.setContentsMargins(0, 0, 0, 0)
+                actions.setSpacing(4)
+                caption = QLabel("RX", container)
+                caption.setObjectName("caption")
+                actions.addWidget(caption)
+                actions.addStretch()
+                self._rx_copy_button = QPushButton(container)
+                self._rx_copy_button.setFixedHeight(24)
+                self._rx_copy_button.clicked.connect(self._copy_received_text)
+                actions.addWidget(self._rx_copy_button)
+                self._rx_clear_button = QPushButton(container)
+                self._rx_clear_button.setFixedHeight(24)
+                self._rx_clear_button.clicked.connect(self._clear_received_text)
+                actions.addWidget(self._rx_clear_button)
+                column.addLayout(actions)
+                self._rx_output = QPlainTextEdit(container)
+                self._rx_output.setReadOnly(True)
+                self._rx_output.document().setMaximumBlockCount(4096)
+                font = QFont("monospace")
+                font.setStyleHint(QFont.StyleHint.TypeWriter)
+                font.setPointSize(9)
+                self._rx_output.setFont(font)
+                column.addWidget(self._rx_output, 1)
+                container.setProperty("scrollWheelContent", True)
+                proxy = QGraphicsProxyWidget(self)
+                proxy.setWidget(container)
+                proxy.setPos(self._renderer_offset_x + x, y)
+                proxy.resize(output_width, output_height)
+                container.resize(output_width, output_height)
+                self.retranslate_ui()
+                self._update_rx_actions()
         if send_text is not None and hasattr(self._renderer, "text_input_rect"):
             region = self._renderer.text_input_rect()
             if region is not None:
                 x, y, input_width, input_height = region
                 container = QWidget()
+                container.setObjectName("uartInputContainer")
                 row = QHBoxLayout(container)
                 row.setContentsMargins(0, 0, 0, 0)
                 row.setSpacing(4)
@@ -87,6 +132,16 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
                 self.retranslate_ui()
 
     def retranslate_ui(self) -> None:
+        if self._rx_output is not None:
+            self._rx_output.setAccessibleName(t("Received UART text"))
+        if self._rx_copy_button is not None:
+            self._rx_copy_button.setText(t("Copy"))
+            self._rx_copy_button.setToolTip(t("Copy received text"))
+            self._rx_copy_button.setAccessibleName(t("Copy received text"))
+        if self._rx_clear_button is not None:
+            self._rx_clear_button.setText(t("Clear"))
+            self._rx_clear_button.setToolTip(t("Clear received text"))
+            self._rx_clear_button.setAccessibleName(t("Clear received text"))
         if self._text_input is not None:
             self._text_input.setPlaceholderText(t("Text to FPGA"))
             self._text_input.setAccessibleName(t("UART text to send"))
@@ -113,6 +168,44 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             self._text_input.clear()
         if self._send_button is not None:
             self._send_button.setEnabled(self._powered)
+
+    def _update_rx_actions(self) -> None:
+        has_output = self._rx_output is not None and not self._rx_output.document().isEmpty()
+        if self._rx_copy_button is not None:
+            self._rx_copy_button.setEnabled(has_output)
+        if self._rx_clear_button is not None:
+            self._rx_clear_button.setEnabled(has_output)
+
+    def _append_received_text(self, chunk: str) -> None:
+        if not chunk or self._rx_output is None:
+            return
+        scrollbar = self._rx_output.verticalScrollBar()
+        previous_position = scrollbar.value()
+        follow_tail = previous_position >= scrollbar.maximum() - 1
+        document = self._rx_output.document()
+        cursor = QTextCursor(document)
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.insertText(chunk)
+        excess = document.characterCount() - 1 - int(getattr(self._renderer, "output_limit", 65_536))
+        if excess > 0:
+            cursor.setPosition(0)
+            cursor.setPosition(excess, QTextCursor.MoveMode.KeepAnchor)
+            cursor.removeSelectedText()
+        scrollbar.setValue(scrollbar.maximum() if follow_tail else min(previous_position, scrollbar.maximum()))
+        self._update_rx_actions()
+
+    def _copy_received_text(self) -> None:
+        if self._rx_output is not None:
+            QApplication.clipboard().setText(self._rx_output.toPlainText())
+
+    def _clear_received_text(self) -> None:
+        if self._rx_output is None:
+            return
+        self._rx_output.clear()
+        if hasattr(self._renderer, "clear_output"):
+            self._renderer.clear_output()
+        self._update_rx_actions()
+        self.update()
 
     @property
     def peripheral(self):
@@ -165,7 +258,9 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     def feed_edge_events(self, terminal, events, cycle, clock_hz, dropped) -> None:
         """Forward generic timestamped transitions to a compatible renderer."""
         if hasattr(self._renderer, "feed_edges"):
-            self._renderer.feed_edges(self._peripheral, terminal, events, cycle, clock_hz, dropped)
+            chunk = self._renderer.feed_edges(self._peripheral, terminal, events, cycle, clock_hz, dropped)
+            if isinstance(chunk, str):
+                self._append_received_text(chunk)
             self.update()
 
     def drop_vga_images(self):
@@ -188,7 +283,9 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             self._renderer.sync_inputs(self._peripheral, self._input_changed)
         if not powered:
             self._pending_text = None
-            if hasattr(self._renderer, "reset_stream"):
+            if hasattr(self._renderer, "suspend_stream"):
+                self._renderer.suspend_stream()
+            elif hasattr(self._renderer, "reset_stream"):
                 self._renderer.reset_stream()
             if hasattr(self._renderer, "cancel_interactions"):
                 self._renderer.cancel_interactions()
@@ -255,6 +352,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             "sensor_value": self._sensor_value,
             "powered": self._powered,
             "snapshot": self._snapshot,
+            "embedded_output": self._rx_output is not None,
         })
         painter.restore()
 

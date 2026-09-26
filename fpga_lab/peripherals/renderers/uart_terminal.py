@@ -11,8 +11,13 @@ from ...theme import color
 from .base import NullInputMixin
 
 
+MAX_SERIAL_HISTORY = 65_536
+
+
 class UartTerminalRenderer(NullInputMixin):
     """Render bytes decoded from a manifest-selected edge channel."""
+
+    output_limit = MAX_SERIAL_HISTORY
 
     def __init__(self, visual: dict[str, object]):
         self._size = tuple(int(value) for value in visual["size"])
@@ -27,46 +32,62 @@ class UartTerminalRenderer(NullInputMixin):
         width, height = self._size
         return 10, height - 65, width - 20, 30
 
+    def text_output_rect(self) -> tuple[int, int, int, int]:
+        width, height = self._size
+        return 10, 35, width - 20, height - (107 if self.tx_channel else 64)
+
     def size(self, peripheral) -> tuple[int, int]:
         return self._size  # type: ignore[return-value]
 
-    def reset_stream(self) -> None:
+    def reset_stream(self, *, preserve_output: bool = False) -> None:
         self._decoder: Uart8N1Decoder | None = None
         self._settings: tuple[int, int] | None = None
-        self._text = ""
+        if not preserve_output:
+            self._text = ""
         self._dropped = 0
         self._invalid_baud = False
 
-    def feed_edges(self, peripheral, terminal, events, cycle, clock_hz, dropped) -> None:
+    def suspend_stream(self) -> None:
+        """Discard a partial UART frame while retaining the readable history."""
+        self.reset_stream(preserve_output=True)
+
+    def clear_output(self) -> None:
+        self._text = ""
+
+    def feed_edges(self, peripheral, terminal, events, cycle, clock_hz, dropped) -> str:
         if terminal != self._channel or clock_hz <= 0:
-            return
+            return ""
         try:
             baud = int(peripheral.properties.get(self._baud_property, 115200))
         except (TypeError, ValueError):
-            self.reset_stream()
+            self.reset_stream(preserve_output=True)
             self._invalid_baud = True
-            return
+            return ""
         settings = (clock_hz, baud)
         if settings != self._settings:
-            self.reset_stream()
+            self.reset_stream(preserve_output=True)
             try:
                 self._decoder = Uart8N1Decoder(clock_hz, baud)
             except ValueError:
                 self._invalid_baud = True
-                return
+                return ""
             self._settings = settings
         if self._decoder is None:
-            return
+            return ""
+        received: list[str] = []
         if dropped:
             self._dropped += dropped
             self._decoder.reset()
-            self._text = (self._text + "\n[" + t("Signal overflow") + "]\n")[-2048:]
+            received.append("\n[" + t("Signal overflow") + "]\n")
         transitions = (Transition(event.cycle, event.level) for event in events)
         for value in self._decoder.feed(transitions, cycle):
             if value == 13:
                 continue
-            self._text += chr(value) if value == 10 or 32 <= value < 127 else f"\\x{value:02X}"
-        self._text = self._text[-2048:]
+            received.append(chr(value) if value == 10 or 32 <= value < 127 else f"\\x{value:02X}")
+        chunk = "".join(received)
+        if chunk:
+            self._text = (self._text + chunk)[-self.output_limit:]
+        return chunk
 
     def paint(self, painter: QPainter, rect, peripheral, state) -> None:
         del rect
@@ -80,24 +101,25 @@ class UartTerminalRenderer(NullInputMixin):
         baud = peripheral.properties.get(self._baud_property, 115200)
         painter.drawText(QRectF(11, 8, width - 22, 18), Qt.AlignmentFlag.AlignLeft, f"UART · {baud} · 8N1")
         errors = self._decoder.framing_errors if self._decoder is not None else 0
-        if errors or self._dropped:
+        if errors or self._dropped or self._invalid_baud:
             painter.setPen(color("warning"))
             painter.drawText(
                 QRectF(width - 110, 8, 99, 18), Qt.AlignmentFlag.AlignRight,
-                f"ERR {errors}" if errors else f"DROP {self._dropped}",
+                f"ERR {errors}" if errors else f"DROP {self._dropped}" if self._dropped else "ERR BAUD",
             )
         painter.setPen(QPen(color("border"), 1))
         painter.drawLine(9, 29, width - 9, 29)
-        painter.setPen(color("text"))
-        font = QFont("monospace")
-        font.setStyleHint(QFont.StyleHint.TypeWriter)
-        font.setPointSize(9)
-        painter.setFont(font)
-        lines = self._text.splitlines()[-6:]
-        display = (
-            t("Baud rate is too high for the virtual clock.") if self._invalid_baud
-            else "\n".join(line[-43:] for line in lines) if state.get("powered") else ""
-        )
-        text_height = height - (105 if self.tx_channel else 67)
-        painter.drawText(QRectF(11, 34, width - 22, text_height), Qt.AlignmentFlag.AlignTop, display)
+        if not state.get("embedded_output"):
+            painter.setPen(color("text"))
+            font = QFont("monospace")
+            font.setStyleHint(QFont.StyleHint.TypeWriter)
+            font.setPointSize(9)
+            painter.setFont(font)
+            lines = self._text.splitlines()[-6:]
+            display = (
+                t("Baud rate is too high for the virtual clock.") if self._invalid_baud
+                else "\n".join(line[-43:] for line in lines)
+            )
+            text_height = height - (105 if self.tx_channel else 67)
+            painter.drawText(QRectF(11, 34, width - 22, text_height), Qt.AlignmentFlag.AlignTop, display)
         painter.restore()

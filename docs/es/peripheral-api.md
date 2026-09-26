@@ -95,11 +95,11 @@ El [ejemplo de terminal UART](https://github.com/lmcapacho/FPGALab/tree/main/exa
     {"name": "tx", "direction": "input", "width": 1, "required": false}
   ],
   "properties": {"baud": {"type": "enum", "default": "115200", "values": ["9600", "115200"]}},
-  "visual": {"renderer": "uart_terminal", "size": [320, 200], "channel": "rx", "tx_channel": "tx", "baud_property": "baud"}
+  "visual": {"renderer": "uart_terminal", "size": [320, 240], "channel": "rx", "tx_channel": "tx", "baud_property": "baud"}
 }
 ```
 
-El terminal recibe texto ASCII y puede enviar hasta 512 bytes UTF-8 por envío. Su campo para escribir está activo durante la simulación y requiere que `tx` esté conectado a una entrada del FPGA. El codificador integrado programa un bit de inicio, ocho bits de datos del menos significativo al más significativo y un bit de parada con el reloj virtual configurado; no usa temporizadores de la interfaz. El paquete no puede ejecutar Python ni definir cualquier protocolo por sí mismo. La misma base se podrá reutilizar para futuros renderizadores I²C/SPI, pero estos aún no están implementados. `package.compatibility.minimum_fpgalab` no garantiza por sí solo que una versión anterior pueda abrir el paquete: RC4 rechaza `api_version: 2`, aunque el mínimo indicado sea `0.1.0rc4`.
+El terminal recibe texto ASCII y puede enviar hasta 512 bytes UTF-8 por envío. El historial RX tiene desplazamiento, botones Copiar y Limpiar y retiene hasta 65 536 caracteres mostrados o 4096 líneas. El texto sigue disponible después de Stop; un nuevo Run crea un monitor vacío. Su campo para escribir está activo durante la simulación y requiere que `tx` esté conectado a una entrada del FPGA. El codificador integrado programa un bit de inicio, ocho bits de datos del menos significativo al más significativo y un bit de parada con el reloj virtual configurado; no usa temporizadores de la interfaz. El paquete no puede ejecutar Python ni definir cualquier protocolo por sí mismo. La misma base se podrá reutilizar para futuros renderizadores I²C/SPI, pero estos aún no están implementados. `package.compatibility.minimum_fpgalab` no garantiza por sí solo que una versión anterior pueda abrir el paquete: RC4 rechaza `api_version: 2`, aunque el mínimo indicado sea `0.1.0rc4`.
 
 ## Validar, instalar y compartir
 

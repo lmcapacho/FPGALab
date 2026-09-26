@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QEvent, QSettings, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtWidgets import QApplication, QAbstractSpinBox, QComboBox, QFrame, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QTextEdit, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QApplication, QAbstractSpinBox, QComboBox, QFrame, QGraphicsProxyWidget, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QTextEdit, QVBoxLayout, QWidget
 
 from .board import BoardDefinition, bundled_board_definition
 from .i18n import language_manager, t
@@ -358,11 +358,18 @@ class FPGAVirtualLab(QWidget):
         focused = QApplication.focusWidget()
         if event.type() == QEvent.Type.KeyRelease and self._peripherals.handle_shortcut_event(event, False):
             return True
-        if focused is None or focused.window() is not self.window() or isinstance(
-            focused, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox, QKeySequenceEdit)
-        ):
+        text_widgets = (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox, QKeySequenceEdit)
+        if focused is None or focused.window() is not self.window() or isinstance(focused, text_widgets):
             return super().eventFilter(watched, event)
-        if event.type() == QEvent.Type.KeyPress and self._peripherals.handle_shortcut_event(event, True):
+        workbench = self._peripherals.workbench
+        if focused is workbench or focused is workbench.viewport():
+            scene_focus = workbench.scene().focusItem()
+            if isinstance(scene_focus, QGraphicsProxyWidget) and scene_focus.widget() is not None:
+                if isinstance(scene_focus.widget().focusWidget(), text_widgets):
+                    return super().eventFilter(watched, event)
+        if event.type() != QEvent.Type.KeyPress:
+            return super().eventFilter(watched, event)
+        if self._peripherals.handle_shortcut_event(event, True):
             return True
         return super().eventFilter(watched, event)
 

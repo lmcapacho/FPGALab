@@ -164,6 +164,7 @@ def application_stylesheet(mode: str = "dark") -> str:
     return f"""
     QMainWindow, QDialog {{ background: {p.canvas}; }}
     QWidget {{ color: {p.text}; font-family: Inter, "Segoe UI", Arial, sans-serif; font-size: {Metrics.FONT_SIZE}px; }}
+    QWidget#uartOutputContainer, QWidget#uartInputContainer {{ background: transparent; }}
     QFrame#panel, QFrame#toolbarPanel {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_MD}px; }}
     QFrame#boardPanel {{ background: {p.board_surface}; border: 1px solid {p.board_border}; border-radius: {Metrics.RADIUS_LG}px; }}
     QFrame#catalogDrawer {{ background: {p.surface}; border: 1px solid {p.border_strong}; border-radius: {Metrics.RADIUS_LG}px; }}
@@ -180,6 +181,17 @@ def application_stylesheet(mode: str = "dark") -> str:
         border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_SM}px; selection-background-color: {p.accent};
     }}
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QKeySequenceEdit:focus {{ border-color: {p.accent}; }}
+    QPlainTextEdit {{
+        background: {p.surface}; color: {p.text}; border: 1px solid {p.border};
+        border-radius: {Metrics.RADIUS_SM}px; selection-background-color: {p.accent};
+        selection-color: {p.accent_text};
+    }}
+    QPlainTextEdit:focus {{ border-color: {p.accent}; }}
+    QPlainTextEdit QScrollBar:vertical {{ background: {p.surface}; width: 10px; border: 0; margin: 0; }}
+    QPlainTextEdit QScrollBar::handle:vertical {{ background: {p.border_strong}; min-height: 24px; border-radius: 4px; }}
+    QPlainTextEdit QScrollBar::handle:vertical:hover {{ background: {p.accent}; }}
+    QPlainTextEdit QScrollBar::add-line:vertical, QPlainTextEdit QScrollBar::sub-line:vertical {{ height: 0; border: 0; }}
+    QPlainTextEdit QScrollBar::add-page:vertical, QPlainTextEdit QScrollBar::sub-page:vertical {{ background: transparent; }}
     QComboBox {{ padding-right: 30px; combobox-popup: 0; }}
     QComboBox::drop-down {{ border: 0; width: 28px; }}
     QComboBox::down-arrow {{ image: url("{combo_arrow}"); width: 12px; height: 12px; }}

@@ -95,11 +95,11 @@ The [UART terminal example](https://github.com/lmcapacho/FPGALab/tree/main/examp
     {"name": "tx", "direction": "input", "width": 1, "required": false}
   ],
   "properties": {"baud": {"type": "enum", "default": "115200", "values": ["9600", "115200"]}},
-  "visual": {"renderer": "uart_terminal", "size": [320, 200], "channel": "rx", "tx_channel": "tx", "baud_property": "baud"}
+  "visual": {"renderer": "uart_terminal", "size": [320, 240], "channel": "rx", "tx_channel": "tx", "baud_property": "baud"}
 }
 ```
 
-The terminal receives ASCII text and can send up to 512 UTF-8 bytes per submission. Its send field is active only while the simulation runs; the optional `tx` must be connected to an FPGA input. The built-in encoder schedules start, eight least-significant-bit-first data bits, and stop at the configured virtual clock rate; it does not use GUI timers. The package cannot supply executable Python or define an arbitrary protocol decoder. The same transport can support future I²C/SPI renderers, but those renderers are not implemented yet. `package.compatibility.minimum_fpgalab` alone does not guarantee an older build can load a package: RC4 rejects `api_version: 2` even if the minimum version field says `0.1.0rc4`.
+The terminal receives ASCII text and can send up to 512 UTF-8 bytes per submission. Its scrollable receive history has Copy and Clear controls and keeps up to 65,536 displayed characters or 4,096 lines. Output remains readable after Stop; a new Run creates a fresh monitor. Its send field is active only while the simulation runs; the optional `tx` must be connected to an FPGA input. The built-in encoder schedules start, eight least-significant-bit-first data bits, and stop at the configured virtual clock rate; it does not use GUI timers. The package cannot supply executable Python or define an arbitrary protocol decoder. The same transport can support future I²C/SPI renderers, but those renderers are not implemented yet. `package.compatibility.minimum_fpgalab` alone does not guarantee an older build can load a package: RC4 rejects `api_version: 2` even if the minimum version field says `0.1.0rc4`.
 
 ## Validate, install, and share
 
