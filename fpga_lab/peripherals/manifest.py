@@ -69,15 +69,17 @@ class PeripheralSpec:
     color_depth: int | None = None
     temporal: dict[str, Any] | None = None
     edge_channels: tuple[str, ...] = ()
+    drive_channels: tuple[str, ...] = ()
+    drive_idle: dict[str, bool] | None = None
     resource_root: Path | None = None
 
     def terminal_map(self) -> dict[str, TerminalSpec]:
         return {terminal.name: terminal for terminal in self.terminals}
 
     def driving_terminals(self) -> frozenset[str]:
-        if self.simulation_class != "gpio_driven":
-            return frozenset()
-        return frozenset(terminal.name for terminal in self.terminals)
+        if self.simulation_class == "gpio_driven":
+            return frozenset(terminal.name for terminal in self.terminals)
+        return frozenset(self.drive_channels)
 
     def required_terminals(self, properties: dict[str, Any] | None = None) -> tuple[str, ...]:
         """Completeness set: preset list replaces defaults when present."""
@@ -150,7 +152,9 @@ def parse_manifest(
     _validate_pulse_servo_visual(visual, terminals, properties, simulation, source, identifier)
     _validate_measured_svg_visual(visual, terminals, simulation, source, identifier, resource_root)
     edge_channels = _edge_channels(simulation, terminals, source, identifier) if sim_class == "edge_stream" else ()
-    _validate_uart_visual(visual, edge_channels, properties, source, identifier)
+    drive_channels = _drive_channels(simulation, terminals, source, identifier) if sim_class == "edge_stream" else ()
+    drive_idle = _drive_idle(simulation, drive_channels, source, identifier)
+    _validate_uart_visual(visual, edge_channels, drive_channels, properties, source, identifier)
     category = str(raw.get("category", "output")).strip().casefold()
     if not category:
         raise ValueError(f"{source}: {identifier} category must not be empty")
@@ -182,6 +186,8 @@ def parse_manifest(
         color_depth=_optional_color_depth(simulation, source, identifier),
         temporal=_optional_temporal(simulation, source, identifier),
         edge_channels=edge_channels,
+        drive_channels=drive_channels,
+        drive_idle=drive_idle,
         resource_root=resource_root,
     )
 
@@ -198,11 +204,34 @@ def _edge_channels(simulation, terminals, source, identifier) -> tuple[str, ...]
     return tuple(channels)
 
 
-def _validate_uart_visual(visual, channels, properties, source, identifier) -> None:
+def _drive_channels(simulation, terminals, source, identifier) -> tuple[str, ...]:
+    channels = simulation.get("drives", [])
+    input_names = {terminal.name for terminal in terminals if terminal.direction == "input" and terminal.width == 1}
+    if (
+        not isinstance(channels, list) or len(channels) > 16
+        or any(not isinstance(name, str) or name not in input_names for name in channels)
+        or len(set(channels)) != len(channels)
+    ):
+        raise ValueError(f"{source}: {identifier} edge_stream drives must name unique one-bit input terminals")
+    return tuple(channels)
+
+
+def _drive_idle(simulation, channels, source, identifier) -> dict[str, bool]:
+    values = simulation.get("drive_idle", {})
+    if not isinstance(values, dict) or set(values) - set(channels) or any(
+        not isinstance(value, (bool, int)) or value not in (0, 1) for value in values.values()
+    ):
+        raise ValueError(f"{source}: {identifier} drive_idle must map timed input terminals to 0 or 1")
+    return {name: bool(values.get(name, 0)) for name in channels}
+
+
+def _validate_uart_visual(visual, channels, drives, properties, source, identifier) -> None:
     if visual.get("renderer") != "uart_terminal":
         return
     if visual.get("channel") not in channels:
         raise ValueError(f"{source}: {identifier} uart_terminal channel must reference an edge channel")
+    if visual.get("tx_channel") is not None and visual["tx_channel"] not in drives:
+        raise ValueError(f"{source}: {identifier} uart_terminal tx_channel must reference a timed input channel")
     baud_property = visual.get("baud_property")
     schema = properties.get(baud_property, {}) if isinstance(baud_property, str) else {}
     if schema.get("type") != "enum":

@@ -18,7 +18,14 @@ class UartTerminalRenderer(NullInputMixin):
         self._size = tuple(int(value) for value in visual["size"])
         self._channel = str(visual["channel"])
         self._baud_property = str(visual["baud_property"])
+        self.tx_channel = str(visual["tx_channel"]) if visual.get("tx_channel") else None
         self.reset_stream()
+
+    def text_input_rect(self) -> tuple[int, int, int, int] | None:
+        if self.tx_channel is None:
+            return None
+        width, height = self._size
+        return 10, height - 65, width - 20, 30
 
     def size(self, peripheral) -> tuple[int, int]:
         return self._size  # type: ignore[return-value]
@@ -91,5 +98,6 @@ class UartTerminalRenderer(NullInputMixin):
             t("Baud rate is too high for the virtual clock.") if self._invalid_baud
             else "\n".join(line[-43:] for line in lines) if state.get("powered") else ""
         )
-        painter.drawText(QRectF(11, 34, width - 22, height - 67), Qt.AlignmentFlag.AlignTop, display)
+        text_height = height - (105 if self.tx_channel else 67)
+        painter.drawText(QRectF(11, 34, width - 22, text_height), Qt.AlignmentFlag.AlignTop, display)
         painter.restore()

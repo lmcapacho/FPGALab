@@ -10,6 +10,7 @@ from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 from .i18n import t
 from .simulation import EdgeEvent, VgaStats, VerilatorSimulation
 from .sink_bind import VgaBinding
+from .serial_edges import uart_8n1_drive_events
 from .temporal import LedModel
 
 
@@ -73,6 +74,8 @@ class SimulationWorker(QObject):
 
     state_changed = pyqtSignal(object)
     failure = pyqtSignal(str)
+    notice = pyqtSignal(str)
+    uart_send_result = pyqtSignal(int, str, bool)
     stopped = pyqtSignal()
 
     def __init__(
@@ -105,6 +108,8 @@ class SimulationWorker(QObject):
         self._blank_next = False
         self._temporal_probes: tuple[tuple[tuple[int, int, bool], ...], ...] = ()
         self._edge_channels: tuple[tuple[int, int], ...] = ()
+        self._drive_channels: tuple[tuple[str, int, bool], ...] = ()
+        self._tx_next_cycle: dict[int, int] = {}
 
     @pyqtSlot()
     def start(self) -> None:
@@ -157,6 +162,46 @@ class SimulationWorker(QObject):
             self._edge_channels = ()
             self.failure.emit(str(exc))
 
+    @pyqtSlot(object)
+    def configure_drive_channels(self, channels) -> None:
+        """Reserve manifest-declared input bits for cycle-accurate drivers."""
+        try:
+            normalized = tuple((str(name), int(bit), bool(idle)) for name, bit, idle in (channels or ()))
+            if normalized != self._drive_channels:
+                self._simulation.configure_drive_channels(list(normalized))
+                self._drive_channels = normalized
+                self._tx_next_cycle.clear()
+        except Exception as exc:
+            self._simulation.configure_drive_channels([])
+            self._drive_channels = ()
+            self._tx_next_cycle.clear()
+            self.notice.emit(str(exc))
+
+    @pyqtSlot(int, int, str)
+    def send_uart(self, channel: int, baud: int, text: str) -> None:
+        """Schedule a complete UTF-8 string in virtual time, not with Qt timers."""
+        try:
+            if self._timer is None or not self._timer.isActive():
+                raise ValueError(t("Start the simulation before sending UART text."))
+            if not 0 <= channel < len(self._drive_channels):
+                raise ValueError(t("UART TX is not connected to an FPGA input."))
+            if baud <= 0 or baud > self._clock_hz // 2:
+                raise ValueError(t("Baud rate is too high for the virtual clock."))
+            data = text.encode("utf-8")
+            if not data:
+                return
+            if len(data) > 512:
+                raise ValueError(t("Send at most 512 UTF-8 bytes at once."))
+            start = max(self._simulation.drive_cycle() + 1, self._tx_next_cycle.get(channel, 0))
+            edges, end = uart_8n1_drive_events(data, start, self._clock_hz, baud)
+            self._simulation.enqueue_drive_events([(channel, cycle, level) for cycle, level in edges])
+            self._tx_next_cycle[channel] = end
+            self.notice.emit(t("Queued {count} UART byte(s).", count=len(data)))
+            self.uart_send_result.emit(channel, text, True)
+        except (ValueError, RuntimeError, UnicodeError) as exc:
+            self.notice.emit(str(exc))
+            self.uart_send_result.emit(channel, text, False)
+
     @pyqtSlot()
     def play(self) -> None:
         if self._timer and not self._timer.isActive():
@@ -178,6 +223,7 @@ class SimulationWorker(QObject):
         self.pause()
         self._simulation.reset()
         self._simulation.streaming_reset()
+        self._tx_next_cycle.clear()
         self._blank_next = True
         self.state_changed.emit(SimulationFrame(
             led_brightness=tuple([0.0] * 8),
@@ -288,6 +334,7 @@ class SimulationWorker(QObject):
             self._timer.stop()
         self._simulation.reset()
         self._simulation.streaming_reset()
+        self._tx_next_cycle.clear()
         if was_running:
             self.play()
         elif self._simulation.profile.clock_name is None:

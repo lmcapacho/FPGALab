@@ -118,6 +118,7 @@ class VerilatorSimulation:
             raise FileNotFoundError(library_path)
         self._lib = ctypes.CDLL(str(library_path))
         self._configure_api()
+        self._drive_channel_count = 0
         self._lib.init_sim()
 
     def _function(self, name: str, restype, argtypes=()):
@@ -176,6 +177,16 @@ class VerilatorSimulation:
             for name in self.profile.outputs
         }
         self._read_output = self._function("sim_read_output", ctypes.c_uint64, (ctypes.c_uint32,))
+        self._drive_channel_limit = self._function("sim_drive_channel_limit", ctypes.c_uint32)
+        self._drive_available = self._function("sim_drive_available", ctypes.c_uint32)
+        self._drive_cycle = self._function("sim_drive_cycle", ctypes.c_uint64)
+        self._drive_configure = self._function("sim_drive_configure", None, (ctypes.c_uint32,))
+        self._drive_bind = self._function(
+            "sim_drive_bind", ctypes.c_int, (ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint8, ctypes.c_uint8)
+        )
+        self._drive_enqueue = self._function(
+            "sim_drive_enqueue", ctypes.c_int, (ctypes.c_uint32, ctypes.c_uint64, ctypes.c_uint8)
+        )
         self._edge_channel_limit = self._function("sim_edge_channel_limit", ctypes.c_uint32)
         self._edge_configure = self._function("sim_edge_configure", None, (ctypes.c_uint32,))
         self._edge_bind = self._function("sim_edge_bind", None, (ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint8))
@@ -306,6 +317,45 @@ class VerilatorSimulation:
 
     def read_output(self, index: int) -> int:
         return int(self._read_output(index))
+
+    def configure_drive_channels(self, channels: list[tuple[str, int, bool]]) -> None:
+        """Reserve input bits for cycle-scheduled drivers, preserving other GPIO bits."""
+        inputs = [(name, width) for name, width in self.profile.inputs.items() if name != self.profile.clock_name]
+        indexes = {name: index for index, (name, _) in enumerate(inputs)}
+        if len(channels) > self._drive_channel_limit():
+            raise ValueError(t("At most {count} timed input channels are supported.", count=self._drive_channel_limit()))
+        seen: set[tuple[str, int]] = set()
+        for name, bit, _ in channels:
+            if name not in indexes or bit < 0 or bit >= inputs[indexes[name]][1] or (name, bit) in seen:
+                raise ValueError(t("Invalid timed input source: {name}[{bit}].", name=name, bit=bit))
+            seen.add((name, bit))
+        self._drive_configure(len(channels))
+        for channel, (name, bit, idle) in enumerate(channels):
+            if self._drive_bind(channel, indexes[name], bit, int(idle)) != 0:
+                self._drive_configure(0)
+                self._drive_channel_count = 0
+                raise RuntimeError(t("The timed input channel could not be configured."))
+        self._drive_channel_count = len(channels)
+        self._eval()
+
+    def drive_cycle(self) -> int:
+        return int(self._drive_cycle())
+
+    def drive_available(self) -> int:
+        return int(self._drive_available())
+
+    def enqueue_drive_events(self, events: list[tuple[int, int, bool]]) -> None:
+        """Queue channel/absolute-cycle/level tuples atomically after capacity checks."""
+        if len(events) > self.drive_available():
+            raise ValueError(t("The serial transmit queue is full."))
+        now = self.drive_cycle()
+        if any(cycle <= now for _, cycle, _ in events):
+            raise ValueError(t("Timed input events must be scheduled in future virtual cycles."))
+        if any(channel < 0 or channel >= self._drive_channel_count for channel, _, _ in events):
+            raise ValueError(t("Invalid timed input channel."))
+        for channel, cycle, level in events:
+            if self._drive_enqueue(channel, cycle, int(level)) != 0:
+                raise RuntimeError(t("A timed input event could not be queued."))
 
     def configure_edge_channels(self, channels: list[tuple[int, int]]) -> None:
         """Capture transitions on selected one-bit HDL outputs at every virtual posedge."""

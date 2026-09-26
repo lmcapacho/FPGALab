@@ -51,11 +51,13 @@ Each terminal has `name` and `direction`. `input` means **into the FPGA** (for e
 | `gpio_sampled` | The latest output level is read at each interface update. |
 | `gpio_temporal` | Outputs are observed over simulated cycles. External examples use `"temporal": {"mode": "per_terminal"}`. |
 | `streaming_sink` | Specialized path used by VGA; it is not yet a general declarative API for UART, I²C, or SPI. |
-| `edge_stream` | API v2: capture timestamped one-bit output transitions at every virtual rising clock edge. |
+| `edge_stream` | API v2: capture timestamped one-bit output transitions and optionally schedule changes on one-bit FPGA inputs. |
 
 A temporal terminal can expose `duty_cycle` (fraction from 0 to 1), `edge_rate_hz`, and `pulse_high_seconds` (seconds of the last **completed** high pulse). Measurements use virtual time and the configured sampling rate; faster signals may alias. `pulse_high_seconds` becomes available only after a falling edge. The `display_common` mode exists for bundled displays but is not the recommended starting point for external packages.
 
-For `edge_stream`, declare `"channels": ["rx"]` under `simulation`. Each named channel must be a distinct one-bit `output` terminal. Up to 16 channels may be active in one simulation, including channels from other installed peripherals. The native queue holds up to 16,384 transitions between interface updates; an overflow is reported to the renderer so it can discard a partial protocol frame. Timestamps are virtual FPGA cycles, not wall-clock time. Signals are sampled on each rising clock edge, so transitions shorter than one cycle are not observable. This capture path is independent of the lower-rate temporal measurement setting.
+For `edge_stream`, declare `"channels": ["rx"]` under `simulation`. Each named channel must be a distinct one-bit `output` terminal. Up to 16 capture channels may be active in one simulation, including channels from other installed peripherals. The native queue holds up to 16,384 transitions between interface updates; an overflow is reported to the renderer so it can discard a partial protocol frame. Timestamps are virtual FPGA cycles, not wall-clock time. Signals are sampled on each rising clock edge, so transitions shorter than one cycle are not observable. This capture path is independent of the lower-rate temporal measurement setting.
+
+To drive FPGA inputs at exact virtual cycles, add `"drives": ["tx"]` to the same `simulation` object. Each drive names a distinct one-bit `input` terminal; `"drive_idle": {"tx": 1}` sets its idle level. The native scheduler reserves that input bit while preserving other GPIO bits in the same port. It applies queued changes before each rising clock edge, including across interface-update boundaries. The queue is bounded to 8,192 transitions. The stock UART terminal uses this capability, but external packages still cannot provide arbitrary protocol code.
 
 ### `properties`: editable fields
 
@@ -70,7 +72,7 @@ All renderers require `renderer` and `size: [width, height]` with positive integ
 | `state_svg` | Digital levels and interactive inputs | `states`, `default_state`, `state_rules`, `interactions` |
 | `led_array` | Brightness of several outputs | `terminals`, `orientation`, `indicator_shape`, `show_labels`, `color_property` |
 | `measured_svg` | Duty cycle or pulse width | `terminal`, `measurement`, ranges, transform, and two SVGs |
-| `uart_terminal` | API v2 edge stream | `channel`, `baud_property`; decodes idle-high UART 8N1 text |
+| `uart_terminal` | API v2 edge stream and timed input | `channel`, `baud_property`, optional `tx_channel`; receives and sends UART 8N1 text |
 
 `state_svg` maps state names to SVG files in `states`, for example `{"off": "off.svg", "on": "on.svg"}`. `default_state` selects the initial state. Each `state_rules` entry has `state` and `when: {"terminal": "signal", "equals": 1}`; rules run in order. For controls, each `interaction` declares `terminal`, `region: [x, y, width, height]`, and one `event`/`action` pair: `click`/`toggle` or `press_release`/`momentary`. The region must fit within the artwork.
 
@@ -82,19 +84,22 @@ The earlier `signal_meter` and `pulse_servo` renderers remain available for exis
 
 ### Serial example: UART terminal
 
-The [UART terminal example](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/uart_terminal) is an external package with only a manifest and catalog icon. Connect its `rx` terminal to the FPGA's serial TX output, then select the same baud rate as the HDL transmitter. Its relevant fields are:
+The [UART terminal example](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/uart_terminal) is an external package with only a manifest and catalog icon. Connect its `rx` terminal to the FPGA's serial TX output and its optional `tx` terminal to the FPGA's serial RX input, then select the same baud rate as the HDL. Terminal directions are from the FPGA's perspective: `rx` is an `output`, `tx` is an `input`. Its relevant fields are:
 
 ```json
 {
   "api_version": 2,
-  "simulation": {"class": "edge_stream", "channels": ["rx"]},
-  "terminals": [{"name": "rx", "direction": "output", "width": 1}],
+  "simulation": {"class": "edge_stream", "channels": ["rx"], "drives": ["tx"], "drive_idle": {"tx": 1}},
+  "terminals": [
+    {"name": "rx", "direction": "output", "width": 1},
+    {"name": "tx", "direction": "input", "width": 1, "required": false}
+  ],
   "properties": {"baud": {"type": "enum", "default": "115200", "values": ["9600", "115200"]}},
-  "visual": {"renderer": "uart_terminal", "size": [300, 170], "channel": "rx", "baud_property": "baud"}
+  "visual": {"renderer": "uart_terminal", "size": [320, 200], "channel": "rx", "tx_channel": "tx", "baud_property": "baud"}
 }
 ```
 
-This first release supports a built-in UART 8N1 decoder and a declarative baud-rate property; the package cannot supply executable Python or define an arbitrary protocol decoder. The edge-capture API is reusable for future I²C/SPI renderers, but those protocol renderers and transmit-to-FPGA serial input are not implemented yet. `package.compatibility.minimum_fpgalab` alone does not guarantee an older build can load a package: RC4 rejects `api_version: 2` even if the minimum version field says `0.1.0rc4`.
+The terminal receives ASCII text and can send up to 512 UTF-8 bytes per submission. Its send field is active only while the simulation runs; the optional `tx` must be connected to an FPGA input. The built-in encoder schedules start, eight least-significant-bit-first data bits, and stop at the configured virtual clock rate; it does not use GUI timers. The package cannot supply executable Python or define an arbitrary protocol decoder. The same transport can support future I²C/SPI renderers, but those renderers are not implemented yet. `package.compatibility.minimum_fpgalab` alone does not guarantee an older build can load a package: RC4 rejects `api_version: 2` even if the minimum version field says `0.1.0rc4`.
 
 ## Validate, install, and share
 

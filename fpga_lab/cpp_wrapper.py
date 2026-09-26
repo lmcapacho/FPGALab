@@ -14,10 +14,20 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
         f"static_cast<uint8_t>((g_top->{name} >> {bit}) & 1U)"
         for name, bit in observed_bits
     ) or "0"
+    drive_inputs = [(name, width) for name, width in profile.inputs.items() if name != profile.clock_name]
     setters = "\n".join(
-        f"void sim_set_{name}(uint64_t value) {{ if (g_top) g_top->{name} = value; }}"
-        for name in profile.inputs
-        if name != profile.clock_name
+        f"void sim_set_{name}(uint64_t value) {{ if (g_top) g_top->{name} = "
+        f"(value & ~g_drive_reserved[{index}]) | "
+        f"(static_cast<uint64_t>(g_top->{name}) & g_drive_reserved[{index}]); }}"
+        for index, (name, _) in enumerate(drive_inputs)
+    )
+    drive_width_cases = "\n".join(
+        f"        case {index}: return {width};" for index, (_, width) in enumerate(drive_inputs)
+    )
+    drive_write_cases = "\n".join(
+        f"        case {index}: {{ const uint64_t mask = uint64_t{{1}} << bit; "
+        f"g_top->{name} = (static_cast<uint64_t>(g_top->{name}) & ~mask) | (level ? mask : 0); break; }}"
+        for index, (name, _) in enumerate(drive_inputs)
     )
     getters = "\n".join(
         f"uint64_t sim_get_{name}() {{ return g_top ? static_cast<uint64_t>(g_top->{name}) : 0; }}"
@@ -43,11 +53,17 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
             f"void sim_set_clk(uint8_t value) {{ if (g_top) g_top->{clock} = value ? 1 : 0; }}\n"
             f"uint8_t sim_get_clk() {{ return g_top ? static_cast<uint8_t>(g_top->{clock}) : 0; }}"
         )
-        step_body = f"g_top->{clock} = 1; g_top->eval();\n    g_top->{clock} = 0; g_top->eval();"
+        step_body = (
+            f"drive_before_posedge(); g_top->{clock} = 1; g_top->eval();\n"
+            "    if (g_sink_enabled) sim_streaming_on_posedge();\n"
+            "    if (g_edge_channel_count) sample_edges();\n"
+            f"    g_top->{clock} = 0; g_top->eval();"
+        )
         run_body = (
             "uint64_t remaining = 0;\n"
             "    for (uint64_t cycle = 0; cycle < cycles; ++cycle) {\n"
             "        const bool observe = remaining == 0;\n"
+            "        drive_before_posedge();\n"
             f"        g_top->{clock} = 1; g_top->eval();\n"
             "        if (observe) { sample_temporal(); sample_observed(cycle == 0); }\n"
             "        if (g_sink_enabled) sim_streaming_on_posedge();\n"
@@ -64,7 +80,9 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
 #include "verilated.h"
 #include "sim_streaming.h"
 #include "temporal_pulse.h"
+#include <algorithm>
 #include <cstdint>
+#include <vector>
 
 struct SimEdgeEvent {{ uint64_t cycle; uint32_t channel; uint8_t level; uint8_t reserved[3]; }};
 static constexpr uint32_t kEdgeChannelLimit = 16;
@@ -77,6 +95,21 @@ static uint32_t g_edge_channel_count = 0;
 static uint32_t g_edge_head = 0, g_edge_tail = 0, g_edge_count = 0;
 static uint64_t g_edge_cycle = 0, g_edge_dropped = 0;
 static bool g_edge_initialized = false;
+struct SimDriveEvent {{ uint64_t cycle; uint32_t channel; uint8_t level; }};
+static constexpr uint32_t kDriveChannelLimit = 16;
+static constexpr uint32_t kDriveQueueLimit = 8192;
+static constexpr uint32_t kDrivePortCount = {len(drive_inputs)};
+static uint64_t g_drive_reserved[kDrivePortCount ? kDrivePortCount : 1] = {{0}};
+static uint32_t g_drive_port[kDriveChannelLimit] = {{0}};
+static uint8_t g_drive_bit[kDriveChannelLimit] = {{0}};
+static uint8_t g_drive_initial[kDriveChannelLimit] = {{0}};
+static uint32_t g_drive_channel_count = 0;
+static uint64_t g_sim_cycle = 0;
+static std::vector<SimDriveEvent> g_drive_events;
+
+static bool drive_later(const SimDriveEvent& left, const SimDriveEvent& right) {{
+    return left.cycle > right.cycle;
+}}
 
 static {model_class}* g_top = nullptr;
 static VerilatedContext* g_context = nullptr;
@@ -110,6 +143,40 @@ static uint8_t output_bit(uint32_t output, uint8_t bit) {{
     switch (output) {{
 {output_bit_cases}
         default: return 0;
+    }}
+}}
+
+static uint32_t drive_port_width(uint32_t port) {{
+    switch (port) {{
+{drive_width_cases}
+        default: return 0;
+    }}
+}}
+
+static void write_drive_bit(uint32_t port, uint8_t bit, uint8_t level) {{
+    if (!g_top) return;
+    switch (port) {{
+{drive_write_cases}
+        default: break;
+    }}
+}}
+
+static void drive_before_posedge() {{
+    ++g_sim_cycle;
+    while (!g_drive_events.empty() && g_drive_events.front().cycle <= g_sim_cycle) {{
+        std::pop_heap(g_drive_events.begin(), g_drive_events.end(), drive_later);
+        const SimDriveEvent event = g_drive_events.back();
+        g_drive_events.pop_back();
+        write_drive_bit(g_drive_port[event.channel], g_drive_bit[event.channel], event.level);
+    }}
+}}
+
+static void reset_drives(bool clear_bindings, bool reset_clock = true) {{
+    if (reset_clock) g_sim_cycle = 0;
+    g_drive_events.clear();
+    if (clear_bindings) {{
+        g_drive_channel_count = 0;
+        for (uint32_t port = 0; port < kDrivePortCount; ++port) g_drive_reserved[port] = 0;
     }}
 }}
 
@@ -202,6 +269,7 @@ void reset_sim() {{
     if (!g_top) init_sim();
     sim_streaming_reset();
     reset_edges();
+    reset_drives(false);
     for (uint32_t probe = 0; probe < g_temporal_probe_count; ++probe) {{
         g_temporal_previous[probe] = 0;
         g_temporal_pulses[probe] = TemporalPulse{{}};
@@ -212,11 +280,16 @@ void reset_sim() {{
     g_top = nullptr;
     g_context = nullptr;
     init_sim();
+    for (uint32_t channel = 0; channel < g_drive_channel_count; ++channel) {{
+        write_drive_bit(g_drive_port[channel], g_drive_bit[channel], g_drive_initial[channel]);
+    }}
+    g_top->eval();
 }}
 
 void close_sim() {{
     sim_streaming_close();
     reset_edges();
+    reset_drives(true);
     if (!g_top) return;
     g_top->final();
     delete g_top;
@@ -291,6 +364,34 @@ uint8_t sim_temporal_probe_pulse_valid(uint32_t probe) {{ return probe < g_tempo
 {getters}
 
 uint32_t sim_output_count() {{ return {len(profile.outputs)}; }}
+uint32_t sim_drive_channel_limit() {{ return kDriveChannelLimit; }}
+uint32_t sim_drive_available() {{ return kDriveQueueLimit - static_cast<uint32_t>(g_drive_events.size()); }}
+uint64_t sim_drive_cycle() {{ return g_sim_cycle; }}
+void sim_drive_configure(uint32_t count) {{
+    for (uint32_t channel = 0; channel < g_drive_channel_count; ++channel) {{
+        write_drive_bit(g_drive_port[channel], g_drive_bit[channel], 0);
+    }}
+    reset_drives(true, false);
+    g_drive_channel_count = count <= kDriveChannelLimit ? count : 0;
+}}
+int sim_drive_bind(uint32_t channel, uint32_t port, uint8_t bit, uint8_t initial) {{
+    if (channel >= g_drive_channel_count || bit >= drive_port_width(port)) return -1;
+    const uint64_t mask = uint64_t{{1}} << bit;
+    if (g_drive_reserved[port] & mask) return -2;
+    g_drive_port[channel] = port;
+    g_drive_bit[channel] = bit;
+    g_drive_initial[channel] = initial ? 1 : 0;
+    g_drive_reserved[port] |= mask;
+    write_drive_bit(port, bit, initial);
+    return 0;
+}}
+int sim_drive_enqueue(uint32_t channel, uint64_t cycle, uint8_t level) {{
+    if (channel >= g_drive_channel_count || cycle <= g_sim_cycle) return -1;
+    if (g_drive_events.size() >= kDriveQueueLimit) return -2;
+    g_drive_events.push_back(SimDriveEvent{{cycle, channel, static_cast<uint8_t>(level ? 1 : 0)}});
+    std::push_heap(g_drive_events.begin(), g_drive_events.end(), drive_later);
+    return 0;
+}}
 uint32_t sim_edge_channel_limit() {{ return kEdgeChannelLimit; }}
 void sim_edge_configure(uint32_t count) {{
     g_edge_channel_count = count <= kEdgeChannelLimit ? count : 0;

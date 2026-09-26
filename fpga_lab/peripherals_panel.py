@@ -87,8 +87,7 @@ class PeripheralConfigDialog(QDialog):
                     picker.addItem(pin.id, pin.id)
             index = picker.findData(peripheral.connections.get(terminal.name, ""))
             picker.setCurrentIndex(max(0, index))
-            label = terminal.name if terminal.required else t("{terminal} (optional)", terminal=terminal.name)
-            form.addRow(label, picker)
+            form.addRow(terminal.name, picker)
             self._pickers[terminal.name] = picker
         for name, schema in self._spec.properties.items():
             if name in RESERVED_PROPERTIES:
@@ -266,6 +265,8 @@ class PeripheralsPanel(QWidget):
     input_changed = pyqtSignal(str, int)
     temporal_probes_changed = pyqtSignal(object)
     edge_channels_changed = pyqtSignal(object)
+    drive_channels_changed = pyqtSignal(object)
+    serial_text_requested = pyqtSignal(int, int, str)
 
     def __init__(
         self,
@@ -275,11 +276,13 @@ class PeripheralsPanel(QWidget):
         input_widths: dict[str, int] | None = None,
         output_widths: dict[str, int] | None = None,
         parent=None,
+        clock_name: str | None = None,
     ):
         super().__init__(parent); self._board, self._pcf, self._lab = board, pcf, lab
         self._input_widths = input_widths or {}
         self._output_widths = output_widths or {}
         self._output_indexes = {name: index for index, name in enumerate(self._output_widths)}
+        self._clock_name = clock_name
         self._input_values = {}; self._editing_enabled = True
         self._powered = False
         self._assigned_endpoints = None  # The entire board is available; the design PCF is optional.
@@ -288,6 +291,7 @@ class PeripheralsPanel(QWidget):
         self._temporal_terminals: set[tuple[str, str]] = set()
         self._temporal_models: list[LedModel] = []
         self._edge_bindings: list[tuple[WorkbenchPeripheralItem, str, int, int]] = []
+        self._drive_bindings: list[tuple[WorkbenchPeripheralItem, str, str, int, bool]] = []
         self._active_shortcut_keys: dict[int, list[WorkbenchPeripheralItem]] = {}
         self._restoring_workbench_state = False
         self._history: list[tuple[dict[str, object], dict[str, object], str]] = []
@@ -388,6 +392,8 @@ class PeripheralsPanel(QWidget):
         self._update_zoom_label(self.workbench._zoom)
         self._update_connection_status()
         for item in self._workbench_scene.items():
+            if isinstance(item, WorkbenchPeripheralItem):
+                item.retranslate_ui()
             item.update()
 
     def refresh_theme(self) -> None:
@@ -506,7 +512,9 @@ class PeripheralsPanel(QWidget):
         self._workbench_scene.clear(); self._workbench_bindings = {}
         workbench_items: dict[str, WorkbenchPeripheralItem] = {}
         for index, peripheral in enumerate(project.peripherals):
-            bench_item = WorkbenchPeripheralItem(peripheral, self._configure, self._save_position, self._drive_input)
+            bench_item = WorkbenchPeripheralItem(
+                peripheral, self._configure, self._save_position, self._drive_input, self._queue_serial_text
+            )
             bench_item.set_editable(self._editing_enabled)
             if "position" not in peripheral.properties:
                 bench_item.setPos(16 + (index % 3) * 160, 16 + (index // 3) * 88)
@@ -522,6 +530,7 @@ class PeripheralsPanel(QWidget):
                 self._workbench_scene.addItem(item)
         self._rebuild_temporal_probes(project, workbench_items)
         self._rebuild_edge_channels(project, workbench_items)
+        self._rebuild_drive_channels(project, workbench_items)
         self._restore_workbench_zoom()
         self._update_connection_status()
 
@@ -663,6 +672,53 @@ class PeripheralsPanel(QWidget):
 
     def edge_channels(self) -> list[tuple[int, int]]:
         return [(output, bit) for _, _, output, bit in self._edge_bindings]
+
+    def _rebuild_drive_channels(self, project, workbench_items) -> None:
+        bindings: list[tuple[WorkbenchPeripheralItem, str, str, int, bool]] = []
+        for peripheral in project.peripherals:
+            try:
+                spec = spec_for(peripheral.kind)
+            except ValueError:
+                continue
+            for terminal in spec.drive_channels:
+                wire = self._workbench_bindings.get((peripheral.peripheral_id, terminal))
+                match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?", wire[1] or "") if wire else None
+                if match is None:
+                    continue
+                port, raw_bit = match.groups()
+                bit = int(raw_bit) if raw_bit else 0
+                if port == self._clock_name or port not in self._input_widths or bit >= self._input_widths[port]:
+                    continue
+                bindings.append((
+                    workbench_items[peripheral.peripheral_id], terminal, port, bit,
+                    bool((spec.drive_idle or {}).get(terminal, False)),
+                ))
+        self._drive_bindings = bindings
+        self.drive_channels_changed.emit(self.drive_channels())
+
+    def drive_channels(self) -> list[tuple[str, int, bool]]:
+        return [(port, bit, idle) for _, _, port, bit, idle in self._drive_bindings]
+
+    def _queue_serial_text(self, peripheral_id: str, terminal: str, text: str) -> bool:
+        if not self._powered or not text:
+            return False
+        for channel, (item, bound_terminal, _, _, _) in enumerate(self._drive_bindings):
+            if item.peripheral.peripheral_id != peripheral_id or bound_terminal != terminal:
+                continue
+            spec = spec_for(item.peripheral.kind)
+            baud_property = str(spec.visual.get("baud_property", "baud"))
+            try:
+                baud = int(item.peripheral.properties.get(baud_property, spec.properties[baud_property].get("default", 115200)))
+            except (TypeError, ValueError, KeyError):
+                return False
+            self.serial_text_requested.emit(channel, baud, text)
+            return True
+        self.changed.emit(t("UART TX is not connected to an FPGA input."))
+        return False
+
+    def serial_send_result(self, channel: int, text: str, accepted: bool) -> None:
+        if 0 <= channel < len(self._drive_bindings):
+            self._drive_bindings[channel][0].serial_send_result(text, accepted)
 
     def _update_connection_status(self) -> None:
         """Summarize physical terminals and the subset currently present in HDL."""

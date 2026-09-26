@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import QSettings, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox, QWidget
 
 from fpga_lab.lab_workspace import LabWorkspace
 from fpga_lab.main_window import FPGALabMainWindow, LabManagerDialog
+from fpga_lab.profile import BoardProfile
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
@@ -35,6 +38,57 @@ def test_main_window_stays_open_when_the_active_lab_cannot_close(tmp_path):
 
     lab.allow_close = True
     assert window.close() is True
+    window.deleteLater()
+
+
+def test_cached_model_is_closed_before_loading_same_library_again(tmp_path, monkeypatch):
+    from fpga_lab import app as app_module
+
+    events: list[str] = []
+
+    class FakeLab(QWidget):
+        status_changed = pyqtSignal(str)
+        clock_performance_changed = pyqtSignal(float, float)
+
+        def __init__(self, *_args, **_kwargs):
+            super().__init__()
+
+        def workbench_history(self):
+            return None
+
+        def start_simulation(self):
+            events.append("start")
+
+        def closeEvent(self, event):
+            events.append("close")
+            event.accept()
+
+    def load_model(_library, _profile):
+        events.append("load")
+        assert events[0] == "close"
+        return object()
+
+    monkeypatch.setattr(app_module, "FPGAVirtualLab", FakeLab)
+    monkeypatch.setattr(app_module, "VerilatorSimulation", load_model)
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+    window.set_lab(FakeLab())
+    controller = app_module.ApplicationController(
+        _APPLICATION, window,
+        SimpleNamespace(cache_dir=tmp_path / "cache", clock_hz=None, ui_refresh_hz=None,
+                        observation_hz=None, profile=None),
+    )
+    project = SimpleNamespace(pcf=None, ice_file=Path(tmp_path / "echo.ice"))
+    profile = BoardProfile("test", {"clk": 1}, {"tx": 1}, {}, "clk")
+    controller._pending_run = app_module.PendingProjectRun(project, profile, "top", {}, {})
+    artifact = SimpleNamespace(library=tmp_path / "libecho.so", reused=True,
+                               incremental=False, compatibility_mode=False)
+
+    controller._complete_build(artifact)
+
+    assert events[:2] == ["close", "load"]
+    assert "start" in events
+    window.close()
     window.deleteLater()
 
 
@@ -147,4 +201,3 @@ def test_about_dialog_identifies_the_maintainer_license_and_source(tmp_path, mon
     assert window._about_button.accessibleName()
     window.close()
     window.deleteLater()
-

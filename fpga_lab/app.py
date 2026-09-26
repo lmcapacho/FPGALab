@@ -209,6 +209,12 @@ class ApplicationController(QObject):
             previous_lab.workbench_history()
             if isinstance(previous_lab, FPGAVirtualLab) else None
         )
+        # Cached builds can load the same shared library again. Its model and
+        # UART channel state are process-global, so the old worker must finish
+        # and close that model before the next VerilatorSimulation calls init_sim().
+        if previous_lab is not None and not previous_lab.close():
+            self._build_failed(t("Could not stop the previous simulation safely."))
+            return
         try:
             simulation = VerilatorSimulation(artifact.library, pending.profile)
         except Exception as error:

@@ -74,3 +74,21 @@ class Uart8N1Decoder:
         self._sample_through(through_cycle, result)
         self._last_cycle = through_cycle
         return result
+
+
+def uart_8n1_drive_events(data: bytes, start_cycle: int, clock_hz: int, baud: int) -> tuple[list[tuple[int, bool]], int]:
+    """Return output-level changes at absolute virtual cycles for UART 8N1."""
+    if start_cycle < 1 or clock_hz <= 0 or baud <= 0 or baud > clock_hz // 2:
+        raise ValueError("UART transmission needs a clock and at least two cycles per bit.")
+    events: list[tuple[int, bool]] = []
+    level = True
+    bit_index = 0
+    for byte in data:
+        for next_level in (False, *(bool(byte & (1 << bit)) for bit in range(8)), True):
+            cycle = start_cycle + round(bit_index * clock_hz / baud)
+            if next_level != level:
+                events.append((cycle, next_level))
+                level = next_level
+            bit_index += 1
+    end_cycle = start_cycle + round(bit_index * clock_hz / baud)
+    return events, end_cycle

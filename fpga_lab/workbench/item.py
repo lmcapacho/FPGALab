@@ -4,19 +4,23 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QBrush, QFont, QFontMetrics, QPainter, QPen
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem
+from PyQt6.QtWidgets import (
+    QGraphicsItem, QGraphicsProxyWidget, QGraphicsRectItem,
+    QHBoxLayout, QLineEdit, QPushButton, QWidget,
+)
 
 from ..peripherals.catalog import spec_for
 from ..peripherals.renderers import renderer_for
 from ..peripherals.renderers.unsupported import UnsupportedRenderer
 from ..peripherals.renderers.vga_monitor import VgaMonitorRenderer
-from ..theme import color
+from ..i18n import t
+from ..theme import color, style_button
 
 
 class WorkbenchPeripheralItem(QGraphicsRectItem):
     """Draggable item whose coordinates live in ``properties.position``."""
 
-    def __init__(self, peripheral, configured, moved, input_changed):
+    def __init__(self, peripheral, configured, moved, input_changed, send_text=None):
         try:
             spec = spec_for(peripheral.kind)
         except ValueError:
@@ -36,6 +40,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._configured = configured
         self._moved = moved
         self._input_changed = input_changed
+        self._send_text = send_text
         position = peripheral.properties.get("position", [16, 16])
         self.setPos(float(position[0]), float(position[1]))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
@@ -53,6 +58,61 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._snapshot = None
         self._drag_dirty = False
         self._last_position = self.pos()
+        self._text_input: QLineEdit | None = None
+        self._send_button: QPushButton | None = None
+        self._pending_text: str | None = None
+        if send_text is not None and hasattr(self._renderer, "text_input_rect"):
+            region = self._renderer.text_input_rect()
+            if region is not None:
+                x, y, input_width, input_height = region
+                container = QWidget()
+                row = QHBoxLayout(container)
+                row.setContentsMargins(0, 0, 0, 0)
+                row.setSpacing(4)
+                self._text_input = QLineEdit(container)
+                self._text_input.setMaxLength(120)
+                self._text_input.returnPressed.connect(self._submit_text)
+                row.addWidget(self._text_input, 1)
+                self._send_button = QPushButton(container)
+                style_button(self._send_button, "secondary")
+                self._send_button.clicked.connect(self._submit_text)
+                row.addWidget(self._send_button)
+                proxy = QGraphicsProxyWidget(self)
+                proxy.setWidget(container)
+                proxy.setPos(self._renderer_offset_x + x, y)
+                proxy.resize(input_width, input_height)
+                container.resize(input_width, input_height)
+                container.setEnabled(False)
+                self._text_container = container
+                self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        if self._text_input is not None:
+            self._text_input.setPlaceholderText(t("Text to FPGA"))
+            self._text_input.setAccessibleName(t("UART text to send"))
+        if self._send_button is not None:
+            self._send_button.setText(t("Send"))
+            self._send_button.setAccessibleName(t("Send UART text"))
+
+    def _submit_text(self) -> None:
+        if not self._powered or self._text_input is None or self._send_text is None or self._pending_text is not None:
+            return
+        value = self._text_input.text()
+        if not value:
+            return
+        terminal = getattr(self._renderer, "tx_channel", None)
+        if terminal and self._send_text(self._peripheral.peripheral_id, terminal, value):
+            self._pending_text = value
+            self._send_button.setEnabled(False)
+
+    def serial_send_result(self, text: str, accepted: bool) -> None:
+        if self._pending_text != text:
+            return
+        self._pending_text = None
+        if accepted and self._text_input is not None and self._text_input.text() == text:
+            self._text_input.clear()
+        if self._send_button is not None:
+            self._send_button.setEnabled(self._powered)
 
     @property
     def peripheral(self):
@@ -122,9 +182,12 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
     def set_powered(self, powered: bool) -> None:
         """Expose the virtual power state without inventing signal samples."""
         self._powered = powered
+        if self._text_input is not None:
+            self._text_container.setEnabled(powered)
         if powered and hasattr(self._renderer, "sync_inputs"):
             self._renderer.sync_inputs(self._peripheral, self._input_changed)
         if not powered:
+            self._pending_text = None
             if hasattr(self._renderer, "reset_stream"):
                 self._renderer.reset_stream()
             if hasattr(self._renderer, "cancel_interactions"):
@@ -135,6 +198,8 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             self._press_sources.clear()
             self._pressed = False
             self._snapshot = None
+        if self._send_button is not None:
+            self._send_button.setEnabled(powered and self._pending_text is None)
         self.update()
 
     def set_button_pressed(self, source: str, pressed: bool) -> None:

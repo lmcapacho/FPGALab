@@ -45,6 +45,8 @@ class FPGAVirtualLab(QWidget):
     configure_vga_requested = pyqtSignal(object)
     set_temporal_probes_requested = pyqtSignal(object)
     configure_edge_channels_requested = pyqtSignal(object)
+    configure_drive_channels_requested = pyqtSignal(object)
+    send_uart_requested = pyqtSignal(int, int, str)
     status_changed = pyqtSignal(str)
     clock_performance_changed = pyqtSignal(float, float)
 
@@ -69,6 +71,7 @@ class FPGAVirtualLab(QWidget):
         self._clock_hz = clock_hz
         self._running = False
         self._ignore_state = False
+        self._closed = False
         self._board_name = simulation.profile.board_name if simulation else "Alhambra II"
         self._available_inputs = frozenset(simulation.profile.inputs) if simulation else frozenset()
         self._has_clock = simulation.profile.clock_name is not None if simulation else None
@@ -100,13 +103,20 @@ class FPGAVirtualLab(QWidget):
             self.configure_vga_requested.connect(self._worker.configure_vga_bindings)
             self.set_temporal_probes_requested.connect(self._worker.set_temporal_probes)
             self.configure_edge_channels_requested.connect(self._worker.configure_edge_channels)
+            self.configure_drive_channels_requested.connect(self._worker.configure_drive_channels)
+            self.send_uart_requested.connect(self._worker.send_uart)
             self._worker.state_changed.connect(self._paint_state)
             self._worker.failure.connect(self._show_failure)
+            self._worker.notice.connect(self.status_changed)
+            self._worker.uart_send_result.connect(self._peripherals.serial_send_result)
             self._thread.finished.connect(self._worker.deleteLater)
             self._peripherals.temporal_probes_changed.connect(self.set_temporal_probes_requested)
             self._peripherals.edge_channels_changed.connect(self.configure_edge_channels_requested)
+            self._peripherals.drive_channels_changed.connect(self.configure_drive_channels_requested)
+            self._peripherals.serial_text_requested.connect(self.send_uart_requested)
             self.set_temporal_probes_requested.emit(self._peripherals.temporal_probes())
             self.configure_edge_channels_requested.emit(self._peripherals.edge_channels())
+            self.configure_drive_channels_requested.emit(self._peripherals.drive_channels())
             self._thread.start()
 
     def _build_ui(self) -> None:
@@ -147,6 +157,7 @@ class FPGAVirtualLab(QWidget):
             self._lab_file,
             self._input_widths,
             dict(self._simulation.profile.outputs) if self._simulation else {},
+            clock_name=self._simulation.profile.clock_name if self._simulation else None,
         )
         self._peripherals.input_changed.connect(self.set_input_requested)
         self._peripherals.changed.connect(self.status_changed.emit)
@@ -243,6 +254,10 @@ class FPGAVirtualLab(QWidget):
         if self._peripherals.edge_channels() and self._has_clock is not True:
             QMessageBox.warning(self, t("Serial signals"), t("Serial signal capture requires a clocked design."))
             self.status_changed.emit(t("Serial signal capture requires a clocked design."))
+            return
+        if self._peripherals.drive_channels() and self._has_clock is not True:
+            QMessageBox.warning(self, t("Serial signals"), t("Serial signal transmission requires a clocked design."))
+            self.status_changed.emit(t("Serial signal transmission requires a clocked design."))
             return
         if bindings and self._clock_hz == 12_000_000:
             status = t(
@@ -352,13 +367,16 @@ class FPGAVirtualLab(QWidget):
         return super().eventFilter(watched, event)
 
     def closeEvent(self, event) -> None:
+        if self._closed:
+            event.accept()
+            return
         self._ignore_state = True
         if self._application is not None:
             self._application.removeEventFilter(self)
         if self._worker is not None:
             try:
                 self._worker.state_changed.disconnect(self._paint_state)
-            except TypeError:
+            except (TypeError, RuntimeError):
                 pass
         self._peripherals.drop_vga_images()
         if self._thread is not None and self._thread.isRunning():
@@ -367,4 +385,7 @@ class FPGAVirtualLab(QWidget):
                 self._show_failure(t("waiting for safe simulation shutdown"))
                 event.ignore()
                 return
+        self._worker = None
+        self._thread = None
+        self._closed = True
         event.accept()

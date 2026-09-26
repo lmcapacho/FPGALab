@@ -48,6 +48,8 @@ def test_closing_a_running_worker_stops_its_thread_and_native_simulation(tmp_pat
 
     assert thread.isRunning() is False
     assert simulation.closed is True
+    _APPLICATION.processEvents()
+    assert lab.close() is True
     lab.deleteLater()
 
 
