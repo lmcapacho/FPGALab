@@ -4,6 +4,10 @@ All notable changes to FPGALab are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Peripheral API v2 edge streams: bounded, virtual-cycle-accurate capture of digital output transitions, with an installable UART 8N1 terminal example.
+
 ## 0.1.0rc4 — 2026-09-24
 
 ### Added

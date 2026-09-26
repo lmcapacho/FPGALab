@@ -8,7 +8,7 @@ from time import perf_counter
 from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 
 from .i18n import t
-from .simulation import VgaStats, VerilatorSimulation
+from .simulation import EdgeEvent, VgaStats, VerilatorSimulation
 from .sink_bind import VgaBinding
 from .temporal import LedModel
 
@@ -37,6 +37,16 @@ class TemporalFrame:
     pulse_high_seconds: tuple[float | None, ...] = ()
 
 
+@dataclass(frozen=True)
+class EdgeFrame:
+    """Transitions from all configured channels, in virtual-cycle order."""
+
+    cycle: int = 0
+    clock_hz: int = 0
+    events: tuple[EdgeEvent, ...] = ()
+    dropped: int = 0
+
+
 def pulse_samples_to_seconds(samples: int | None, divisor: int, clock_hz: int) -> float | None:
     """Convert observation samples to virtual time, never wall-clock time."""
     return samples * divisor / clock_hz if samples is not None else None
@@ -50,6 +60,7 @@ class SimulationFrame:
     virtual_hz: float = 0.0
     cycles: int = 0
     temporal: TemporalFrame = field(default_factory=TemporalFrame)
+    edge_stream: EdgeFrame = field(default_factory=EdgeFrame)
 
 
 def effective_virtual_hz(cycles: int, wall_elapsed: float) -> float:
@@ -93,6 +104,7 @@ class SimulationWorker(QObject):
         self._sink_id: int | None = None
         self._blank_next = False
         self._temporal_probes: tuple[tuple[tuple[int, int, bool], ...], ...] = ()
+        self._edge_channels: tuple[tuple[int, int], ...] = ()
 
     @pyqtSlot()
     def start(self) -> None:
@@ -130,6 +142,19 @@ class SimulationWorker(QObject):
             self._temporal_probes = tuple(tuple(tuple(term) for term in probe) for probe in (probes or ()))
             self._simulation.set_temporal_probes(list(self._temporal_probes))
         except Exception as exc:
+            self.failure.emit(str(exc))
+
+    @pyqtSlot(object)
+    def configure_edge_channels(self, channels) -> None:
+        """Install the generic edge sources; decoding belongs to peripherals."""
+        try:
+            normalized = tuple((int(output), int(bit)) for output, bit in (channels or ()))
+            if normalized != self._edge_channels:
+                self._simulation.configure_edge_channels(list(normalized))
+                self._edge_channels = normalized
+        except Exception as exc:
+            self._simulation.configure_edge_channels([])
+            self._edge_channels = ()
             self.failure.emit(str(exc))
 
     @pyqtSlot()
@@ -214,6 +239,10 @@ class SimulationWorker(QObject):
             windows = self._simulation.observed_windows(cycles)
             temporal_hits, temporal_samples, temporal_ends, temporal_edges = self._simulation.temporal_probe_window()
             temporal_pulses = self._simulation.temporal_pulse_window()
+            edge_cycle, edge_events, edge_dropped = self._simulation.edge_window()
+            if edge_dropped:
+                # A partial queue cannot reconstruct serial frames reliably.
+                edge_events = []
             virtual_elapsed = cycles / self._clock_hz if self._clock_hz else 0.0
             leds = []
             for index, model in enumerate(self._led_models):
@@ -245,6 +274,7 @@ class SimulationWorker(QObject):
                         for samples in temporal_pulses
                     ),
                 ),
+                edge_stream=EdgeFrame(edge_cycle, self._clock_hz, tuple(edge_events), edge_dropped),
             ))
         except Exception as exc:
             if self._timer:

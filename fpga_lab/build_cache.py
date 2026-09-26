@@ -14,12 +14,13 @@ from pathlib import Path
 from typing import Callable
 
 from .compiler import BuildRequest, VerilatorCompiler, verilator_optimization_flags
+from .cpp_wrapper import render_cpp_wrapper
 from .ice_project import IcestudioProject
 from .i18n import t
 from .profile import BoardProfile
 from .toolchain import resolve_verilator
 
-_CACHE_FORMAT = 6  # Native temporal-pulse ABI requires a rebuilt wrapper.
+_CACHE_FORMAT = 7  # Edge-stream ABI requires a rebuilt wrapper, including exact cache hits.
 _INCREMENTAL_FORMAT = 2  # Old Makefiles reference PyInstaller's vanished _MEI directory.
 _NATIVE_DIR = Path(__file__).resolve().parent / "native"
 _MIN_CACHE_BUDGET = 128 * 1024 * 1024
@@ -82,6 +83,7 @@ class VerilatorBuildCache:
             "observed": profile.observed,
             "clock_name": profile.clock_name,
         }, sort_keys=True).encode())
+        digest.update(render_cpp_wrapper(profile, f"V{top_module}").encode())
         for source in project.sources:
             digest.update(str(source.name).encode() + b"\0")
             digest.update(source.read_bytes())

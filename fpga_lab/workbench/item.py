@@ -102,6 +102,12 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._snapshot = snapshot
         self.update()
 
+    def feed_edge_events(self, terminal, events, cycle, clock_hz, dropped) -> None:
+        """Forward generic timestamped transitions to a compatible renderer."""
+        if hasattr(self._renderer, "feed_edges"):
+            self._renderer.feed_edges(self._peripheral, terminal, events, cycle, clock_hz, dropped)
+            self.update()
+
     def drop_vga_images(self):
         if isinstance(self._renderer, VgaMonitorRenderer):
             self._renderer.drop_images()
@@ -119,6 +125,8 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         if powered and hasattr(self._renderer, "sync_inputs"):
             self._renderer.sync_inputs(self._peripheral, self._input_changed)
         if not powered:
+            if hasattr(self._renderer, "reset_stream"):
+                self._renderer.reset_stream()
             if hasattr(self._renderer, "cancel_interactions"):
                 self._renderer.cancel_interactions()
             self._active.clear()

@@ -1,0 +1,41 @@
+{
+  "api_version": 2,
+  "id": "uart_terminal",
+  "package": {
+    "version": "1.0.0",
+    "author": {
+      "name": "Luis Miguel Capacho",
+      "url": "https://github.com/lmcapacho/FPGALab"
+    },
+    "license": "AGPL-3.0-or-later",
+    "repository": "https://github.com/lmcapacho/FPGALab",
+    "compatibility": {"minimum_fpgalab": "0.1.0rc4"}
+  },
+  "label": "UART terminal",
+  "category": "display",
+  "description": "Receive 8N1 serial text from a one-bit FPGA output.",
+  "keywords": ["uart", "serial", "terminal", "tx", "text"],
+  "icon": "icon.svg",
+  "simulation": {
+    "class": "edge_stream",
+    "channels": ["rx"]
+  },
+  "terminals": [
+    { "name": "rx", "direction": "output", "width": 1, "required": true }
+  ],
+  "properties": {
+    "baud": {
+      "type": "enum",
+      "default": "115200",
+      "values": ["9600", "19200", "38400", "57600", "115200"],
+      "label": "Baud rate"
+    }
+  },
+  "visual": {
+    "renderer": "uart_terminal",
+    "size": [300, 170],
+    "chrome": "compact",
+    "channel": "rx",
+    "baud_property": "baud"
+  }
+}

@@ -45,6 +45,24 @@ class SimVgaStats(ctypes.Structure):
     ]
 
 
+class SimEdgeEvent(ctypes.Structure):
+    """A one-bit transition timestamped in virtual FPGA cycles."""
+
+    _fields_ = [
+        ("cycle", ctypes.c_uint64),
+        ("channel", ctypes.c_uint32),
+        ("level", ctypes.c_uint8),
+        ("reserved", ctypes.c_uint8 * 3),
+    ]
+
+
+@dataclass(frozen=True)
+class EdgeEvent:
+    cycle: int
+    channel: int
+    level: bool
+
+
 @dataclass(frozen=True)
 class VgaStats:
     frames_complete: int
@@ -158,6 +176,14 @@ class VerilatorSimulation:
             for name in self.profile.outputs
         }
         self._read_output = self._function("sim_read_output", ctypes.c_uint64, (ctypes.c_uint32,))
+        self._edge_channel_limit = self._function("sim_edge_channel_limit", ctypes.c_uint32)
+        self._edge_configure = self._function("sim_edge_configure", None, (ctypes.c_uint32,))
+        self._edge_bind = self._function("sim_edge_bind", None, (ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint8))
+        self._edge_cycle = self._function("sim_edge_cycle", ctypes.c_uint64)
+        self._edge_take_dropped = self._function("sim_edge_take_dropped", ctypes.c_uint64)
+        self._edge_read = self._function(
+            "sim_edge_read", ctypes.c_uint32, (ctypes.POINTER(SimEdgeEvent), ctypes.c_uint32)
+        )
         self._vga_create = self._function("sim_vga_create", ctypes.c_int, (ctypes.POINTER(ctypes.c_uint32),))
         self._vga_destroy = self._function("sim_vga_destroy", None, (ctypes.c_uint32,))
         self._vga_configure = self._function("sim_vga_configure", ctypes.c_int, (ctypes.c_uint32, ctypes.POINTER(SimVgaTiming)))
@@ -280,6 +306,29 @@ class VerilatorSimulation:
 
     def read_output(self, index: int) -> int:
         return int(self._read_output(index))
+
+    def configure_edge_channels(self, channels: list[tuple[int, int]]) -> None:
+        """Capture transitions on selected one-bit HDL outputs at every virtual posedge."""
+        if len(channels) > self._edge_channel_limit():
+            raise ValueError(t("At most {count} edge channels are supported.", count=self._edge_channel_limit()))
+        outputs = tuple(self.profile.outputs.items())
+        for output, bit in channels:
+            if output < 0 or output >= len(outputs) or bit < 0 or bit >= outputs[output][1]:
+                raise ValueError(t("Invalid edge source: output {output}, bit {bit}.", output=output, bit=bit))
+        self._edge_configure(len(channels))
+        for channel, (output, bit) in enumerate(channels):
+            self._edge_bind(channel, output, bit)
+
+    def edge_window(self) -> tuple[int, list[EdgeEvent], int]:
+        """Drain the bounded native queue and report dropped transitions."""
+        events: list[EdgeEvent] = []
+        buffer = (SimEdgeEvent * 1024)()
+        while copied := int(self._edge_read(buffer, len(buffer))):
+            events.extend(
+                EdgeEvent(int(buffer[index].cycle), int(buffer[index].channel), bool(buffer[index].level))
+                for index in range(copied)
+            )
+        return int(self._edge_cycle()), events, int(self._edge_take_dropped())
 
     def configure_vga(self, timing: VgaTiming, channels: dict[int, BoundBit]) -> int:
         """Create, configure, bind, and enable one VGA sink. Worker thread only."""

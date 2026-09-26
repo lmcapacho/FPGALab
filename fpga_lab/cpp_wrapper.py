@@ -51,6 +51,7 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
             f"        g_top->{clock} = 1; g_top->eval();\n"
             "        if (observe) { sample_temporal(); sample_observed(cycle == 0); }\n"
             "        if (g_sink_enabled) sim_streaming_on_posedge();\n"
+            "        if (g_edge_channel_count) sample_edges();\n"
             f"        g_top->{clock} = 0; g_top->eval();\n"
             "        if (observe) {\n"
             "            sample_observed(false);\n"
@@ -64,6 +65,18 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
 #include "sim_streaming.h"
 #include "temporal_pulse.h"
 #include <cstdint>
+
+struct SimEdgeEvent {{ uint64_t cycle; uint32_t channel; uint8_t level; uint8_t reserved[3]; }};
+static constexpr uint32_t kEdgeChannelLimit = 16;
+static constexpr uint32_t kEdgeBufferSize = 16384;
+static SimEdgeEvent g_edge_buffer[kEdgeBufferSize] = {{}};
+static uint32_t g_edge_output[kEdgeChannelLimit] = {{0}};
+static uint8_t g_edge_bit[kEdgeChannelLimit] = {{0}};
+static uint8_t g_edge_previous[kEdgeChannelLimit] = {{0}};
+static uint32_t g_edge_channel_count = 0;
+static uint32_t g_edge_head = 0, g_edge_tail = 0, g_edge_count = 0;
+static uint64_t g_edge_cycle = 0, g_edge_dropped = 0;
+static bool g_edge_initialized = false;
 
 static {model_class}* g_top = nullptr;
 static VerilatedContext* g_context = nullptr;
@@ -98,6 +111,26 @@ static uint8_t output_bit(uint32_t output, uint8_t bit) {{
 {output_bit_cases}
         default: return 0;
     }}
+}}
+
+static void reset_edges() {{
+    g_edge_head = g_edge_tail = g_edge_count = 0;
+    g_edge_cycle = g_edge_dropped = 0;
+    g_edge_initialized = false;
+}}
+
+static void sample_edges() {{
+    ++g_edge_cycle;
+    for (uint32_t channel = 0; channel < g_edge_channel_count; ++channel) {{
+        const uint8_t level = output_bit(g_edge_output[channel], g_edge_bit[channel]);
+        if (g_edge_initialized && level == g_edge_previous[channel]) continue;
+        g_edge_previous[channel] = level;
+        if (g_edge_count == kEdgeBufferSize) {{ ++g_edge_dropped; continue; }}
+        g_edge_buffer[g_edge_tail] = SimEdgeEvent{{g_edge_cycle, channel, level, {{0, 0, 0}}}};
+        g_edge_tail = (g_edge_tail + 1) % kEdgeBufferSize;
+        ++g_edge_count;
+    }}
+    g_edge_initialized = true;
 }}
 
 static void sample_temporal() {{
@@ -168,6 +201,7 @@ void init_sim() {{
 void reset_sim() {{
     if (!g_top) init_sim();
     sim_streaming_reset();
+    reset_edges();
     for (uint32_t probe = 0; probe < g_temporal_probe_count; ++probe) {{
         g_temporal_previous[probe] = 0;
         g_temporal_pulses[probe] = TemporalPulse{{}};
@@ -182,6 +216,7 @@ void reset_sim() {{
 
 void close_sim() {{
     sim_streaming_close();
+    reset_edges();
     if (!g_top) return;
     g_top->final();
     delete g_top;
@@ -256,6 +291,33 @@ uint8_t sim_temporal_probe_pulse_valid(uint32_t probe) {{ return probe < g_tempo
 {getters}
 
 uint32_t sim_output_count() {{ return {len(profile.outputs)}; }}
+uint32_t sim_edge_channel_limit() {{ return kEdgeChannelLimit; }}
+void sim_edge_configure(uint32_t count) {{
+    g_edge_channel_count = count <= kEdgeChannelLimit ? count : 0;
+    reset_edges();
+}}
+void sim_edge_bind(uint32_t channel, uint32_t output, uint8_t bit) {{
+    if (channel >= g_edge_channel_count) return;
+    g_edge_output[channel] = output;
+    g_edge_bit[channel] = bit;
+    reset_edges();
+}}
+uint64_t sim_edge_cycle() {{ return g_edge_cycle; }}
+uint64_t sim_edge_take_dropped() {{
+    const uint64_t dropped = g_edge_dropped;
+    g_edge_dropped = 0;
+    return dropped;
+}}
+uint32_t sim_edge_read(SimEdgeEvent* dst, uint32_t capacity) {{
+    if (!dst) return 0;
+    uint32_t copied = 0;
+    while (copied < capacity && g_edge_count) {{
+        dst[copied++] = g_edge_buffer[g_edge_head];
+        g_edge_head = (g_edge_head + 1) % kEdgeBufferSize;
+        --g_edge_count;
+    }}
+    return copied;
+}}
 uint64_t sim_read_output(uint32_t index) {{
     if (!g_top) return 0;
     switch (index) {{

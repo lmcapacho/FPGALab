@@ -16,6 +16,7 @@ from .seven_segment import SevenSegmentRenderer
 from .traffic_light import TrafficLightRenderer
 from .toggle_switch import ToggleSwitchRenderer
 from .vga_monitor import VgaMonitorRenderer
+from .uart_terminal import UartTerminalRenderer
 
 _RENDERERS = {
     "bcd_display": BcdDisplayRenderer,
@@ -41,6 +42,8 @@ def renderer_for(name: str, visual: dict[str, object] | None = None, resource_ro
         return PulseServoRenderer(visual or {})
     if name == "measured_svg":
         return MeasuredSvgRenderer(visual or {}, resource_root)
+    if name == "uart_terminal":
+        return UartTerminalRenderer(visual or {})
     try:
         return _RENDERERS[name]()
     except KeyError as exc:

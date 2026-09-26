@@ -44,6 +44,7 @@ class FPGAVirtualLab(QWidget):
     reset_requested = pyqtSignal()
     configure_vga_requested = pyqtSignal(object)
     set_temporal_probes_requested = pyqtSignal(object)
+    configure_edge_channels_requested = pyqtSignal(object)
     status_changed = pyqtSignal(str)
     clock_performance_changed = pyqtSignal(float, float)
 
@@ -98,11 +99,14 @@ class FPGAVirtualLab(QWidget):
             self.reset_requested.connect(self._worker.reset)
             self.configure_vga_requested.connect(self._worker.configure_vga_bindings)
             self.set_temporal_probes_requested.connect(self._worker.set_temporal_probes)
+            self.configure_edge_channels_requested.connect(self._worker.configure_edge_channels)
             self._worker.state_changed.connect(self._paint_state)
             self._worker.failure.connect(self._show_failure)
             self._thread.finished.connect(self._worker.deleteLater)
             self._peripherals.temporal_probes_changed.connect(self.set_temporal_probes_requested)
+            self._peripherals.edge_channels_changed.connect(self.configure_edge_channels_requested)
             self.set_temporal_probes_requested.emit(self._peripherals.temporal_probes())
+            self.configure_edge_channels_requested.emit(self._peripherals.edge_channels())
             self._thread.start()
 
     def _build_ui(self) -> None:
@@ -235,6 +239,10 @@ class FPGAVirtualLab(QWidget):
         if bindings and self._has_clock is not True:
             QMessageBox.warning(self, t("VGA monitor"), t("VGA monitor requires a clocked design."))
             self.status_changed.emit(t("VGA monitor requires a clocked design."))
+            return
+        if self._peripherals.edge_channels() and self._has_clock is not True:
+            QMessageBox.warning(self, t("Serial signals"), t("Serial signal capture requires a clocked design."))
+            self.status_changed.emit(t("Serial signal capture requires a clocked design."))
             return
         if bindings and self._clock_hz == 12_000_000:
             status = t(

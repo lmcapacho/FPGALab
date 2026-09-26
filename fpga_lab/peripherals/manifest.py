@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 RESERVED_PROPERTIES = frozenset({"position"})
 
 _VALID_DIRECTIONS = {"input", "output"}
-_VALID_SIM_CLASSES = {"gpio_sampled", "gpio_temporal", "gpio_driven", "streaming_sink"}
+_VALID_SIM_CLASSES = {"gpio_sampled", "gpio_temporal", "gpio_driven", "streaming_sink", "edge_stream"}
 _SUPPLY_ENDPOINTS = frozenset({"GND", "VCC"})
 _VALID_PROP_TYPES = {"color", "color_map", "enum", "boolean", "string", "key_sequence"}
 _PACKAGE_VERSION = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
@@ -68,6 +68,7 @@ class PeripheralSpec:
     sink_kind: str | None = None
     color_depth: int | None = None
     temporal: dict[str, Any] | None = None
+    edge_channels: tuple[str, ...] = ()
     resource_root: Path | None = None
 
     def terminal_map(self) -> dict[str, TerminalSpec]:
@@ -100,7 +101,7 @@ def parse_manifest(
 ) -> PeripheralSpec:
     """Validate and freeze one catalog JSON object."""
     api_version = raw.get("api_version", 1)
-    if api_version != 1:
+    if api_version not in (1, 2):
         raise ValueError(f"{source}: unsupported peripheral api_version {api_version!r}")
     identifier = raw.get("id")
     if not isinstance(identifier, str) or not identifier:
@@ -112,6 +113,8 @@ def parse_manifest(
     sim_class = simulation.get("class")
     if sim_class not in _VALID_SIM_CLASSES:
         raise ValueError(f"{source}: {identifier} has invalid simulation.class {sim_class!r}")
+    if sim_class == "edge_stream" and api_version < 2:
+        raise ValueError(f"{source}: {identifier} edge_stream requires peripheral api_version 2")
     terminals = []
     for item in raw.get("terminals") or []:
         name = item.get("name")
@@ -146,6 +149,8 @@ def parse_manifest(
     _validate_signal_meter_visual(visual, terminals, properties, simulation, source, identifier)
     _validate_pulse_servo_visual(visual, terminals, properties, simulation, source, identifier)
     _validate_measured_svg_visual(visual, terminals, simulation, source, identifier, resource_root)
+    edge_channels = _edge_channels(simulation, terminals, source, identifier) if sim_class == "edge_stream" else ()
+    _validate_uart_visual(visual, edge_channels, properties, source, identifier)
     category = str(raw.get("category", "output")).strip().casefold()
     if not category:
         raise ValueError(f"{source}: {identifier} category must not be empty")
@@ -176,8 +181,35 @@ def parse_manifest(
         sink_kind=simulation.get("sink_kind"),
         color_depth=_optional_color_depth(simulation, source, identifier),
         temporal=_optional_temporal(simulation, source, identifier),
+        edge_channels=edge_channels,
         resource_root=resource_root,
     )
+
+
+def _edge_channels(simulation, terminals, source, identifier) -> tuple[str, ...]:
+    channels = simulation.get("channels")
+    output_names = {terminal.name for terminal in terminals if terminal.direction == "output" and terminal.width == 1}
+    if (
+        not isinstance(channels, list) or not 1 <= len(channels) <= 16
+        or any(not isinstance(name, str) or name not in output_names for name in channels)
+        or len(set(channels)) != len(channels)
+    ):
+        raise ValueError(f"{source}: {identifier} edge_stream needs 1–16 unique one-bit output terminals")
+    return tuple(channels)
+
+
+def _validate_uart_visual(visual, channels, properties, source, identifier) -> None:
+    if visual.get("renderer") != "uart_terminal":
+        return
+    if visual.get("channel") not in channels:
+        raise ValueError(f"{source}: {identifier} uart_terminal channel must reference an edge channel")
+    baud_property = visual.get("baud_property")
+    schema = properties.get(baud_property, {}) if isinstance(baud_property, str) else {}
+    if schema.get("type") != "enum":
+        raise ValueError(f"{source}: {identifier} uart_terminal baud_property must reference an enum property")
+    values = schema.get("values", [])
+    if not isinstance(values, list) or not values or any(not str(value).isdigit() or int(value) < 1 for value in values):
+        raise ValueError(f"{source}: {identifier} uart_terminal baud values must be positive integers")
 
 
 def _optional_package_metadata(raw: Any, source: str, identifier: str) -> PackageMetadata | None:

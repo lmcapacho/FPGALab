@@ -265,6 +265,7 @@ class PeripheralsPanel(QWidget):
     changed = pyqtSignal(str)
     input_changed = pyqtSignal(str, int)
     temporal_probes_changed = pyqtSignal(object)
+    edge_channels_changed = pyqtSignal(object)
 
     def __init__(
         self,
@@ -286,6 +287,7 @@ class PeripheralsPanel(QWidget):
         self._temporal_bindings: list[tuple[WorkbenchPeripheralItem, str]] = []
         self._temporal_terminals: set[tuple[str, str]] = set()
         self._temporal_models: list[LedModel] = []
+        self._edge_bindings: list[tuple[WorkbenchPeripheralItem, str, int, int]] = []
         self._active_shortcut_keys: dict[int, list[WorkbenchPeripheralItem]] = {}
         self._restoring_workbench_state = False
         self._history: list[tuple[dict[str, object], dict[str, object], str]] = []
@@ -519,6 +521,7 @@ class PeripheralsPanel(QWidget):
                 item.set_editable(self._editing_enabled)
                 self._workbench_scene.addItem(item)
         self._rebuild_temporal_probes(project, workbench_items)
+        self._rebuild_edge_channels(project, workbench_items)
         self._restore_workbench_zoom()
         self._update_connection_status()
 
@@ -641,6 +644,25 @@ class PeripheralsPanel(QWidget):
 
     def temporal_probes(self) -> list[tuple[tuple[int, int, bool], ...]]:
         return list(self._temporal_probes)
+
+    def _rebuild_edge_channels(self, project, workbench_items) -> None:
+        bindings: list[tuple[WorkbenchPeripheralItem, str, int, int]] = []
+        for peripheral in project.peripherals:
+            try:
+                spec = spec_for(peripheral.kind)
+            except ValueError:
+                continue
+            for terminal in spec.edge_channels:
+                wire = self._workbench_bindings.get((peripheral.peripheral_id, terminal))
+                condition = self._output_condition(wire[1] if wire else None, True)
+                if condition is not None:
+                    output, bit, _ = condition
+                    bindings.append((workbench_items[peripheral.peripheral_id], terminal, output, bit))
+        self._edge_bindings = bindings
+        self.edge_channels_changed.emit(self.edge_channels())
+
+    def edge_channels(self) -> list[tuple[int, int]]:
+        return [(output, bit) for _, _, output, bit in self._edge_bindings]
 
     def _update_connection_status(self) -> None:
         """Summarize physical terminals and the subset currently present in HDL."""
@@ -1016,6 +1038,16 @@ class PeripheralsPanel(QWidget):
         temporal = getattr(frame, "temporal", None)
         if temporal is not None:
             self._update_temporal_outputs(temporal)
+        edge_frame = getattr(frame, "edge_stream", None)
+        if edge_frame is not None:
+            for channel, (item, terminal, _, _) in enumerate(self._edge_bindings):
+                item.feed_edge_events(
+                    terminal,
+                    tuple(event for event in edge_frame.events if event.channel == channel),
+                    edge_frame.cycle,
+                    edge_frame.clock_hz,
+                    edge_frame.dropped,
+                )
         for item in self._workbench_scene.items():
             if not isinstance(item, WorkbenchPeripheralItem):
                 continue
