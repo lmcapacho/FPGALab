@@ -1096,14 +1096,26 @@ class PeripheralsPanel(QWidget):
             self._update_temporal_outputs(temporal)
         edge_frame = getattr(frame, "edge_stream", None)
         if edge_frame is not None:
+            bindings = {channel: (item, terminal) for channel, (item, terminal, _, _) in enumerate(self._edge_bindings)}
+            grouped: dict[WorkbenchPeripheralItem, list] = {}
+            for event in edge_frame.events:
+                binding = bindings.get(event.channel)
+                if binding is not None and binding[0].accepts_edge_frame:
+                    grouped.setdefault(binding[0], []).append((binding[1], event))
+            fed: set[WorkbenchPeripheralItem] = set()
             for channel, (item, terminal, _, _) in enumerate(self._edge_bindings):
-                item.feed_edge_events(
-                    terminal,
-                    tuple(event for event in edge_frame.events if event.channel == channel),
-                    edge_frame.cycle,
-                    edge_frame.clock_hz,
-                    edge_frame.dropped,
-                )
+                if item.accepts_edge_frame:
+                    if item not in fed:
+                        item.feed_edge_frame(tuple(grouped.get(item, ())), edge_frame.cycle, edge_frame.clock_hz, edge_frame.dropped)
+                        fed.add(item)
+                else:
+                    item.feed_edge_events(
+                        terminal,
+                        tuple(event for event in edge_frame.events if event.channel == channel),
+                        edge_frame.cycle,
+                        edge_frame.clock_hz,
+                        edge_frame.dropped,
+                    )
         for item in self._workbench_scene.items():
             if not isinstance(item, WorkbenchPeripheralItem):
                 continue

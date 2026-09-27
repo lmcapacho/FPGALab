@@ -155,6 +155,7 @@ def parse_manifest(
     drive_channels = _drive_channels(simulation, terminals, source, identifier) if sim_class == "edge_stream" else ()
     drive_idle = _drive_idle(simulation, drive_channels, source, identifier)
     _validate_uart_visual(visual, edge_channels, drive_channels, properties, source, identifier)
+    _validate_spi_visual(visual, edge_channels, drive_channels, properties, source, identifier)
     category = str(raw.get("category", "output")).strip().casefold()
     if not category:
         raise ValueError(f"{source}: {identifier} category must not be empty")
@@ -239,6 +240,31 @@ def _validate_uart_visual(visual, channels, drives, properties, source, identifi
     values = schema.get("values", [])
     if not isinstance(values, list) or not values or any(not str(value).isdigit() or int(value) < 1 for value in values):
         raise ValueError(f"{source}: {identifier} uart_terminal baud values must be positive integers")
+
+
+def _validate_spi_visual(visual, channels, drives, properties, source, identifier) -> None:
+    if visual.get("renderer") != "spi_monitor":
+        return
+    signal_fields = ("clock_channel", "select_channel", "mosi_channel")
+    names = [visual.get(field) for field in signal_fields]
+    if visual.get("miso_channel") is not None:
+        names.append(visual["miso_channel"])
+    if any(name not in channels for name in names) or len(set(names)) != len(names) or drives:
+        raise ValueError(f"{source}: {identifier} spi_monitor needs unique captured clock, select, and data channels and no drives")
+    for field, allowed in (
+        ("mode_property", {"0", "1", "2", "3"}),
+        ("bit_order_property", {"msb", "lsb"}),
+        ("cs_polarity_property", {"low", "high"}),
+    ):
+        name = visual.get(field)
+        schema = properties.get(name, {}) if isinstance(name, str) else {}
+        values = schema.get("values", [])
+        if (
+            schema.get("type") != "enum" or not isinstance(values, list) or not values
+            or any(str(value) not in allowed for value in values)
+            or str(schema.get("default", "")) not in {str(value) for value in values}
+        ):
+            raise ValueError(f"{source}: {identifier} spi_monitor {field} needs a supported enum property")
 
 
 def _optional_package_metadata(raw: Any, source: str, identifier: str) -> PackageMetadata | None:

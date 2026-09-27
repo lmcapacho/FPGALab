@@ -62,6 +62,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         self._send_button: QPushButton | None = None
         self._pending_text: str | None = None
         self._rx_output: QPlainTextEdit | None = None
+        self._rx_caption: QLabel | None = None
         self._rx_copy_button: QPushButton | None = None
         self._rx_clear_button: QPushButton | None = None
         if hasattr(self._renderer, "text_output_rect"):
@@ -78,6 +79,7 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
                 actions.setSpacing(4)
                 caption = QLabel("RX", container)
                 caption.setObjectName("caption")
+                self._rx_caption = caption
                 actions.addWidget(caption)
                 actions.addStretch()
                 self._rx_copy_button = QPushButton(container)
@@ -132,8 +134,10 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
                 self.retranslate_ui()
 
     def retranslate_ui(self) -> None:
+        if self._rx_caption is not None:
+            self._rx_caption.setText(t(getattr(self._renderer, "output_caption", "RX")))
         if self._rx_output is not None:
-            self._rx_output.setAccessibleName(t("Received UART text"))
+            self._rx_output.setAccessibleName(t(getattr(self._renderer, "output_accessible_name", "Received UART text")))
         if self._rx_copy_button is not None:
             self._rx_copy_button.setText(t("Copy"))
             self._rx_copy_button.setToolTip(t("Copy received text"))
@@ -259,6 +263,18 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
         """Forward generic timestamped transitions to a compatible renderer."""
         if hasattr(self._renderer, "feed_edges"):
             chunk = self._renderer.feed_edges(self._peripheral, terminal, events, cycle, clock_hz, dropped)
+            if isinstance(chunk, str):
+                self._append_received_text(chunk)
+            self.update()
+
+    @property
+    def accepts_edge_frame(self) -> bool:
+        return hasattr(self._renderer, "feed_edge_frame")
+
+    def feed_edge_frame(self, events, cycle, clock_hz, dropped) -> None:
+        """Forward one ordered multi-terminal frame to a protocol renderer."""
+        if self.accepts_edge_frame:
+            chunk = self._renderer.feed_edge_frame(self._peripheral, events, cycle, clock_hz, dropped)
             if isinstance(chunk, str):
                 self._append_received_text(chunk)
             self.update()

@@ -75,6 +75,7 @@ Todos requieren `renderer` y `size: [ancho, alto]` con enteros positivos. `chrom
 | `led_array` | Brillo de varias salidas | `terminals`, `orientation`, `indicator_shape`, `show_labels`, `color_property` |
 | `measured_svg` | Ciclo útil o ancho de pulso | `terminal`, `measurement`, rangos, transformación y dos SVG |
 | `uart_terminal` | Flujo de flancos y entrada temporizada de API v2 | `channel`, `baud_property`, `tx_channel` opcional; recibe y envía texto UART 8N1 |
+| `spi_monitor` | Flancos sincronizados de API v2 | Canales de reloj, selección de chip y MOSI; muestra los bytes enviados por el maestro |
 
 `state_svg` asocia nombres de estado con archivos SVG mediante `states`, por ejemplo `{"off": "off.svg", "on": "on.svg"}`. `default_state` elige el estado inicial. Cada elemento de `state_rules` tiene `state` y `when: {"terminal": "signal", "equals": 1}`; las reglas se evalúan en orden. Para controles, cada `interaction` especifica `terminal`, `region: [x, y, ancho, alto]` y uno de los pares `event`/`action`: `click`/`toggle` o `press_release`/`momentary`. La región debe quedar dentro del dibujo.
 
@@ -101,7 +102,13 @@ El [ejemplo de terminal UART](https://github.com/lmcapacho/FPGALab/tree/main/exa
 }
 ```
 
-El terminal recibe texto ASCII y puede enviar hasta 512 bytes UTF-8 por envío. El historial RX tiene desplazamiento, botones Copiar y Limpiar y retiene hasta 65 536 caracteres mostrados o 4096 líneas. El texto sigue disponible después de Stop; un nuevo Run crea un monitor vacío. Su campo para escribir está activo durante la simulación y requiere que `tx` esté conectado a una entrada del FPGA. El codificador integrado programa un bit de inicio, ocho bits de datos del menos significativo al más significativo y un bit de parada con el reloj virtual configurado; no usa temporizadores de la interfaz. El paquete no puede ejecutar Python ni definir cualquier protocolo por sí mismo. La misma base se podrá reutilizar para futuros renderizadores I²C/SPI, pero estos aún no están implementados. `package.compatibility.minimum_fpgalab` no garantiza por sí solo que una versión anterior pueda abrir el paquete: RC4 rechaza `api_version: 2`, aunque el mínimo indicado sea `0.1.0rc4`.
+El terminal recibe texto ASCII y puede enviar hasta 512 bytes UTF-8 por envío. El historial RX tiene desplazamiento, botones Copiar y Limpiar y retiene hasta 65 536 caracteres mostrados o 4096 líneas. El texto sigue disponible después de Stop; un nuevo Run crea un monitor vacío. Su campo para escribir está activo durante la simulación y requiere que `tx` esté conectado a una entrada del FPGA. El codificador integrado programa un bit de inicio, ocho bits de datos del menos significativo al más significativo y un bit de parada con el reloj virtual configurado; no usa temporizadores de la interfaz. El paquete no puede ejecutar Python ni definir cualquier protocolo por sí mismo. `package.compatibility.minimum_fpgalab` no garantiza por sí solo que una versión anterior pueda abrir el paquete: RC4 rechaza `api_version: 2`, aunque el mínimo indicado sea `0.1.0rc4`.
+
+### Monitor de salidas de un maestro SPI
+
+El [ejemplo de monitor SPI](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/spi_monitor) de la versión en desarrollo captura SCK, MOSI y selección de chip desde **salidas del FPGA**. Sus propiedades permiten elegir los modos 0–3, el orden MSB/LSB y la polaridad de selección de chip. Muestra los bytes completos en hexadecimal, agrupados por transacción. Los flancos de todos los canales se entregan en orden de ciclos virtuales, incluso entre actualizaciones de la interfaz. Si los datos cambian en el mismo ciclo muestreado, se toma el nivel nuevo; el HDL debe respetar el tiempo de establecimiento normal de SPI. Se descartan los bytes incompletos al liberar la selección de chip o al desbordarse la cola de captura.
+
+Este primer ejemplo solo lee señales y **no** muestra MISO cuando es una entrada del FPGA: API v2 captura únicamente salidas del HDL. Un canal MISO opcional solo puede usarse si el HDL expone un reflejo en otra salida. Quedan pendientes el monitoreo dúplex completo y el envío hacia entradas SPI. El renderizador SPI solo está en la versión en desarrollo, no en los artefactos de RC4.
 
 ## Validar, instalar y compartir
 

@@ -10,6 +10,7 @@ All notable changes to FPGALab are documented in this file.
 - Cycle-scheduled digital input driving and a UART terminal TX field, allowing the external terminal to send text into a clocked FPGA design.
 - Scrollable UART receive history with copy and clear controls; the output remains visible after Stop until the next run replaces the model.
 - UART text entry now takes precedence over workbench button shortcuts while its input is focused.
+- A read-only SPI master-output monitor example, decoding SCK/MOSI/chip-select across virtual-cycle frames in modes 0–3.
 
 ### Changed
 

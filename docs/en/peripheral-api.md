@@ -75,6 +75,7 @@ All renderers require `renderer` and `size: [width, height]` with positive integ
 | `led_array` | Brightness of several outputs | `terminals`, `orientation`, `indicator_shape`, `show_labels`, `color_property` |
 | `measured_svg` | Duty cycle or pulse width | `terminal`, `measurement`, ranges, transform, and two SVGs |
 | `uart_terminal` | API v2 edge stream and timed input | `channel`, `baud_property`, optional `tx_channel`; receives and sends UART 8N1 text |
+| `spi_monitor` | API v2 synchronized edge stream | Clock, chip-select, and MOSI channels; displays decoded master-output bytes |
 
 `state_svg` maps state names to SVG files in `states`, for example `{"off": "off.svg", "on": "on.svg"}`. `default_state` selects the initial state. Each `state_rules` entry has `state` and `when: {"terminal": "signal", "equals": 1}`; rules run in order. For controls, each `interaction` declares `terminal`, `region: [x, y, width, height]`, and one `event`/`action` pair: `click`/`toggle` or `press_release`/`momentary`. The region must fit within the artwork.
 
@@ -101,7 +102,13 @@ The [UART terminal example](https://github.com/lmcapacho/FPGALab/tree/main/examp
 }
 ```
 
-The terminal receives ASCII text and can send up to 512 UTF-8 bytes per submission. Its scrollable receive history has Copy and Clear controls and keeps up to 65,536 displayed characters or 4,096 lines. Output remains readable after Stop; a new Run creates a fresh monitor. Its send field is active only while the simulation runs; the optional `tx` must be connected to an FPGA input. The built-in encoder schedules start, eight least-significant-bit-first data bits, and stop at the configured virtual clock rate; it does not use GUI timers. The package cannot supply executable Python or define an arbitrary protocol decoder. The same transport can support future I²C/SPI renderers, but those renderers are not implemented yet. `package.compatibility.minimum_fpgalab` alone does not guarantee an older build can load a package: RC4 rejects `api_version: 2` even if the minimum version field says `0.1.0rc4`.
+The terminal receives ASCII text and can send up to 512 UTF-8 bytes per submission. Its scrollable receive history has Copy and Clear controls and keeps up to 65,536 displayed characters or 4,096 lines. Output remains readable after Stop; a new Run creates a fresh monitor. Its send field is active only while the simulation runs; the optional `tx` must be connected to an FPGA input. The built-in encoder schedules start, eight least-significant-bit-first data bits, and stop at the configured virtual clock rate; it does not use GUI timers. The package cannot supply executable Python or define an arbitrary protocol decoder. `package.compatibility.minimum_fpgalab` alone does not guarantee an older build can load a package: RC4 rejects `api_version: 2` even if the minimum version field says `0.1.0rc4`.
+
+### SPI master-output monitor
+
+The development-version [SPI monitor example](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/spi_monitor) captures SCK, MOSI, and chip select from **FPGA outputs**. Select modes 0–3, MSB/LSB first, and active-low/high chip select in its properties. It shows completed bytes in hexadecimal, grouped by chip-select transaction. Edges from all channels are delivered in virtual-cycle order, including across interface updates. Transitions sampled in the same FPGA cycle use the new data level; HDL should still provide normal SPI setup time. A partial byte is discarded when chip select releases or the capture queue overflows.
+
+This first example is read-only and does **not** monitor MISO when MISO is an FPGA input: API v2 currently captures HDL outputs only. An optional MISO channel can be used only if the HDL exposes a separate output mirror. Full-duplex monitoring and SPI input driving remain future work. The SPI renderer is available only in the development version, not in the RC4 artifacts.
 
 ## Validate, install, and share
 
