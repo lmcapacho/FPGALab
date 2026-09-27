@@ -42,6 +42,7 @@ class UartTerminalRenderer(NullInputMixin):
     def reset_stream(self, *, preserve_output: bool = False) -> None:
         self._decoder: Uart8N1Decoder | None = None
         self._settings: tuple[int, int] | None = None
+        self._last_cycle = 0
         if not preserve_output:
             self._text = ""
         self._dropped = 0
@@ -57,6 +58,8 @@ class UartTerminalRenderer(NullInputMixin):
     def feed_edges(self, peripheral, terminal, events, cycle, clock_hz, dropped) -> str:
         if terminal != self._channel or clock_hz <= 0:
             return ""
+        if cycle < self._last_cycle:
+            self.reset_stream(preserve_output=True)
         try:
             baud = int(peripheral.properties.get(self._baud_property, 115200))
         except (TypeError, ValueError):
@@ -84,6 +87,7 @@ class UartTerminalRenderer(NullInputMixin):
             if value == 13:
                 continue
             received.append(chr(value) if value == 10 or 32 <= value < 127 else f"\\x{value:02X}")
+        self._last_cycle = cycle
         chunk = "".join(received)
         if chunk:
             self._text = (self._text + chunk)[-self.output_limit:]

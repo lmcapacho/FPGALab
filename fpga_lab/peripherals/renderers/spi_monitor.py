@@ -40,6 +40,7 @@ class SpiMonitorRenderer(NullInputMixin):
     def reset_stream(self, *, preserve_output: bool = False) -> None:
         self._decoder: SpiDecoder | None = None
         self._settings: tuple[int, str, str] | None = None
+        self._last_cycle = 0
         if not preserve_output:
             self._text = ""
         self._dropped = 0
@@ -54,6 +55,8 @@ class SpiMonitorRenderer(NullInputMixin):
     def feed_edge_frame(self, peripheral, events, cycle, clock_hz, dropped) -> str:
         if clock_hz <= 0:
             return ""
+        if cycle < self._last_cycle:
+            self.reset_stream(preserve_output=True)
         try:
             settings = (
                 int(peripheral.properties.get(self._mode_property, 0)),
@@ -86,6 +89,7 @@ class SpiMonitorRenderer(NullInputMixin):
             if byte.miso is not None:
                 line += f"  MISO {byte.miso:02X}"
             chunks.append(line + "\n")
+        self._last_cycle = cycle
         chunk = "".join(chunks)
         if chunk:
             self._text = (self._text + chunk)[-self.output_limit:]

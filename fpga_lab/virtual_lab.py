@@ -304,7 +304,8 @@ class FPGAVirtualLab(QWidget):
         if not self._running:
             return
         if name == "RESET":
-            self.reset_requested.emit()
+            if final_value:
+                self.reset_requested.emit()
             return
         port, bit = self._input_sources.get(name, (name, 0))
         if port not in self._available_inputs:

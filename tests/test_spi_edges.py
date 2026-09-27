@@ -97,6 +97,17 @@ def test_spi_manifest_and_workbench_route_ordered_multichannel_edges(tmp_path, m
             ))
         assert "MOSI 96" in item._rx_output.toPlainText()
         assert item._rx_caption.text() == "SPI"
+        panel.update_frame(SimulationFrame(
+            led_brightness=(0.0,) * 8, outputs={},
+            edge_stream=EdgeFrame(100, 1_000_000, (), 0),
+        ))
+        panel.update_frame(SimulationFrame(
+            led_brightness=(0.0,) * 8, outputs={},
+            edge_stream=EdgeFrame(46, 1_000_000, tuple(
+                EdgeEvent(cycle, indexes[terminal], level) for cycle, terminal, level in events
+            ), 0),
+        ))
+        assert item._rx_output.toPlainText().count("MOSI 96") == 2
         panel.deleteLater()
     finally:
         load_catalog.cache_clear()

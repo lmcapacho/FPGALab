@@ -16,6 +16,10 @@ All notable changes to FPGALab are documented in this file.
 
 - Separated virtual-cycle input scheduling from UART encoding, with protocol-neutral multi-channel sequencing and transport tests for future serial peripherals.
 
+### Fixed
+
+- Reset fires once per board-button press and keeps UART/SPI monitors usable when virtual-cycle timestamps restart, without discarding their visible history.
+
 ## 0.1.0rc4 — 2026-09-24
 
 ### Added

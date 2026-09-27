@@ -68,6 +68,22 @@ def test_combinational_lab_starts_visual_refresh(tmp_path):
     lab.deleteLater()
 
 
+def test_board_reset_runs_once_on_press_not_release(tmp_path):
+    lab_file = tmp_path / "lab.json"
+    lab_file.write_text('{"peripherals": []}', encoding="utf-8")
+    lab = FPGAVirtualLab(lab_file=lab_file)
+    requests: list[bool] = []
+    lab.reset_requested.connect(lambda: requests.append(True))
+    lab._running = True
+
+    lab._bouncy_input("RESET", 1)
+    lab._bouncy_input("RESET", 0)
+
+    assert requests == [True]
+    lab.close()
+    lab.deleteLater()
+
+
 def test_stopped_lab_ignores_queued_clock_measurements(tmp_path):
     lab_file = tmp_path / "lab.json"
     lab_file.write_text('{"peripherals": []}', encoding="utf-8")

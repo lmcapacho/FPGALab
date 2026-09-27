@@ -151,8 +151,12 @@ def test_uart_renderer_receives_byte_stream_and_resets_on_power_off():
     renderer.feed_edges(peripheral, "rx", events[:3], 450, 1_000_000, 0)
     renderer.feed_edges(peripheral, "rx", events[3:], 1100, 1_000_000, 0)
     assert renderer._text == "A"
+    renderer.feed_edges(peripheral, "rx", [], 2000, 1_000_000, 0)
+    restarted = [EdgeEvent(edge.cycle, 0, edge.level) for edge in _uart_edges(ord("B"), 100)]
+    assert renderer.feed_edges(peripheral, "rx", restarted, 1100, 1_000_000, 0) == "B"
+    assert renderer._text == "AB"
     renderer.suspend_stream()
-    assert renderer._text == "A"
+    assert renderer._text == "AB"
     assert renderer._decoder is None
     renderer.output_limit = 16
     more = [
