@@ -337,7 +337,7 @@ class SimulationWorker(QObject):
             self._timer.stop()
         self._simulation.reset()
         self._simulation.streaming_reset()
-        self._tx_next_cycle.clear()
+        self._drive_scheduler.reset()
         if was_running:
             self.play()
         elif self._simulation.profile.clock_name is None:

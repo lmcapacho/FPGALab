@@ -86,6 +86,12 @@ def test_worker_queues_uart_text_only_while_running():
         def enqueue_drive_events(self, events):
             self.queued.append(events)
 
+        def reset(self):
+            pass
+
+        def streaming_reset(self):
+            pass
+
     simulation = FakeSimulation()
     worker = SimulationWorker(simulation, clock_hz=1_000_000)
     notices = []
@@ -105,6 +111,10 @@ def test_worker_queues_uart_text_only_while_running():
     assert simulation.queued[1][0][1] >= simulation.queued[0][-1][1] + 10
     worker.pause()
     assert any("Start the simulation" in notice for notice in notices)
+    worker.reset()
+    worker.play()
+    worker.send_uart(0, 100_000, "C")
+    assert simulation.queued[-1][0] == (0, 21, False)
 
 
 def test_external_uart_manifest_uses_edge_api_v2():
