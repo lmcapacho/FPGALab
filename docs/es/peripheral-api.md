@@ -59,6 +59,8 @@ En `edge_stream`, declara `"channels": ["rx"]` dentro de `simulation`. Cada cana
 
 Para controlar entradas del FPGA en ciclos virtuales precisos, agrega `"drives": ["tx"]` al mismo objeto `simulation`. Cada nombre debe ser una terminal `input` distinta de un bit; `"drive_idle": {"tx": 1}` fija su nivel de reposo. El programador nativo reserva ese bit y conserva los demás bits GPIO del mismo puerto. Aplica los cambios antes de cada flanco ascendente, también entre actualizaciones de la interfaz. La cola tiene un máximo de 8192 transiciones. El terminal UART integrado usa esta capacidad, pero los paquetes externos todavía no pueden aportar código arbitrario para otros protocolos.
 
+Internamente, los codificadores de protocolo pueden enviar una secuencia con tiempos relativos para varios canales de entrada y un mismo ciclo de inicio. Una secuencia rechazada no reserva ciclos; un reinicio restaura el nivel de reposo configurado y descarta los cambios pendientes. Esto aún no es una extensión para incorporar codificadores o renderizadores definidos por paquetes.
+
 ### `properties`: campos editables
 
 Cada propiedad declara `type`; puede añadir `label` y `default`. Los tipos admitidos son `color`, `color_map`, `enum`, `boolean`, `string` y `key_sequence`. `color_map` usa `keys` y un `default` con colores por clave; `enum` usa `values` y puede declarar `presets`. Declara solo las propiedades que utilice el renderizador elegido. El nombre `position` está reservado por la mesa.

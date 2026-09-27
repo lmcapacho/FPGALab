@@ -7,6 +7,7 @@ from time import perf_counter
 
 from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 
+from .edge_drive import TimedDriveScheduler
 from .i18n import t
 from .simulation import EdgeEvent, VgaStats, VerilatorSimulation
 from .sink_bind import VgaBinding
@@ -109,7 +110,7 @@ class SimulationWorker(QObject):
         self._temporal_probes: tuple[tuple[tuple[int, int, bool], ...], ...] = ()
         self._edge_channels: tuple[tuple[int, int], ...] = ()
         self._drive_channels: tuple[tuple[str, int, bool], ...] = ()
-        self._tx_next_cycle: dict[int, int] = {}
+        self._drive_scheduler = TimedDriveScheduler(simulation)
 
     @pyqtSlot()
     def start(self) -> None:
@@ -170,11 +171,11 @@ class SimulationWorker(QObject):
             if normalized != self._drive_channels:
                 self._simulation.configure_drive_channels(list(normalized))
                 self._drive_channels = normalized
-                self._tx_next_cycle.clear()
+                self._drive_scheduler.reset()
         except Exception as exc:
             self._simulation.configure_drive_channels([])
             self._drive_channels = ()
-            self._tx_next_cycle.clear()
+            self._drive_scheduler.reset()
             self.notice.emit(str(exc))
 
     @pyqtSlot(int, int, str)
@@ -192,10 +193,12 @@ class SimulationWorker(QObject):
                 return
             if len(data) > 512:
                 raise ValueError(t("Send at most 512 UTF-8 bytes at once."))
-            start = max(self._simulation.drive_cycle() + 1, self._tx_next_cycle.get(channel, 0))
-            edges, end = uart_8n1_drive_events(data, start, self._clock_hz, baud)
-            self._simulation.enqueue_drive_events([(channel, cycle, level) for cycle, level in edges])
-            self._tx_next_cycle[channel] = end
+            edges, end = uart_8n1_drive_events(data, 1, self._clock_hz, baud)
+            self._drive_scheduler.enqueue(
+                ((channel, cycle - 1, level) for cycle, level in edges),
+                end - 1,
+                len(self._drive_channels),
+            )
             self.notice.emit(t("Queued {count} UART byte(s).", count=len(data)))
             self.uart_send_result.emit(channel, text, True)
         except (ValueError, RuntimeError, UnicodeError) as exc:
@@ -223,7 +226,7 @@ class SimulationWorker(QObject):
         self.pause()
         self._simulation.reset()
         self._simulation.streaming_reset()
-        self._tx_next_cycle.clear()
+        self._drive_scheduler.reset()
         self._blank_next = True
         self.state_changed.emit(SimulationFrame(
             led_brightness=tuple([0.0] * 8),

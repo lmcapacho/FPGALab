@@ -11,6 +11,10 @@ All notable changes to FPGALab are documented in this file.
 - Scrollable UART receive history with copy and clear controls; the output remains visible after Stop until the next run replaces the model.
 - UART text entry now takes precedence over workbench button shortcuts while its input is focused.
 
+### Changed
+
+- Separated virtual-cycle input scheduling from UART encoding, with protocol-neutral multi-channel sequencing and transport tests for future serial peripherals.
+
 ## 0.1.0rc4 — 2026-09-24
 
 ### Added

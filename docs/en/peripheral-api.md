@@ -59,6 +59,8 @@ For `edge_stream`, declare `"channels": ["rx"]` under `simulation`. Each named c
 
 To drive FPGA inputs at exact virtual cycles, add `"drives": ["tx"]` to the same `simulation` object. Each drive names a distinct one-bit `input` terminal; `"drive_idle": {"tx": 1}` sets its idle level. The native scheduler reserves that input bit while preserving other GPIO bits in the same port. It applies queued changes before each rising clock edge, including across interface-update boundaries. The queue is bounded to 8,192 transitions. The stock UART terminal uses this capability, but external packages still cannot provide arbitrary protocol code.
 
+Internally, protocol encoders can submit a relative-time sequence for several drive channels with one shared start cycle. A rejected sequence does not reserve cycles; a reset restores each channel's configured idle level and clears pending changes. This is not yet an extension hook for package-defined encoders or renderers.
+
 ### `properties`: editable fields
 
 Each property declares `type` and may add `label` and `default`. Supported types are `color`, `color_map`, `enum`, `boolean`, `string`, and `key_sequence`. A `color_map` uses `keys` and a color `default` for each key; an `enum` uses `values` and may declare `presets`. Declare only properties used by the selected renderer. The name `position` is reserved by the workbench.

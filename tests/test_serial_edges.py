@@ -312,10 +312,11 @@ def test_uart_text_input_keeps_button_shortcut_letters(tmp_path, monkeypatch):
         load_catalog.cache_clear()
 
 
-def test_generated_native_edge_capture_retains_cycle_timestamps(tmp_path):
+@pytest.fixture
+def native_edge_library(tmp_path):
     if shutil.which("g++") is None:
         pytest.skip("g++ is not available")
-    profile = BoardProfile("test", {"clk": 1, "rx_bus": 2}, {"tx": 1, "out_rx": 1}, {"tx": 1}, "clk")
+    profile = BoardProfile("test", {"clk": 1, "rx_bus": 2}, {"tx": 1, "out_rx": 2}, {"tx": 1}, "clk")
     (tmp_path / "wrapper.cpp").write_text(render_cpp_wrapper(profile), encoding="utf-8")
     (tmp_path / "verilated.h").write_text(
         "#pragma once\n#include <cstdint>\nclass VerilatedContext { public: void timeInc(uint64_t) {} };\n",
@@ -325,7 +326,7 @@ def test_generated_native_edge_capture_retains_cycle_timestamps(tmp_path):
         '#pragma once\n#include "verilated.h"\n'
         "class Vtop { public: uint8_t clk=0, tx=1, out_rx=0, rx_bus=0; int cycle=0; "
         "explicit Vtop(VerilatedContext*) {} "
-        "void eval() { if (clk) { tx = ((cycle / 10) % 2) == 0; out_rx = rx_bus & 1; ++cycle; } } "
+        "void eval() { if (clk) { tx = ((cycle / 10) % 2) == 0; out_rx = rx_bus & 3; ++cycle; } } "
         "void final() {} };\n",
         encoding="utf-8",
     )
@@ -340,6 +341,38 @@ def test_generated_native_edge_capture_retains_cycle_timestamps(tmp_path):
         capture_output=True,
         text=True,
     )
+    return library, profile
+
+
+def test_native_edge_transport_handles_parallel_channels_and_reset(native_edge_library):
+    library, profile = native_edge_library
+    with VerilatorSimulation(library, profile) as simulation:
+        simulation.configure_drive_channels([("rx_bus", 0, True), ("rx_bus", 1, False)])
+        simulation.configure_edge_channels([(1, 0), (1, 1)])
+        simulation.ticks(2)
+        assert [(edge.cycle, edge.channel, edge.level) for edge in simulation.edge_window()[1]] == [
+            (1, 0, True), (1, 1, False),
+        ]
+        simulation.enqueue_drive_events([(0, 5, False), (1, 5, True), (1, 7, False), (0, 9, True)])
+        simulation.ticks(3)
+        assert [(edge.cycle, edge.channel, edge.level) for edge in simulation.edge_window()[1]] == [
+            (5, 0, False), (5, 1, True),
+        ]
+        simulation.ticks(4)
+        assert [(edge.cycle, edge.channel, edge.level) for edge in simulation.edge_window()[1]] == [
+            (7, 1, False), (9, 0, True),
+        ]
+        simulation.enqueue_drive_events([(0, 30, False), (1, 30, True)])
+        simulation.reset()
+        assert simulation.edge_window() == (0, [], 0)
+        simulation.ticks(31)
+        assert [(edge.cycle, edge.channel, edge.level) for edge in simulation.edge_window()[1]] == [
+            (1, 0, True), (1, 1, False),
+        ]
+
+
+def test_generated_native_edge_capture_retains_cycle_timestamps(native_edge_library):
+    library, profile = native_edge_library
     with VerilatorSimulation(library, profile) as simulation:
         simulation.configure_edge_channels([(0, 0)])
         simulation.ticks(25)
@@ -365,7 +398,7 @@ def test_generated_native_edge_capture_retains_cycle_timestamps(tmp_path):
         simulation.configure_edge_channels([(1, 0)])
         simulation.set_input("rx_bus", 2)
         simulation.ticks(2)
-        assert simulation.get_output("out_rx") == 1  # GPIO bit 1 must not overwrite reserved TX bit 0.
+        assert simulation.get_output("out_rx") == 3  # GPIO bit 1 must not overwrite reserved TX bit 0.
         simulation.edge_window()
         start = simulation.drive_cycle() + 1
         changes, end = uart_8n1_drive_events(b"A", start, 1_000_000, 100_000)
