@@ -2,6 +2,8 @@
 
 FPGALab es un laboratorio virtual de FPGA para diseños de Icestudio y Verilog. Compila el HDL generado con Verilator y conecta el modelo nativo resultante con una tarjeta interactiva y una mesa de periféricos.
 
+![FPGALab mostrando la tarjeta Alhambra II y la mesa virtual de periféricos](images/fpgalab-workbench.png)
+
 ## Comenzar
 
 - Sigue [Primeros pasos](getting-started.md) para ejecutar tu primer diseño.
