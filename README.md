@@ -2,7 +2,7 @@
 
 [![CI tests](https://github.com/lmcapacho/FPGALab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lmcapacho/FPGALab/actions/workflows/ci.yml)
 
-FPGALab is an interactive virtual FPGA laboratory for Verilog designs. It turns an Icestudio export into a native Verilator model and connects that model to a PyQt6 desktop interface, so learners can interact with a virtual board and peripherals without requiring physical hardware.
+FPGALab is an interactive virtual FPGA laboratory for Icestudio and Verilog designs. It turns an Icestudio export into a native Verilator model and connects that model to a PyQt6 desktop interface, so learners can interact with a virtual board and installable peripherals without requiring physical hardware.
 
 User and contributor documentation is available in [English](https://lmcapacho.github.io/FPGALab/en/) and [Spanish](https://lmcapacho.github.io/FPGALab/es/).
 
@@ -56,7 +56,9 @@ SimulationWorker (QThread + QTimer)
               ├── gpio_driven       → buttons, switches and sensors drive FPGA inputs
               ├── gpio_sampled      → BCD display reads the current FPGA outputs
               ├── gpio_temporal     → LED, traffic light, display brightness
-              └── streaming_sink    → cycle-accurate VGA frame capture
+              ├── streaming_sink    → cycle-accurate VGA frame capture
+              └── edge_stream       → timestamped UART/SPI development monitors
+                    └── timed input → cycle-accurate protocol stimulus
                     ▲
                     │
        lab JSON: terminal → board endpoint → FPGA pin → PCF HDL net
@@ -183,7 +185,7 @@ Use **Import…** and **Export…** in the Lab manager to share portable `*.lab`
 
 ## Catalog, board assets, and extensibility
 
-Peripheral definitions live in a bundled catalog:
+Peripheral definitions can be bundled with FPGALab or installed by users from a folder or ZIP package:
 
 ```text
 fpga_lab/peripherals/<peripheral-id>/manifest.json
@@ -191,7 +193,7 @@ fpga_lab/peripherals/<peripheral-id>/icon.svg
 fpga_lab/peripherals/renderers/<renderer>.py
 ```
 
-The manifest declares terminals, directions, configuration properties, simulation class, visual renderer, category, description, search keywords, and catalog icon. The searchable catalog and generic configuration dialog are built from this metadata. The current release discovers peripherals bundled with FPGALab; loading user-installed catalogs is planned for a later version.
+The manifest declares terminals, directions, configuration properties, simulation class, visual renderer, category, description, search keywords, package metadata, and catalog icon. The searchable catalog and generic configuration dialog are built from this metadata. API v1 and the declarative peripheral packages are part of RC4; API v2 edge streams, the UART terminal, and the SPI monitor are development features after RC4 and are not included in the RC4 artifacts.
 
 The current simulation classes are:
 
@@ -201,6 +203,7 @@ The current simulation classes are:
 | `gpio_sampled` | A peripheral reads the current FPGA output values, for example the BCD display. |
 | `gpio_temporal` | An FPGA output is evaluated over virtual time, for example an LED, traffic light, or seven-segment display. |
 | `streaming_sink` | A native C++ sink consumes every virtual clock edge, currently used for VGA capture. |
+| `edge_stream` | Development API v2 path for timestamped output capture and cycle-scheduled input stimulus. |
 
 A board is described by reusable assets:
 
