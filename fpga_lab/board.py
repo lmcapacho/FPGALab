@@ -67,4 +67,4 @@ class BoardDefinition:
 
 def bundled_board_definition(board_id: str = "alhambra_ii") -> Path:
     """Return the packaged board definition used by the desktop application."""
-    return Path(__file__).parent / "assets" / "board_definitions" / f"{board_id}.json"
+    return Path(__file__).parent / "assets" / "boards" / board_id / "board.json"

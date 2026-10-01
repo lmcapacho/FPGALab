@@ -205,11 +205,15 @@ The current simulation classes are:
 | `streaming_sink` | A native C++ sink consumes every virtual clock edge, currently used for VGA capture. |
 | `edge_stream` | Development API v2 path for timestamped output capture and cycle-scheduled input stimulus. |
 
-A board is described by reusable assets:
+A board is described by one packaged directory per board:
 
-- `fpga_lab/assets/boards/alhambra_ii.svg` — scalable board artwork
-- `fpga_lab/assets/board_layouts/alhambra_ii.json` — interactive controls, geometry, colours, and HDL signals
-- `fpga_lab/assets/board_definitions/alhambra_ii.json` — physical endpoints and board capabilities
+- `fpga_lab/assets/boards/<board-id>/board.json` — physical endpoints and capabilities
+- `fpga_lab/assets/boards/<board-id>/pinout.pcf` — board pin constraints/reference pinout
+- `fpga_lab/assets/boards/<board-id>/layout.json` — interactive controls and geometry
+- `fpga_lab/assets/boards/<board-id>/board.svg` — scalable board artwork
+- `fpga_lab/assets/boards/<board-id>/profile.json` — Verilator port profile
+
+The `alhambra_ii/` directory is the reference layout for future boards. The PCF is the board resource used as the pinout reference for Icestudio; FPGALab consumes the project-specific PCF generated in the selected design's `ice-build` directory.
 
 This separation makes it possible to calibrate controls visually, add new integrated controls, add a catalog peripheral, or introduce another FPGA board without changing the core simulation loop.
 

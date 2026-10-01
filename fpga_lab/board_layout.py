@@ -73,4 +73,4 @@ class BoardLayout:
 
 
 def bundled_layout(board_id: str = "alhambra_ii") -> Path:
-    return Path(__file__).parent / "assets" / "board_layouts" / f"{board_id}.json"
+    return Path(__file__).parent / "assets" / "boards" / board_id / "layout.json"

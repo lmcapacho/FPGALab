@@ -56,4 +56,4 @@ class BoardProfile:
 
 def bundled_profile(board_id: str = "alhambra_ii") -> Path:
     """Return the packaged default profile for advanced library mode."""
-    return Path(__file__).parent / "assets" / "profiles" / f"{board_id}.json"
+    return Path(__file__).parent / "assets" / "boards" / board_id / "profile.json"

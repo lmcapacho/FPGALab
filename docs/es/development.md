@@ -24,6 +24,12 @@ El wrapper nativo agrupa ciclos virtuales de FPGA y publica objetos `SimulationF
 - `workbench/view.py` y `workbench/item.py`: interacción con el lienzo e instancias visuales.
 - `wiring.py`: resolución terminal del Lab → tarjeta → HDL.
 
+Los recursos de cada tarjeta se agrupan en `fpga_lab/assets/boards/<board-id>/`.
+Cada carpeta contiene la definición, el pinout, el perfil, el layout y el SVG
+de la tarjeta. `alhambra_ii/` es la estructura de referencia para futuras
+tarjetas. FPGALab usa el PCF específico generado por Icestudio en `ice-build`;
+el `pinout.pcf` empaquetado sirve como referencia del pinout de la tarjeta.
+
 ## Periféricos externos
 
 La [API de periféricos externos v1](peripheral-api.md) documenta los campos del manifiesto, renderizadores reutilizables, metadatos del paquete, ejemplos, validación e instalación. Consúltala para crear un paquete compartible. FPGALab no carga código Python de las carpetas de periféricos del usuario.

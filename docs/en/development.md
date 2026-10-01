@@ -24,6 +24,12 @@ The native wrapper batches virtual FPGA cycles and publishes `SimulationFrame` o
 - `workbench/view.py` and `workbench/item.py`: canvas interaction and rendered instances.
 - `wiring.py`: Lab terminal-to-board-to-HDL resolution.
 
+Board assets live together in `fpga_lab/assets/boards/<board-id>/`. Each board
+directory keeps its definition, pin constraints, profile, layout, and SVG in
+one place. The Alhambra II directory is the reference layout for future boards.
+FPGALab consumes the project-specific PCF generated in the Icestudio project's
+`ice-build` directory; the packaged `pinout.pcf` is the board pinout reference.
+
 ## External peripherals
 
 The [external peripheral API v1](peripheral-api.md) documents the manifest fields, reusable renderers, package metadata, examples, validation, and installation. Use it when creating a shareable package. FPGALab does not load Python code from user peripheral folders.

@@ -1,6 +1,6 @@
 {
   "board_id": "alhambra_ii",
-  "svg": "../boards/alhambra_ii.svg",
+  "svg": "board.svg",
   "orientation": "vertical",
   "viewBox": [
     0,
