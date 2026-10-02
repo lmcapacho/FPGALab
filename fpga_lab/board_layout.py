@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .i18n import t
+from .board import DEFAULT_BOARD_ID
 
 
 @dataclass(frozen=True)
@@ -72,5 +73,5 @@ class BoardLayout:
                 raise ValueError(f"Invalid size for {element.id}")
 
 
-def bundled_layout(board_id: str = "alhambra_ii") -> Path:
+def bundled_layout(board_id: str = DEFAULT_BOARD_ID) -> Path:
     return Path(__file__).parent / "assets" / "boards" / board_id / "layout.json"

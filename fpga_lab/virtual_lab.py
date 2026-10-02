@@ -7,7 +7,7 @@ from pathlib import Path
 from PyQt6.QtCore import QEvent, QSettings, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QAbstractSpinBox, QComboBox, QFrame, QGraphicsProxyWidget, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QTextEdit, QVBoxLayout, QWidget
 
-from .board import BoardDefinition, bundled_board_definition
+from .board import BoardDefinition, bundled_board_clock_hz, bundled_board_definition
 from .i18n import language_manager, t
 from .lab_workspace import LabWorkspace
 from .board_editor import BoardLayoutEditor
@@ -53,7 +53,7 @@ class FPGAVirtualLab(QWidget):
     def __init__(
         self,
         simulation: VerilatorSimulation | None = None,
-        clock_hz: int = 12_000_000,
+        clock_hz: int = bundled_board_clock_hz(),
         ui_refresh_hz: int = 60,
         observation_hz: int = 1_000_000,
         project_pcf: Path | None = None,
@@ -72,7 +72,7 @@ class FPGAVirtualLab(QWidget):
         self._running = False
         self._ignore_state = False
         self._closed = False
-        self._board_name = simulation.profile.board_name if simulation else "Alhambra II"
+        self._board_name = simulation.profile.board_name if simulation else BoardDefinition.load(bundled_board_definition()).label
         self._available_inputs = frozenset(simulation.profile.inputs) if simulation else frozenset()
         self._has_clock = simulation.profile.clock_name is not None if simulation else None
         self._input_widths = dict(simulation.profile.inputs) if simulation else {}
@@ -259,10 +259,12 @@ class FPGAVirtualLab(QWidget):
             QMessageBox.warning(self, t("Serial signals"), t("Serial signal transmission requires a clocked design."))
             self.status_changed.emit(t("Serial signal transmission requires a clocked design."))
             return
-        if bindings and self._clock_hz == 12_000_000:
+        if bindings and self._clock_hz == bundled_board_clock_hz():
             status = t(
-                "VGA 640×480 expects a ~25 MHz pixel clock; this lab is running at 12 MHz "
-                "(Alhambra default). Use --clock-hz 25000000 or 25175000."
+                "VGA 640×480 expects a ~25 MHz pixel clock; this lab is running at {mhz:g} MHz "
+                "({board} default). Use --clock-hz 25000000 or 25175000.",
+                mhz=self._clock_hz / 1_000_000,
+                board=self._board_name,
             )
         else:
             status = t("Simulation running.") if self._has_clock is True else t("Combinational logic active.")

@@ -318,7 +318,7 @@
   "Unexpected H total {n} (expected 800). Check timings.": "H total inesperado {n} (se esperaba 800). Revise los timings.",
   "Sink is 640×480; non-standard active widths look shifted.": "El sink es 640×480; anchos activos no estándar se ven desplazados.",
   "VGA 640×480 · frame {seq} · virtual {mhz:.1f} MHz": "VGA 640×480 · cuadro {seq} · virtual {mhz:.1f} MHz",
-  "VGA 640×480 expects a ~25 MHz pixel clock; this lab is running at 12 MHz (Alhambra default). Use --clock-hz 25000000 or 25175000.": "VGA 640×480 espera un reloj de píxel de ~25 MHz; este laboratorio corre a 12 MHz (predeterminado Alhambra). Use --clock-hz 25000000 o 25175000.",
+  "VGA 640×480 expects a ~25 MHz pixel clock; this lab is running at {mhz:g} MHz ({board} default). Use --clock-hz 25000000 or 25175000.": "VGA 640×480 espera un reloj de píxel de ~25 MHz; este laboratorio corre a {mhz:g} MHz (predeterminado de {board}). Use --clock-hz 25000000 o 25175000.",
   "Add peripheral": "Agregar periférico",
   "Open peripheral catalog": "Abrir catálogo de periféricos",
   "Close peripheral catalog": "Cerrar catálogo de periféricos",

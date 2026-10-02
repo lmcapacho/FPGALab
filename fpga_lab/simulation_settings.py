@@ -8,6 +8,7 @@ from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QSpinBox, QVBoxLayout
 
 from .i18n import t
+from .board import bundled_board_clock_hz
 from .theme import Metrics, style_button
 
 
@@ -15,7 +16,7 @@ from .theme import Metrics, style_button
 class SimulationSettings:
     """Runtime rates shared by every Lab and Icestudio project."""
 
-    clock_hz: int = 12_000_000
+    clock_hz: int = bundled_board_clock_hz()
     ui_refresh_hz: int = 60
     observation_hz: int = 1_000_000
     verilator_optimization: str = "automatic"

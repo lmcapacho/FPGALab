@@ -6,6 +6,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from .board import DEFAULT_BOARD_ID
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 
@@ -54,6 +55,6 @@ class BoardProfile:
             for bit in range(width)
         )
 
-def bundled_profile(board_id: str = "alhambra_ii") -> Path:
+def bundled_profile(board_id: str = DEFAULT_BOARD_ID) -> Path:
     """Return the packaged default profile for advanced library mode."""
     return Path(__file__).parent / "assets" / "boards" / board_id / "profile.json"

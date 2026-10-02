@@ -8,6 +8,7 @@ from time import perf_counter
 from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 
 from .edge_drive import TimedDriveScheduler
+from .board import bundled_board_clock_hz
 from .i18n import t
 from .simulation import EdgeEvent, VgaStats, VerilatorSimulation
 from .sink_bind import VgaBinding
@@ -82,7 +83,7 @@ class SimulationWorker(QObject):
     def __init__(
         self,
         simulation: VerilatorSimulation,
-        clock_hz: int = 12_000_000,
+        clock_hz: int = bundled_board_clock_hz(),
         ui_refresh_hz: int = 60,
         observation_hz: int = 1_000_000,
         led_sources: dict[int, tuple[str, int]] | None = None,

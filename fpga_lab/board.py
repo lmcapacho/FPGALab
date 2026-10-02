@@ -7,6 +7,8 @@ from pathlib import Path
 
 from .i18n import t
 
+DEFAULT_BOARD_ID = "alhambra_ii"
+
 
 @dataclass(frozen=True)
 class BoardPin:
@@ -65,6 +67,11 @@ class BoardDefinition:
         return tuple(pin for pin in self.pins if pin.direction in {direction, "inout"})
 
 
-def bundled_board_definition(board_id: str = "alhambra_ii") -> Path:
+def bundled_board_definition(board_id: str = DEFAULT_BOARD_ID) -> Path:
     """Return the packaged board definition used by the desktop application."""
     return Path(__file__).parent / "assets" / "boards" / board_id / "board.json"
+
+
+def bundled_board_clock_hz(board_id: str = DEFAULT_BOARD_ID) -> int:
+    """Return the default virtual clock declared by a bundled board."""
+    return BoardDefinition.load(bundled_board_definition(board_id)).clock_hz
