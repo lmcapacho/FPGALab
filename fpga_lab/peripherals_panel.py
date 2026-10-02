@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-from PyQt6.QtCore import QPointF, QSize, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QPointF, QSize, QSettings, QTimer, Qt, pyqtSignal
 import re
 from PyQt6.QtGui import QColor, QCursor, QFont, QKeySequence, QPalette
 from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu, QInputDialog
@@ -212,30 +212,52 @@ class PeripheralConfigDialog(QDialog):
 class ConnectionDialog(QDialog):
     """Explain virtual physical connections without requiring visible wires."""
 
-    def __init__(self, board: BoardDefinition, constraints, wires, parent=None):
+    def __init__(self, board: BoardDefinition, constraints, wires, peripherals=(), pcf_path=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle(t("Connections"))
-        self.resize(780, 460)
+        settings = QSettings("FPGALab", "FPGALab")
+        self.resize(900, 500)
+        geometry = settings.value("windows/connections/geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
         layout = QVBoxLayout(self)
-        description = QLabel(t("Board endpoints used by the PCF or an external peripheral."))
+        source = str(pcf_path) if pcf_path else t("— no design PCF —")
+        description = QLabel(t("Board endpoints used by the PCF or an external peripheral. PCF: {source} · {count} signals.", source=source, count=len(constraints)))
         description.setWordWrap(True)
         layout.addWidget(description)
         table = QTableWidget(self)
+        self._table = table
         table.setColumnCount(5)
         table.setHorizontalHeaderLabels([
             t("Board endpoint"),
             t("FPGA pin"),
             t("Direction"),
-            t("HDL net (PCF)"),
+            t("HDL net (design PCF)"),
             t("External peripheral"),
         ])
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSortingEnabled(True)
+        table.setAlternatingRowColors(True)
+        table.setWordWrap(True)
+        table.setMinimumHeight(260)
         net_by_pin = {constraint.fpga_pin: constraint.net for constraint in constraints}
+        net_by_endpoint: dict[str, str] = {}
+        for pin in board.pins:
+            if pin.fpga_pin in net_by_pin:
+                net_by_endpoint[pin.id] = net_by_pin[pin.fpga_pin]
+        kind_by_id = {item.peripheral_id: item.kind for item in peripherals}
         peripherals_by_endpoint: dict[str, list[str]] = {}
+        directions_by_endpoint: dict[str, set[str]] = {}
         for wire in wires:
             peripherals_by_endpoint.setdefault(wire.board_endpoint, []).append(f"{wire.peripheral_id}.{wire.terminal}")
+            try:
+                terminal = spec_for(kind_by_id[wire.peripheral_id]).terminal_map()[wire.terminal]
+                if terminal.direction:
+                    directions_by_endpoint.setdefault(wire.board_endpoint, set()).add(terminal.direction)
+            except (KeyError, ValueError):
+                pass
         rows = [
             pin for pin in board.pins
             if pin.fpga_pin in net_by_pin or pin.id in peripherals_by_endpoint
@@ -245,18 +267,29 @@ class ConnectionDialog(QDialog):
             values = (
                 pin.id,
                 pin.fpga_pin,
-                pin.direction,
-                net_by_pin.get(pin.fpga_pin, t("— not mapped —")),
-                ", ".join(peripherals_by_endpoint.get(pin.id, ())) or t("— none —"),
+                ", ".join(sorted(directions_by_endpoint.get(pin.id, ()))) or pin.direction,
+                net_by_endpoint.get(pin.id, t("— not mapped —")),
+                "\n".join(peripherals_by_endpoint.get(pin.id, ())) or t("— none —"),
             )
             for column, value in enumerate(values):
                 table.setItem(row, column, QTableWidgetItem(value))
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header = table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        table.resizeRowsToContents()
         layout.addWidget(table, 1)
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(self.reject)
         close.accepted.connect(self.accept)
         layout.addWidget(close)
+
+    def closeEvent(self, event) -> None:
+        settings = QSettings("FPGALab", "FPGALab")
+        settings.setValue("windows/connections/geometry", self.saveGeometry())
+        super().closeEvent(event)
 
 
 
@@ -790,7 +823,14 @@ class PeripheralsPanel(QWidget):
 
     def open_connections(self) -> None:
         """Show PCF and peripheral mappings in a compact, inspectable table."""
-        ConnectionDialog(self._board, self._constraints(), self._resolved_wires, self).exec()
+        ConnectionDialog(
+            self._board,
+            self._constraints(),
+            self._resolved_wires,
+            VirtualLabProject.load(self._lab).peripherals,
+            self._pcf,
+            self,
+        ).exec()
 
     def _drive_input(self, peripheral_id, terminal, value):
         if not self._powered:

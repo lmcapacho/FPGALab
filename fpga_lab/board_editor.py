@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import shutil
 
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import QSettings, QTimer, Qt
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import (
     QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QInputDialog, QGraphicsItem, QGraphicsRectItem,
-    QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
+    QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QMessageBox, QPushButton, QSplitter, QVBoxLayout,
 )
 
 from .board_layout import BoardLayout, BoardLayoutElement
@@ -59,6 +60,10 @@ class BoardLayoutEditor(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setMinimumSize(900, 600)
         self.resize(1280, 820)
+        settings = QSettings("FPGALab", "FPGALab")
+        geometry = settings.value("windows/board_layout_editor/geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
         self._scene = QGraphicsScene(self)
         self._canvas = EditorCanvas(self)
         self._canvas.setScene(self._scene)
@@ -80,9 +85,12 @@ class BoardLayoutEditor(QDialog):
         self._scene.selectionChanged.connect(self._show_selection)
 
         root = QHBoxLayout(self)
-        root.addWidget(self._canvas, 1)
+        splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        splitter.setObjectName("layoutEditorSplitter")
+        splitter.addWidget(self._canvas)
         side_frame = QFrame()
-        side_frame.setFixedWidth(280)
+        side_frame.setMinimumWidth(240)
+        side_frame.setMaximumWidth(420)
         side = QVBoxLayout(side_frame)
         side.addWidget(QLabel(t("Layout editor")))
         instructions = QLabel(t("Drag for larger moves. Arrows: 0.25 units. Shift+arrows: 2 units."))
@@ -122,8 +130,17 @@ class BoardLayoutEditor(QDialog):
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(self.reject)
         side.addWidget(close)
-        root.addWidget(side_frame)
+        splitter.addWidget(side_frame)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
+        splitter.setSizes([900, 280])
+        root.addWidget(splitter)
         QTimer.singleShot(0, self._prepare_canvas)
+
+    def closeEvent(self, event) -> None:
+        settings = QSettings("FPGALab", "FPGALab")
+        settings.setValue("windows/board_layout_editor/geometry", self.saveGeometry())
+        super().closeEvent(event)
 
     def _map_to_scene(self, element: BoardLayoutElement) -> BoardLayoutElement:
         origin_x, origin_y, width, height = self._layout.view_box
@@ -212,6 +229,16 @@ class BoardLayoutEditor(QDialog):
         self._canvas.fitInView(self._bounds, Qt.AspectRatioMode.KeepAspectRatio)
 
     def save(self) -> None:
+        prompt = t(
+            "This changes the packaged board layout used by FPGALab. "
+            "Continue and keep a backup of the previous layout?"
+        )
+        if QMessageBox.question(
+            self, t("Save board layout"), prompt,
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
+        ) != QMessageBox.StandardButton.Save:
+            return
         raw = json.loads(self._layout.source.read_text(encoding="utf-8"))
         original = {component["id"]: component for component in raw["components"]}
         raw["components"] = []
@@ -220,5 +247,7 @@ class BoardLayoutEditor(QDialog):
             component = original.get(element_id, {})
             component.update({"id": element_id, "type": element.kind, "signal": element.signal, "x": x, "y": y, "width": round(rect.width(), 3), "height": round(rect.height(), 3), "color": element.color})
             raw["components"].append(component)
+        backup = self._layout.source.with_suffix(self._layout.source.suffix + ".bak")
+        shutil.copy2(self._layout.source, backup)
         self._layout.source.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
         self.accept()
