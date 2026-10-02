@@ -12,7 +12,7 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from .board import BoardDefinition, bundled_board_definition
+from .board import DEFAULT_BOARD_ID, BoardDefinition, bundled_board_definition
 from .branding import application_icon
 from .build_cache import VerilatorBuildCache
 from .compiler import BuildCancelled
@@ -81,6 +81,7 @@ class PendingProjectRun:
     module_name: str
     led_sources: dict[int, tuple[str, int]]
     input_sources: dict[str, tuple[str, int]]
+    board_id: str = DEFAULT_BOARD_ID
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -96,22 +97,22 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def project_clock_port(project: IcestudioProject, interface: VerilogInterface) -> str | None:
+def project_clock_port(project: IcestudioProject, interface: VerilogInterface, board_id: str = DEFAULT_BOARD_ID) -> str | None:
     """Prefer the HDL net constrained to the board's physical clock endpoint."""
     if project.pcf is None:
         return None
-    board = BoardDefinition.load(bundled_board_definition())
+    board = BoardDefinition.load(bundled_board_definition(board_id))
     pin_map = ProjectPinMap.from_pcf(board, project.pcf)
     inputs = {port.name: port.width for port in interface.ports if port.direction in {"input", "inout"}}
     reference = signal_reference(pin_map.net_for(board.clock_endpoint), inputs) if board.clock_endpoint else None
     return reference[0] if reference is not None and reference[1] == 0 and inputs[reference[0]] == 1 else None
 
 
-def board_sources(project: IcestudioProject, profile: BoardProfile) -> tuple[dict[int, tuple[str, int]], dict[str, tuple[str, int]]]:
+def board_sources(project: IcestudioProject, profile: BoardProfile, board_id: str = DEFAULT_BOARD_ID) -> tuple[dict[int, tuple[str, int]], dict[str, tuple[str, int]]]:
     """Resolve physical board controls to the random HDL names recorded in the PCF."""
     if project.pcf is None:
         return {}, {}
-    board = BoardDefinition.load(bundled_board_definition())
+    board = BoardDefinition.load(bundled_board_definition(board_id))
     pin_map = ProjectPinMap.from_pcf(board, project.pcf)
     led_sources = {
         index: reference
@@ -144,6 +145,7 @@ class ApplicationController(QObject):
         self._manual_profile = BoardProfile.load(namespace.profile) if namespace.profile else None
         self._build_worker: BuildWorker | None = None
         self._pending_run: PendingProjectRun | None = None
+        self._board_id = DEFAULT_BOARD_ID
         window.project_requested.connect(self.execute_project)
         window.lab_selected.connect(self.switch_lab)
         window.stop_requested.connect(self.stop_simulation)
@@ -172,9 +174,9 @@ class ApplicationController(QObject):
         try:
             project = IcestudioProject.discover(ice_file)
             interface = VerilogInterface.discover(project.main_v)
-            clock_port = project_clock_port(project, interface)
+            clock_port = project_clock_port(project, interface, self._board_id)
             profile = self._manual_profile or interface.profile(clock_port=clock_port)
-            led_sources, input_sources = board_sources(project, profile)
+            led_sources, input_sources = board_sources(project, profile, self._board_id)
             if self._manual_profile is None:
                 profile = apply_led_observed(profile, led_sources)
         except (IcestudioProjectError, ValueError, OSError) as error:
@@ -188,7 +190,7 @@ class ApplicationController(QObject):
             "Preparing {name}. FPGALab is checking the cache and may compile the HDL model.",
             name=project.ice_file.name,
         ))
-        self._pending_run = PendingProjectRun(project, profile, interface.module_name, led_sources, input_sources)
+        self._pending_run = PendingProjectRun(project, profile, interface.module_name, led_sources, input_sources, self._board_id)
         self._window.set_project_loading(True)
         # The worker must outlive the window while a native build is running.
         self._build_worker = BuildWorker(
@@ -228,6 +230,7 @@ class ApplicationController(QObject):
             self._simulation_settings.observation_hz,
             project_pcf=pending.project.pcf,
             lab_file=self._window.selected_lab(),
+            board_id=pending.board_id,
             led_sources=pending.led_sources,
             input_sources=pending.input_sources,
         )

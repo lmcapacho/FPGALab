@@ -7,7 +7,7 @@ from pathlib import Path
 from PyQt6.QtCore import QEvent, QSettings, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QAbstractSpinBox, QComboBox, QFrame, QGraphicsProxyWidget, QHBoxLayout, QLabel, QKeySequenceEdit, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QTextEdit, QVBoxLayout, QWidget
 
-from .board import BoardDefinition, bundled_board_clock_hz, bundled_board_definition
+from .board import DEFAULT_BOARD_ID, BoardDefinition, bundled_board_clock_hz, bundled_board_definition
 from .i18n import language_manager, t
 from .lab_workspace import LabWorkspace
 from .board_editor import BoardLayoutEditor
@@ -60,6 +60,7 @@ class FPGAVirtualLab(QWidget):
         lab_file: Path | None = None,
         led_sources: dict[int, tuple[str, int]] | None = None,
         input_sources: dict[str, tuple[str, int]] | None = None,
+        board_id: str = DEFAULT_BOARD_ID,
         parent=None,
         settings: QSettings | None = None,
     ):
@@ -68,11 +69,14 @@ class FPGAVirtualLab(QWidget):
         self.setMinimumSize(800, 520)
         self._bounce_timers: list[QTimer] = []
         self._simulation = simulation
+        self._board_id = board_id
         self._clock_hz = clock_hz
         self._running = False
         self._ignore_state = False
         self._closed = False
-        self._board_name = simulation.profile.board_name if simulation else BoardDefinition.load(bundled_board_definition()).label
+        board = BoardDefinition.load(bundled_board_definition(board_id))
+        self._board = board
+        self._board_name = simulation.profile.board_name if simulation else board.label
         self._available_inputs = frozenset(simulation.profile.inputs) if simulation else frozenset()
         self._has_clock = simulation.profile.clock_name is not None if simulation else None
         self._input_widths = dict(simulation.profile.inputs) if simulation else {}
@@ -80,7 +84,7 @@ class FPGAVirtualLab(QWidget):
         self._input_sources = input_sources or {}
         self._settings = settings if settings is not None else QSettings("FPGALab", "FPGALab")
         self._board_input_values: dict[str, int] = {}
-        self._layout = BoardLayout.load(bundled_layout())
+        self._layout = BoardLayout.load(bundled_layout(board_id))
         self._project_pcf = project_pcf
         self._lab_file = lab_file or LabWorkspace().ensure_default()
         self._build_ui()
@@ -152,7 +156,7 @@ class FPGAVirtualLab(QWidget):
         gpio_layout = QVBoxLayout(gpio_panel)
         gpio_layout.setContentsMargins(0, 0, 0, 0)
         self._peripherals = PeripheralsPanel(
-            BoardDefinition.load(bundled_board_definition()),
+            self._board,
             self._project_pcf,
             self._lab_file,
             self._input_widths,
@@ -297,7 +301,7 @@ class FPGAVirtualLab(QWidget):
         self._peripherals.set_editable(True)
 
     def _open_layout_editor(self) -> None:
-        editor = BoardLayoutEditor(BoardLayout.load(bundled_layout()), self)
+        editor = BoardLayoutEditor(BoardLayout.load(bundled_layout(self._board_id)), self)
         if editor.exec():
             self.setWindowTitle(t("FPGALab · layout saved; restart the view to reload it"))
 
