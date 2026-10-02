@@ -10,7 +10,7 @@ from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import (
     QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QInputDialog, QGraphicsItem, QGraphicsRectItem,
-    QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QMessageBox, QPushButton, QSplitter, QVBoxLayout,
+    QCheckBox, QComboBox, QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QMessageBox, QPushButton, QSplitter, QVBoxLayout,
 )
 
 from .board_layout import BoardLayout, BoardLayoutElement
@@ -106,6 +106,18 @@ class BoardLayoutEditor(QDialog):
         form.addRow(t("Signal"), self._signal)
         form.addRow(t("Position"), self._position)
         side.addLayout(form)
+        transform_form = QFormLayout()
+        self._rotation = QComboBox()
+        self._rotation.addItems(("0°", "90°", "180°", "270°"))
+        self._rotation.setCurrentIndex(self._layout.rotation // 90)
+        self._mirror_x = QCheckBox(t("Mirror horizontally"))
+        self._mirror_x.setChecked(self._layout.mirror_x)
+        self._mirror_y = QCheckBox(t("Mirror vertically"))
+        self._mirror_y.setChecked(self._layout.mirror_y)
+        transform_form.addRow(t("Rotation"), self._rotation)
+        transform_form.addRow(self._mirror_x)
+        transform_form.addRow(self._mirror_y)
+        side.addLayout(transform_form)
         add_led = QPushButton("+ LED")
         add_led.clicked.connect(lambda: self._add_component("led"))
         side.addWidget(add_led)
@@ -247,6 +259,11 @@ class BoardLayoutEditor(QDialog):
             component = original.get(element_id, {})
             component.update({"id": element_id, "type": element.kind, "signal": element.signal, "x": x, "y": y, "width": round(rect.width(), 3), "height": round(rect.height(), 3), "color": element.color})
             raw["components"].append(component)
+        raw["transform"] = {
+            "rotation": self._rotation.currentIndex() * 90,
+            "mirror_x": self._mirror_x.isChecked(),
+            "mirror_y": self._mirror_y.isChecked(),
+        }
         backup = self._layout.source.with_suffix(self._layout.source.suffix + ".bak")
         shutil.copy2(self._layout.source, backup)
         self._layout.source.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")

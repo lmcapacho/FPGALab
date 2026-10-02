@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable
 
 from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QTransform
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
@@ -126,10 +126,14 @@ class BoardView(QGraphicsView):
 
     def _apply_orientation(self) -> None:
         """Rotate board artwork and its controls as one declarative layout unit."""
-        if self._layout.orientation == "vertical":
+        if self._layout.rotation or self._layout.mirror_x or self._layout.mirror_y:
             bounds = self._board_group.boundingRect()
             self._board_group.setTransformOriginPoint(bounds.center())
-            self._board_group.setRotation(90)
+            self._board_group.setRotation(self._layout.rotation)
+            self._board_group.setTransform(QTransform.fromScale(
+                -1 if self._layout.mirror_x else 1,
+                -1 if self._layout.mirror_y else 1,
+            ))
             rotated = self._board_group.sceneBoundingRect()
             self._board_group.setPos(-rotated.x(), -rotated.y())
         self._scene.setSceneRect(self._board_group.sceneBoundingRect())

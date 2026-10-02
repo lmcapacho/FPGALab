@@ -29,6 +29,9 @@ class BoardLayout:
     svg: Path
     view_box: tuple[float, float, float, float]
     orientation: str
+    rotation: int
+    mirror_x: bool
+    mirror_y: bool
     elements: tuple[BoardLayoutElement, ...]
 
     @classmethod
@@ -47,12 +50,17 @@ class BoardLayout:
         view_box = tuple(float(value) for value in raw["viewBox"])
         if len(view_box) != 4:
             raise ValueError(t("viewBox must have four values."))
+        transform = raw.get("transform", {})
+        rotation = int(transform.get("rotation", 90 if raw.get("orientation", "horizontal") == "vertical" else 0))
         layout = cls(
             raw["board_id"],
             source,
             source.parent / raw["svg"],
             view_box,
             raw.get("orientation", "horizontal"),
+            rotation,
+            bool(transform.get("mirror_x", False)),
+            bool(transform.get("mirror_y", False)),
             elements,
         )
         layout.validate()
@@ -63,6 +71,8 @@ class BoardLayout:
             raise FileNotFoundError(self.svg)
         if self.orientation not in {"horizontal", "vertical"}:
             raise ValueError(t("Board orientation must be horizontal or vertical."))
+        if self.rotation not in {0, 90, 180, 270}:
+            raise ValueError(t("Board rotation must be 0, 90, 180, or 270 degrees."))
         ids = [element.id for element in self.elements]
         if len(ids) != len(set(ids)):
             raise ValueError(t("Board layout contains duplicate identifiers."))

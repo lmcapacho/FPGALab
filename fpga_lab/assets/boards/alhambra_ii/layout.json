@@ -2,6 +2,11 @@
   "board_id": "alhambra_ii",
   "svg": "board.svg",
   "orientation": "vertical",
+  "transform": {
+    "rotation": 90,
+    "mirror_x": false,
+    "mirror_y": false
+  },
   "viewBox": [
     0,
     0,
