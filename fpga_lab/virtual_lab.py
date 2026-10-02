@@ -134,6 +134,7 @@ class FPGAVirtualLab(QWidget):
         self._board_panel = QFrame(objectName="boardPanel")
         self._board_panel.setMinimumWidth(240)
         board_layout = QVBoxLayout(self._board_panel)
+        self._board_layout = board_layout
         board_layout.setContentsMargins(Metrics.SPACE_MD, Metrics.SPACE_MD, Metrics.SPACE_MD, Metrics.SPACE_MD)
         board_header = QHBoxLayout()
         self._board_title = QLabel()
@@ -303,7 +304,16 @@ class FPGAVirtualLab(QWidget):
     def _open_layout_editor(self) -> None:
         editor = BoardLayoutEditor(BoardLayout.load(bundled_layout(self._board_id)), self)
         if editor.exec():
-            self.setWindowTitle(t("FPGALab · layout saved; restart the view to reload it"))
+            self._reload_board_view()
+            self.setWindowTitle(t("FPGALab · layout saved"))
+
+    def _reload_board_view(self) -> None:
+        """Reload the board artwork and transform without restarting the Lab."""
+        old_view = self._board_view
+        self._layout = BoardLayout.load(bundled_layout(self._board_id))
+        self._board_view = BoardView(self._layout, self._bouncy_input)
+        self._board_layout.replaceWidget(old_view, self._board_view)
+        old_view.deleteLater()
 
     def _bouncy_input(self, name: str, final_value: int) -> None:
         """Three quick transitions make button bounce perceptible and configurable."""
