@@ -103,7 +103,7 @@ def project_clock_port(project: IcestudioProject, interface: VerilogInterface) -
     board = BoardDefinition.load(bundled_board_definition())
     pin_map = ProjectPinMap.from_pcf(board, project.pcf)
     inputs = {port.name: port.width for port in interface.ports if port.direction in {"input", "inout"}}
-    reference = signal_reference(pin_map.net_for("CLK"), inputs)
+    reference = signal_reference(pin_map.net_for(board.clock_endpoint), inputs) if board.clock_endpoint else None
     return reference[0] if reference is not None and reference[1] == 0 and inputs[reference[0]] == 1 else None
 
 
@@ -115,12 +115,12 @@ def board_sources(project: IcestudioProject, profile: BoardProfile) -> tuple[dic
     pin_map = ProjectPinMap.from_pcf(board, project.pcf)
     led_sources = {
         index: reference
-        for index in range(8)
-        if (reference := signal_reference(pin_map.net_for(f"LED{index}"), profile.outputs)) is not None
+        for index, endpoint in enumerate(board.led_endpoints)
+        if (reference := signal_reference(pin_map.net_for(endpoint), profile.outputs)) is not None
     }
     input_sources = {
         endpoint: reference
-        for endpoint in ("SW1", "SW2")
+        for endpoint in board.input_endpoints
         if (reference := signal_reference(pin_map.net_for(endpoint), profile.inputs)) is not None
     }
     return led_sources, input_sources

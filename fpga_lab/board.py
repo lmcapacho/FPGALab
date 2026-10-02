@@ -24,6 +24,9 @@ class BoardDefinition:
     label: str
     clock_hz: int
     pins: tuple[BoardPin, ...]
+    led_endpoints: tuple[str, ...] = ()
+    input_endpoints: tuple[str, ...] = ()
+    clock_endpoint: str | None = None
 
     @classmethod
     def load(cls, path: str | Path) -> "BoardDefinition":
@@ -37,7 +40,13 @@ class BoardDefinition:
             )
             for item in raw["pins"]
         )
-        board = cls(raw["id"], raw["label"], int(raw["clock_hz"]), pins)
+        controls = raw.get("controls", {})
+        board = cls(
+            raw["id"], raw["label"], int(raw["clock_hz"]), pins,
+            tuple(str(endpoint) for endpoint in controls.get("leds", ())),
+            tuple(str(endpoint) for endpoint in controls.get("inputs", ())),
+            str(controls["clock"]) if controls.get("clock") else None,
+        )
         board.validate()
         return board
 
@@ -47,6 +56,12 @@ class BoardDefinition:
             raise ValueError(t("Board {board_id} has duplicate pin identifiers.", board_id=self.board_id))
         if self.clock_hz <= 0:
             raise ValueError(t("clock_hz must be positive."))
+        known = {pin.id for pin in self.pins}
+        for endpoint in (*self.led_endpoints, *self.input_endpoints):
+            if endpoint not in known:
+                raise ValueError(t("Board {board_id} references unknown control {endpoint!r}.", board_id=self.board_id, endpoint=endpoint))
+        if self.clock_endpoint is not None and self.clock_endpoint not in known:
+            raise ValueError(t("Board {board_id} references unknown clock endpoint {endpoint!r}.", board_id=self.board_id, endpoint=self.clock_endpoint))
 
     def pin(self, endpoint: str) -> BoardPin:
         for pin in self.pins:

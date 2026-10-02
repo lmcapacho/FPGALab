@@ -2,6 +2,11 @@
   "id": "alhambra-ii",
   "label": "Alhambra II",
   "clock_hz": 12000000,
+  "controls": {
+    "clock": "CLK",
+    "leds": ["LED0", "LED1", "LED2", "LED3", "LED4", "LED5", "LED6", "LED7"],
+    "inputs": ["SW1", "SW2"]
+  },
   "pins": [
     {
       "id": "LED0",
