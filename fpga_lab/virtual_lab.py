@@ -267,7 +267,7 @@ class FPGAVirtualLab(QWidget):
             QMessageBox.warning(self, t("Serial signals"), t("Serial signal transmission requires a clocked design."))
             self.status_changed.emit(t("Serial signal transmission requires a clocked design."))
             return
-        if bindings and self._clock_hz == bundled_board_clock_hz():
+        if bindings and self._clock_hz == bundled_board_clock_hz(self._board_id):
             status = t(
                 "VGA 640×480 expects a ~25 MHz pixel clock; this lab is running at {mhz:g} MHz "
                 "({board} default). Use --clock-hz 25000000 or 25175000.",

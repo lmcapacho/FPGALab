@@ -30,6 +30,8 @@ from PyQt6.QtWidgets import (
 )
 
 from . import __version__
+from .board import DEFAULT_BOARD_ID
+from .board_catalog import BoardCatalog
 from .i18n import language_manager, t
 from .lab_workspace import LabWorkspace
 from .recent_projects import RecentProjects
@@ -283,6 +285,7 @@ class FPGALabMainWindow(QMainWindow):
     """Persistent shell that selects and hosts one active virtual laboratory."""
 
     project_requested = pyqtSignal(Path)
+    board_selected = pyqtSignal(str)
     lab_selected = pyqtSignal(Path)
     stop_requested = pyqtSignal()
     toolchain_requested = pyqtSignal()
@@ -290,11 +293,15 @@ class FPGALabMainWindow(QMainWindow):
     update_requested = pyqtSignal()
     closing = pyqtSignal()
 
-    def __init__(self, workspace: LabWorkspace, parent=None, settings: QSettings | None = None):
+    BOARD_KEY = "boards/selected_id"
+
+    def __init__(self, workspace: LabWorkspace, parent=None, settings: QSettings | None = None,
+                 board_catalog: BoardCatalog | None = None):
         super().__init__(parent)
         self.setMinimumSize(1000, 680)
         self._workspace = workspace
         self._settings = settings if settings is not None else QSettings("FPGALab", "FPGALab")
+        self._board_catalog = board_catalog if board_catalog is not None else BoardCatalog()
         self._recent_projects = RecentProjects(self._settings)
         self._theme_mode = load_theme_mode(self._settings)
         self._selected_lab = self._workspace.last_selected()
@@ -369,6 +376,17 @@ class FPGALabMainWindow(QMainWindow):
         self._recent.setMinimumWidth(155)
         self._recent.currentIndexChanged.connect(self._choose_recent)
         self._refresh_recent()
+        self._board = QComboBox()
+        self._board.setObjectName("boardSelector")
+        self._board.setMinimumWidth(125)
+        for package in self._board_catalog.packages:
+            self._board.addItem(package.definition.label, package.board_id)
+        saved_board = self._settings.value(self.BOARD_KEY, DEFAULT_BOARD_ID, type=str)
+        selected = self._board.findData(saved_board)
+        if selected < 0:
+            selected = self._board.findData(DEFAULT_BOARD_ID)
+        self._board.setCurrentIndex(selected if selected >= 0 else 0)
+        self._board.currentIndexChanged.connect(self._choose_board)
         self._lab_button = QPushButton()
         style_button(self._lab_button, "selector")
         self._lab_button.setMinimumWidth(210)
@@ -390,6 +408,7 @@ class FPGALabMainWindow(QMainWindow):
         layout.addWidget(self._browse_button)
         layout.addWidget(self._recent)
         layout.addSpacing(8)
+        layout.addWidget(self._board)
         layout.addWidget(self._lab_button, 2)
         layout.addWidget(self._language)
         layout.addWidget(self._theme_button)
@@ -402,6 +421,8 @@ class FPGALabMainWindow(QMainWindow):
         self._browse_button.setText(t("Browse…"))
         self._browse_button.setToolTip(t("Browse for an Icestudio design"))
         self._lab_button.setToolTip(t("Select or manage labs"))
+        self._board.setToolTip(t("Board used for compilation and simulation"))
+        self._board.setAccessibleName(t("Board"))
         self._language.setToolTip(t("Interface language"))
         self._refresh_theme_button()
         self._update_button.setToolTip(t("Check for updates"))
@@ -444,6 +465,27 @@ class FPGALabMainWindow(QMainWindow):
         language = self._language.itemData(index)
         if language:
             language_manager.set_language(language)
+
+    def selected_board_id(self) -> str:
+        return str(self._board.currentData() or DEFAULT_BOARD_ID)
+
+    def board_name(self, board_id: str) -> str:
+        return self._board_catalog.get(board_id).definition.label
+
+    def board_clock_hz(self, board_id: str) -> int:
+        return self._board_catalog.get(board_id).definition.clock_hz
+
+    def select_board(self, board_id: str) -> None:
+        index = self._board.findData(board_id)
+        if index < 0:
+            raise ValueError(f"Board {board_id!r} is not available")
+        self._board.setCurrentIndex(index)
+
+    def _choose_board(self, index: int) -> None:
+        board_id = self._board.itemData(index)
+        if board_id:
+            self._settings.setValue(self.BOARD_KEY, board_id)
+            self.board_selected.emit(board_id)
 
     def _refresh_theme_button(self) -> None:
         """Show the action available from the current theme."""
@@ -573,6 +615,7 @@ class FPGALabMainWindow(QMainWindow):
         self._browse_button.setEnabled(enabled)
         self._recent.setEnabled(enabled)
         self._lab_button.setEnabled(enabled)
+        self._board.setEnabled(enabled)
         self._simulation_settings_button.setEnabled(enabled)
 
     def selected_project(self) -> Path | None:

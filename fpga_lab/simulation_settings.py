@@ -28,11 +28,11 @@ class SimulationSettings:
     VERILATOR_OPTIMIZATION_MODES = ("automatic", "standard", "compatibility")
 
     @classmethod
-    def load(cls, settings: QSettings | None = None) -> "SimulationSettings":
+    def load(cls, settings: QSettings | None = None, *, default_clock_hz: int | None = None) -> "SimulationSettings":
         store = settings or QSettings("FPGALab", "FPGALab")
         defaults = cls()
         return cls(
-            clock_hz=_positive_setting(store, cls.CLOCK_KEY, defaults.clock_hz),
+            clock_hz=_positive_setting(store, cls.CLOCK_KEY, default_clock_hz or defaults.clock_hz),
             ui_refresh_hz=_positive_setting(store, cls.UI_REFRESH_KEY, defaults.ui_refresh_hz),
             observation_hz=_positive_setting(store, cls.OBSERVATION_KEY, defaults.observation_hz),
             verilator_optimization=_choice_setting(

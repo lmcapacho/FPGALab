@@ -9,7 +9,7 @@ from threading import Event
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QSettings, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from .board import DEFAULT_BOARD_ID, BoardDefinition, bundled_board_definition
@@ -137,7 +137,13 @@ class ApplicationController(QObject):
         self._window = window
         self._namespace = namespace
         VerilatorBuildCache(namespace.cache_dir).maintain()
-        self._simulation_settings = SimulationSettings.load().with_overrides(
+        self._board_id = window.selected_board_id()
+        self._clock_is_customized = namespace.clock_hz is not None or QSettings(
+            "FPGALab", "FPGALab"
+        ).contains(SimulationSettings.CLOCK_KEY)
+        self._simulation_settings = SimulationSettings.load(
+            default_clock_hz=window.board_clock_hz(self._board_id)
+        ).with_overrides(
             clock_hz=namespace.clock_hz,
             ui_refresh_hz=namespace.ui_refresh_hz,
             observation_hz=namespace.observation_hz,
@@ -145,8 +151,8 @@ class ApplicationController(QObject):
         self._manual_profile = BoardProfile.load(namespace.profile) if namespace.profile else None
         self._build_worker: BuildWorker | None = None
         self._pending_run: PendingProjectRun | None = None
-        self._board_id = DEFAULT_BOARD_ID
         window.project_requested.connect(self.execute_project)
+        window.board_selected.connect(self.select_board)
         window.lab_selected.connect(self.switch_lab)
         window.stop_requested.connect(self.stop_simulation)
         window.toolchain_requested.connect(self.check_toolchain)
@@ -154,6 +160,36 @@ class ApplicationController(QObject):
         window.closing.connect(self.shutdown)
         app.aboutToQuit.connect(self.shutdown)
         window.set_clock_performance(self._simulation_settings.clock_hz)
+
+    def select_board(self, board_id: str) -> None:
+        """Use the selected package for the visible board and the next build."""
+        if board_id == self._board_id:
+            return
+        active_lab = self._window.active_lab()
+        if active_lab is not None and not active_lab.close():
+            self._window.select_board(self._board_id)
+            self._window.set_status(t("Could not stop the previous simulation safely."))
+            return
+        try:
+            clock_hz = (
+                self._simulation_settings.clock_hz if self._clock_is_customized
+                else self._window.board_clock_hz(board_id)
+            )
+            lab = FPGAVirtualLab(
+                clock_hz=clock_hz, lab_file=self._window.selected_lab(), board_id=board_id
+            )
+        except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+            self._window.select_board(self._board_id)
+            QMessageBox.warning(self._window, t("Cannot load lab"), str(error))
+            return
+        self._board_id = board_id
+        if not self._clock_is_customized:
+            self._simulation_settings = self._simulation_settings.with_overrides(
+                clock_hz=self._window.board_clock_hz(board_id)
+            )
+        self._window.set_lab(lab)
+        self._window.set_clock_performance(self._simulation_settings.clock_hz)
+        self._window.set_status(t("Board selected: {name}", name=self._window.board_name(board_id)))
 
     def switch_lab(self, lab_file: Path) -> None:
         """Apply the selected laboratory to the visible workbench immediately."""
@@ -209,7 +245,7 @@ class ApplicationController(QObject):
         previous_lab = self._window.active_lab()
         workbench_history = (
             previous_lab.workbench_history()
-            if isinstance(previous_lab, FPGAVirtualLab) else None
+            if isinstance(previous_lab, FPGAVirtualLab) and getattr(previous_lab, "_board_id", pending.board_id) == pending.board_id else None
         )
         # Cached builds can load the same shared library again. Its model and
         # UART channel state are process-global, so the old worker must finish
@@ -327,10 +363,11 @@ class ApplicationController(QObject):
             return
         self._simulation_settings = dialog.values()
         self._simulation_settings.save()
+        self._clock_is_customized = True
         self._window.set_status(t("Simulation settings saved. They will apply on the next run."))
 
     def load_advanced_library(self, library: Path) -> None:
-        profile = self._manual_profile or BoardProfile.load(bundled_profile())
+        profile = self._manual_profile or BoardProfile.load(bundled_profile(self._board_id))
         try:
             simulation = VerilatorSimulation(library, profile)
         except Exception as error:
@@ -341,6 +378,7 @@ class ApplicationController(QObject):
             self._simulation_settings.clock_hz,
             self._simulation_settings.ui_refresh_hz,
             self._simulation_settings.observation_hz,
+            board_id=self._board_id,
         ))
         self._window.set_clock_performance(
             self._simulation_settings.clock_hz if profile.clock_name is not None else None
@@ -381,7 +419,10 @@ def main() -> None:
     workspace = LabWorkspace()
     window = FPGALabMainWindow(workspace)
     window.setWindowIcon(application_icon())
-    window.set_lab(FPGAVirtualLab(lab_file=window.selected_lab()))
+    window.set_lab(FPGAVirtualLab(
+        clock_hz=SimulationSettings.load(default_clock_hz=window.board_clock_hz(window.selected_board_id())).clock_hz,
+        lab_file=window.selected_lab(), board_id=window.selected_board_id(),
+    ))
     controller = ApplicationController(app, window, namespace)
     update_controller = UpdateController(window)
     window.update_requested.connect(update_controller.check_manually)

@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Board selector in the main window, persisted per user and passed to board mapping, compilation setup, and simulation.
 - Internal board catalog that discovers and validates bundled board packages and reports incomplete ones.
 - Peripheral API v2 edge streams: bounded, virtual-cycle-accurate capture of digital output transitions, with an installable UART 8N1 terminal example.
 - Cycle-scheduled digital input driving and a UART terminal TX field, allowing the external terminal to send text into a clocked FPGA design.

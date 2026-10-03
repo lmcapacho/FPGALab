@@ -29,9 +29,9 @@ The activation command above applies to Linux and macOS. On Windows PowerShell, 
 1. Open the design in Icestudio.
 2. Generate its Verilog output. The project must contain `ice-build/<design>/main.v` and its PCF file.
 3. Open the `.ice` file from the **Browse** button in FPGALab.
-4. Select or create a Lab.
+4. Select the board in the top bar, then select or create a Lab. The board selection is remembered and determines which packaged board definition is used for pin mapping and simulation. Currently, Alhambra II is the only bundled board.
 5. Press **Run**. The first run may compile the native model; later runs reuse the incremental cache when possible.
 6. Interact with board controls and external peripherals.
-7. Press **Stop** before changing the project, Lab, or simulation settings.
+7. Press **Stop** before changing the project, board, Lab, or simulation settings.
 
 FPGALab stores generated native models in the user cache, not in the Icestudio project.

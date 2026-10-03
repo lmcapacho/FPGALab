@@ -41,6 +41,50 @@ def test_main_window_stays_open_when_the_active_lab_cannot_close(tmp_path):
     window.deleteLater()
 
 
+def test_board_selector_persists_and_supplies_controller_board_id(tmp_path, monkeypatch):
+    from fpga_lab import app as app_module
+
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    workspace = LabWorkspace(tmp_path / "labs", settings)
+    packages = [
+        SimpleNamespace(board_id="alhambra_ii", definition=SimpleNamespace(label="Alhambra II", clock_hz=12_000_000)),
+        SimpleNamespace(board_id="test_board", definition=SimpleNamespace(label="Test Board", clock_hz=1_000_000)),
+    ]
+
+    class Catalog:
+        def __init__(self):
+            self.packages = packages
+
+        def get(self, board_id):
+            return next(package for package in packages if package.board_id == board_id)
+
+    class FakeLab(QWidget):
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+            self.board_id = kwargs["board_id"]
+
+    monkeypatch.setattr(app_module, "FPGAVirtualLab", FakeLab)
+    window = FPGALabMainWindow(workspace, settings=settings, board_catalog=Catalog())
+    controller = app_module.ApplicationController(
+        _APPLICATION, window,
+        SimpleNamespace(cache_dir=tmp_path / "cache", clock_hz=None, ui_refresh_hz=None,
+                        observation_hz=None, profile=None),
+    )
+    window.select_board("test_board")
+
+    assert controller._board_id == "test_board"
+    assert window.active_lab().board_id == "test_board"
+    assert settings.value(window.BOARD_KEY) == "test_board"
+    window.set_project_loading(True)
+    assert not window._board.isEnabled()
+    window.set_project_loading(False)
+    window.close()
+
+    restored = FPGALabMainWindow(workspace, settings=settings, board_catalog=Catalog())
+    assert restored.selected_board_id() == "test_board"
+    restored.close()
+
+
 def test_cached_model_is_closed_before_loading_same_library_again(tmp_path, monkeypatch):
     from fpga_lab import app as app_module
 
