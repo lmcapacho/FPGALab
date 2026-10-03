@@ -29,7 +29,7 @@ El comando de activación anterior se usa en Linux y macOS. En Windows PowerShel
 1. Abre el diseño en Icestudio.
 2. Genera su salida Verilog. El proyecto debe contener `ice-build/<design>/main.v` y su archivo PCF.
 3. Abre el archivo `.ice` con el botón **Browse** de FPGALab.
-4. Selecciona la tarjeta en la barra superior y luego selecciona o crea un Lab. La selección se recuerda y determina qué definición de tarjeta se usa para asignar pines y simular. Por ahora, Alhambra II es la única tarjeta incluida.
+4. Selecciona o crea un Lab. Su tarjeta guardada aparece en el selector de la barra superior y determina qué definición se usa para asignar pines y simular. Si cambias el selector, se actualiza el Lab actual. Por ahora, Alhambra II es la única tarjeta incluida.
 5. Presiona **Run**. La primera ejecución puede compilar el modelo nativo; las siguientes reutilizan la caché incremental cuando sea posible.
 6. Interactúa con los controles de la tarjeta y los periféricos externos.
 7. Presiona **Stop** antes de cambiar el proyecto, la tarjeta, el Lab o la configuración de simulación.

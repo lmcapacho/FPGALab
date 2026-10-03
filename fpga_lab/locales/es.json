@@ -16,6 +16,7 @@
   "Board endpoint": "Terminal de placa",
   "Board": "Tarjeta",
   "Board selected: {name}": "Tarjeta seleccionada: {name}",
+  "Lab board is unavailable: {error}": "La tarjeta del Lab no está disponible: {error}",
   "Board used for compilation and simulation": "Tarjeta usada para la compilación y simulación",
   "Board endpoints used by the PCF or an external peripheral.": "Terminales de placa usados por el PCF o por un periférico externo.",
   "Board layout contains duplicate identifiers.": "Hay identificadores repetidos en el layout de placa.",

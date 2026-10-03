@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -47,8 +48,8 @@ def test_board_selector_persists_and_supplies_controller_board_id(tmp_path, monk
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
     workspace = LabWorkspace(tmp_path / "labs", settings)
     packages = [
-        SimpleNamespace(board_id="alhambra_ii", definition=SimpleNamespace(label="Alhambra II", clock_hz=12_000_000)),
-        SimpleNamespace(board_id="test_board", definition=SimpleNamespace(label="Test Board", clock_hz=1_000_000)),
+        SimpleNamespace(board_id="alhambra_ii", definition=SimpleNamespace(board_id="alhambra-ii", label="Alhambra II", clock_hz=12_000_000)),
+        SimpleNamespace(board_id="test_board", definition=SimpleNamespace(board_id="test-board", label="Test Board", clock_hz=1_000_000)),
     ]
 
     class Catalog:
@@ -58,10 +59,14 @@ def test_board_selector_persists_and_supplies_controller_board_id(tmp_path, monk
         def get(self, board_id):
             return next(package for package in packages if package.board_id == board_id)
 
+        def resolve(self, identifier):
+            return next(package for package in packages if identifier in (package.board_id, package.definition.board_id))
+
     class FakeLab(QWidget):
         def __init__(self, *args, **kwargs):
             super().__init__()
             self.board_id = kwargs["board_id"]
+            self._lab_file = kwargs["lab_file"]
 
     monkeypatch.setattr(app_module, "FPGAVirtualLab", FakeLab)
     window = FPGALabMainWindow(workspace, settings=settings, board_catalog=Catalog())
@@ -75,6 +80,7 @@ def test_board_selector_persists_and_supplies_controller_board_id(tmp_path, monk
     assert controller._board_id == "test_board"
     assert window.active_lab().board_id == "test_board"
     assert settings.value(window.BOARD_KEY) == "test_board"
+    assert workspace.board_id(window.selected_lab()) == "test-board"
     window.set_project_loading(True)
     assert not window._board.isEnabled()
     window.set_project_loading(False)
@@ -83,6 +89,43 @@ def test_board_selector_persists_and_supplies_controller_board_id(tmp_path, monk
     restored = FPGALabMainWindow(workspace, settings=settings, board_catalog=Catalog())
     assert restored.selected_board_id() == "test_board"
     restored.close()
+
+    other = workspace.create("Other", board_id="alhambra-ii")
+    next_window = FPGALabMainWindow(workspace, settings=settings, board_catalog=Catalog())
+    next_window.set_lab(FakeLab(lab_file=next_window.selected_lab(), board_id="test_board"))
+    next_controller = app_module.ApplicationController(
+        _APPLICATION, next_window,
+        SimpleNamespace(cache_dir=tmp_path / "cache", clock_hz=None, ui_refresh_hz=None,
+                        observation_hz=None, profile=None),
+    )
+    next_window._set_selected_lab(other.path, notify=True)
+    assert next_window.selected_board_id() == "alhambra_ii"
+    assert next_controller._board_id == "alhambra_ii"
+    assert next_window.active_lab().board_id == "alhambra_ii"
+    assert workspace.board_id(other.path) == "alhambra-ii"
+    next_window.close()
+
+
+def test_lab_without_board_uses_default_and_unknown_board_is_not_rewritten(tmp_path, monkeypatch):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    workspace = LabWorkspace(tmp_path / "labs", settings)
+    legacy = workspace.create("Legacy").path
+    raw = json.loads(legacy.read_text(encoding="utf-8"))
+    del raw["metadata"]["board_id"]
+    legacy.write_text(json.dumps(raw), encoding="utf-8")
+    workspace.remember_selected(legacy)
+
+    window = FPGALabMainWindow(workspace, settings=settings)
+    assert window.selected_board_id() == "alhambra_ii"
+
+    unknown = workspace.create("Unknown", board_id="future-board").path
+    warnings = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args))
+    window._set_selected_lab(unknown, notify=True)
+    assert window.selected_lab() == legacy.resolve()
+    assert workspace.board_id(unknown) == "future-board"
+    assert warnings
+    window.close()
 
 
 def test_cached_model_is_closed_before_loading_same_library_again(tmp_path, monkeypatch):

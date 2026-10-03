@@ -10,6 +10,9 @@ def test_bundled_alhambra_ii_package_is_available():
     catalog = BoardCatalog()
     package = catalog.get(DEFAULT_BOARD_ID)
 
+    assert catalog.resolve("alhambra-ii") == package
+    assert catalog.resolve(DEFAULT_BOARD_ID) == package
+
     assert package.definition.board_id == "alhambra-ii"
     assert package.definition.label == "Alhambra II"
     assert package.definition.clock_hz == 12_000_000

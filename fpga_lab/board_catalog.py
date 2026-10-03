@@ -77,3 +77,10 @@ class BoardCatalog:
             if package.board_id == board_id:
                 return package
         raise KeyError(f"Board {board_id!r} is not available")
+
+    def resolve(self, identifier: str) -> BoardPackage:
+        """Accept the package directory ID or its public board.json ID."""
+        for package in self.packages:
+            if identifier in (package.board_id, package.definition.board_id):
+                return package
+        raise KeyError(f"Board {identifier!r} is not available")

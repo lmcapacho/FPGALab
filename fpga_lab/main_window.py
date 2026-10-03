@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal
@@ -86,9 +87,11 @@ class LabManagerDialog(QDialog):
 
     active_lab_changed = pyqtSignal(Path)
 
-    def __init__(self, workspace: LabWorkspace, selected_lab: Path, parent=None):
+    def __init__(self, workspace: LabWorkspace, selected_lab: Path, parent=None,
+                 board_id: str = "alhambra-ii"):
         super().__init__(parent)
         self._workspace = workspace
+        self._board_id = board_id
         self._selected_lab = selected_lab.resolve()
         self._active_lab_path = selected_lab.resolve()
         self.setWindowTitle(t("Laboratories"))
@@ -180,7 +183,7 @@ class LabManagerDialog(QDialog):
         dialog = LabNameDialog(t("New Lab"), t("Create"), parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        descriptor = self._workspace.create(dialog.name_field.text())
+        descriptor = self._workspace.create(dialog.name_field.text(), self._board_id)
         self._selected_lab = descriptor.path.resolve()
         self._refresh()
 
@@ -305,6 +308,12 @@ class FPGALabMainWindow(QMainWindow):
         self._recent_projects = RecentProjects(self._settings)
         self._theme_mode = load_theme_mode(self._settings)
         self._selected_lab = self._workspace.last_selected()
+        try:
+            self._initial_board_id = self.board_id_for_lab(self._selected_lab)
+            self._board_load_error = None
+        except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+            self._initial_board_id = DEFAULT_BOARD_ID
+            self._board_load_error = str(error)
         self._active_lab: QWidget | None = None
         self._busy_dialog: QProgressDialog | None = None
         self._status_bar = QStatusBar(self)
@@ -359,6 +368,8 @@ class FPGALabMainWindow(QMainWindow):
         language_manager.language_changed.connect(self._retranslate_ui)
         self._retranslate_ui()
         self._restore_last_project()
+        if self._board_load_error:
+            self.set_status(t("Lab board is unavailable: {error}", error=self._board_load_error))
 
     def _project_bar(self) -> QWidget:
         frame = QFrame()
@@ -381,8 +392,7 @@ class FPGALabMainWindow(QMainWindow):
         self._board.setMinimumWidth(125)
         for package in self._board_catalog.packages:
             self._board.addItem(package.definition.label, package.board_id)
-        saved_board = self._settings.value(self.BOARD_KEY, DEFAULT_BOARD_ID, type=str)
-        selected = self._board.findData(saved_board)
+        selected = self._board.findData(self._initial_board_id)
         if selected < 0:
             selected = self._board.findData(DEFAULT_BOARD_ID)
         self._board.setCurrentIndex(selected if selected >= 0 else 0)
@@ -475,6 +485,17 @@ class FPGALabMainWindow(QMainWindow):
     def board_clock_hz(self, board_id: str) -> int:
         return self._board_catalog.get(board_id).definition.clock_hz
 
+    def board_id_for_lab(self, lab: Path) -> str:
+        identifier = self._workspace.board_id(lab)
+        if identifier is None:
+            identifier = self._board_catalog.get(DEFAULT_BOARD_ID).definition.board_id
+        return self._board_catalog.resolve(identifier).board_id
+
+    def save_selected_lab_board(self, board_id: str) -> None:
+        self._workspace.set_board_id(
+            self._selected_lab, self._board_catalog.get(board_id).definition.board_id
+        )
+
     def select_board(self, board_id: str) -> None:
         index = self._board.findData(board_id)
         if index < 0:
@@ -536,7 +557,8 @@ class FPGALabMainWindow(QMainWindow):
         return name if name.casefold().endswith(" lab") else f"{name} Lab"
 
     def _open_lab_manager(self) -> None:
-        dialog = LabManagerDialog(self._workspace, self._selected_lab, self)
+        current_board = self._board_catalog.get(self.selected_board_id()).definition.board_id
+        dialog = LabManagerDialog(self._workspace, self._selected_lab, self, board_id=current_board)
         dialog.active_lab_changed.connect(lambda path: self._set_selected_lab(path, notify=True))
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -544,6 +566,11 @@ class FPGALabMainWindow(QMainWindow):
             self._set_selected_lab(path, notify=True)
 
     def _set_selected_lab(self, path: Path, notify: bool) -> None:
+        try:
+            self.board_id_for_lab(path)
+        except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+            QMessageBox.warning(self, t("Cannot load lab"), t("Lab board is unavailable: {error}", error=error))
+            return
         self._selected_lab = path.resolve()
         self._workspace.remember_selected(self._selected_lab)
         self._refresh_labs()

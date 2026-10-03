@@ -151,6 +151,7 @@ class ApplicationController(QObject):
         self._manual_profile = BoardProfile.load(namespace.profile) if namespace.profile else None
         self._build_worker: BuildWorker | None = None
         self._pending_run: PendingProjectRun | None = None
+        self._switching_lab = False
         window.project_requested.connect(self.execute_project)
         window.board_selected.connect(self.select_board)
         window.lab_selected.connect(self.switch_lab)
@@ -188,12 +189,25 @@ class ApplicationController(QObject):
                 clock_hz=self._window.board_clock_hz(board_id)
             )
         self._window.set_lab(lab)
+        if not self._switching_lab:
+            self._window.save_selected_lab_board(board_id)
         self._window.set_clock_performance(self._simulation_settings.clock_hz)
         self._window.set_status(t("Board selected: {name}", name=self._window.board_name(board_id)))
 
     def switch_lab(self, lab_file: Path) -> None:
         """Apply the selected laboratory to the visible workbench immediately."""
         active_lab = self._window.active_lab()
+        board_id = self._window.board_id_for_lab(lab_file)
+        if board_id != self._board_id:
+            previous_lab_file = active_lab._lab_file if isinstance(active_lab, FPGAVirtualLab) else None
+            self._switching_lab = True
+            try:
+                self._window.select_board(board_id)
+            finally:
+                self._switching_lab = False
+            if self._board_id != board_id and previous_lab_file is not None:
+                self._window.select_lab(previous_lab_file)
+            return
         if not isinstance(active_lab, FPGAVirtualLab):
             return
         try:
@@ -211,7 +225,10 @@ class ApplicationController(QObject):
             project = IcestudioProject.discover(ice_file)
             interface = VerilogInterface.discover(project.main_v)
             clock_port = project_clock_port(project, interface, self._board_id)
-            profile = self._manual_profile or interface.profile(clock_port=clock_port)
+            board_name = self._window.board_name(self._board_id)
+            profile = self._manual_profile or interface.profile(
+                board_name=board_name, clock_port=clock_port
+            )
             led_sources, input_sources = board_sources(project, profile, self._board_id)
             if self._manual_profile is None:
                 profile = apply_led_observed(profile, led_sources)

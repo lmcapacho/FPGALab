@@ -22,6 +22,20 @@ def test_workspace_restores_the_last_selected_lab(tmp_path):
     assert restored.last_selected() != first
 
 
+def test_lab_board_metadata_is_read_and_updated_without_losing_content(tmp_path):
+    workspace = LabWorkspace(tmp_path / "workspace")
+    lab = workspace.create("Board test", board_id="test-board").path
+    raw = json.loads(lab.read_text(encoding="utf-8"))
+    raw["custom"] = {"keep": True}
+    lab.write_text(json.dumps(raw), encoding="utf-8")
+
+    assert workspace.board_id(lab) == "test-board"
+    workspace.set_board_id(lab, "alhambra-ii")
+    updated = json.loads(lab.read_text(encoding="utf-8"))
+    assert updated["metadata"]["board_id"] == "alhambra-ii"
+    assert updated["custom"] == {"keep": True}
+
+
 def test_workspace_falls_back_when_the_last_lab_no_longer_exists(tmp_path):
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
     workspace = LabWorkspace(tmp_path / "workspace", settings)

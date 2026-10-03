@@ -33,6 +33,9 @@ FPGALab consumes the project-specific PCF generated in the Icestudio project's
 definition, layout, profile, and PCF. Invalid packages are skipped with a
 diagnostic. Its `board_id` is the directory name (for example, `alhambra_ii`);
 the `id` in `board.json` remains the board's public identifier.
+Labs store the public identifier in `metadata.board_id`. The GUI resolves it to
+the package directory ID when opening a Lab; changing the board selector updates
+that Lab metadata. Labs without this field use the default Alhambra II board.
 In `layout.json`, a board LED may declare `"role": "power"` and a board button
 may declare `"role": "reset"`. These optional roles control the simulation
 indicator and reset action without depending on the elements' signal names.

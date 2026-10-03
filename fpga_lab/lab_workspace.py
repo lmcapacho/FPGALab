@@ -86,13 +86,30 @@ class LabWorkspace:
             self._settings.sync()
         return True
 
-    def create(self, name: str) -> LabDescriptor:
+    def create(self, name: str, board_id: str = "alhambra-ii") -> LabDescriptor:
         """Create a named empty lab without overwriting existing configurations."""
         self.ensure_default()
         cleaned_name = name.strip() or "New Lab"
         candidate = self._available_path(cleaned_name)
-        self._write_lab(candidate, cleaned_name)
+        self._write_lab(candidate, cleaned_name, board_id)
         return LabDescriptor(cleaned_name, candidate)
+
+    def board_id(self, lab: str | Path) -> str | None:
+        """Read the board declared by a Lab without changing its content."""
+        raw = json.loads(Path(lab).read_text(encoding="utf-8"))
+        metadata = raw.get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError("The Lab metadata is invalid.")
+        identifier = metadata.get("board_id")
+        return identifier if isinstance(identifier, str) and identifier.strip() else None
+
+    def set_board_id(self, lab: str | Path, board_id: str) -> None:
+        """Persist a user-selected board while preserving the rest of the Lab."""
+        target = self._existing_lab_path(lab)
+        raw = json.loads(target.read_text(encoding="utf-8"))
+        self._validate_lab_document(raw)
+        raw.setdefault("metadata", {})["board_id"] = board_id
+        target.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
 
     def duplicate(self, lab: str | Path) -> LabDescriptor:
         """Copy a user-visible lab configuration under a distinct name."""
@@ -242,6 +259,6 @@ class LabWorkspace:
             return LabWorkspace._name_from_path(path)
 
     @staticmethod
-    def _write_lab(path: Path, name: str) -> None:
-        raw = {"metadata": {"name": name, "board_id": "alhambra-ii"}, "peripherals": []}
+    def _write_lab(path: Path, name: str, board_id: str = "alhambra-ii") -> None:
+        raw = {"metadata": {"name": name, "board_id": board_id}, "peripherals": []}
         path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")

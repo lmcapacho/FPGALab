@@ -76,7 +76,7 @@ class FPGAVirtualLab(QWidget):
         self._closed = False
         board = BoardDefinition.load(bundled_board_definition(board_id))
         self._board = board
-        self._board_name = simulation.profile.board_name if simulation else board.label
+        self._board_name = board.label
         self._available_inputs = frozenset(simulation.profile.inputs) if simulation else frozenset()
         self._has_clock = simulation.profile.clock_name is not None if simulation else None
         self._input_widths = dict(simulation.profile.inputs) if simulation else {}
