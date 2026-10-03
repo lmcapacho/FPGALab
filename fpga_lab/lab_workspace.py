@@ -12,6 +12,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import QSettings
 
+from .board import DEFAULT_BOARD_PUBLIC_ID
+
 
 @dataclass(frozen=True)
 class LabDescriptor:
@@ -86,7 +88,7 @@ class LabWorkspace:
             self._settings.sync()
         return True
 
-    def create(self, name: str, board_id: str = "alhambra-ii") -> LabDescriptor:
+    def create(self, name: str, board_id: str = DEFAULT_BOARD_PUBLIC_ID) -> LabDescriptor:
         """Create a named empty lab without overwriting existing configurations."""
         self.ensure_default()
         cleaned_name = name.strip() or "New Lab"
@@ -259,6 +261,6 @@ class LabWorkspace:
             return LabWorkspace._name_from_path(path)
 
     @staticmethod
-    def _write_lab(path: Path, name: str, board_id: str = "alhambra-ii") -> None:
+    def _write_lab(path: Path, name: str, board_id: str = DEFAULT_BOARD_PUBLIC_ID) -> None:
         raw = {"metadata": {"name": name, "board_id": board_id}, "peripherals": []}
         path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")

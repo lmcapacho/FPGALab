@@ -23,7 +23,7 @@ class BoardProfile:
     def load(cls, path: str | Path) -> "BoardProfile":
         source = Path(path)
         raw = json.loads(source.read_text(encoding="utf-8"))
-        profile = cls(raw.get("board_name", "Alhambra II"), raw["inputs"], raw["outputs"], raw.get("observed"), raw.get("clock_name", "clk"))
+        profile = cls(raw.get("board_name", "Unnamed board"), raw["inputs"], raw["outputs"], raw.get("observed"), raw.get("clock_name", "clk"))
         profile.validate()
         return profile
 

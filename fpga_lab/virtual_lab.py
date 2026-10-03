@@ -1,4 +1,4 @@
-"""Modern visual panel for interacting with an emulated Alhambra II."""
+"""Modern visual panel for interacting with a packaged FPGA board."""
 
 from __future__ import annotations
 

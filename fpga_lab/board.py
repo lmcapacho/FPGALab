@@ -8,6 +8,7 @@ from pathlib import Path
 from .i18n import t
 
 DEFAULT_BOARD_ID = "alhambra_ii"
+DEFAULT_BOARD_PUBLIC_ID = "alhambra-ii"
 
 
 @dataclass(frozen=True)

@@ -8,7 +8,7 @@ from time import perf_counter
 from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 
 from .edge_drive import TimedDriveScheduler
-from .board import BoardDefinition, bundled_board_clock_hz, bundled_board_definition
+from .board import bundled_board_clock_hz
 from .i18n import t
 from .simulation import EdgeEvent, VgaStats, VerilatorSimulation
 from .sink_bind import VgaBinding
@@ -106,7 +106,7 @@ class SimulationWorker(QObject):
         self._measured_virtual_hz = 0.0
         self._led_endpoints = (
             tuple(led_endpoints) if led_endpoints is not None
-            else BoardDefinition.load(bundled_board_definition()).led_endpoints
+            else ()
         )
         self._led_models = [LedModel() for _ in self._led_endpoints]
         resolved = led_sources or {}

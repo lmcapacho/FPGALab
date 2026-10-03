@@ -56,7 +56,7 @@ class VerilogInterface:
             {port.name: port.width for port in ports if port.direction in {"input", "inout"}}, text
         ))
 
-    def profile(self, board_name: str = "Alhambra II", clock_port: str | None = None) -> BoardProfile:
+    def profile(self, board_name: str = "Unnamed board", clock_port: str | None = None) -> BoardProfile:
         """Create a generic ABI profile for every input and output port."""
         inputs = {port.name: port.width for port in self.ports if port.direction in {"input", "inout"}}
         outputs = {port.name: port.width for port in self.ports if port.direction == "output"}

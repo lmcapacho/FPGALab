@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 from . import __version__
-from .board import DEFAULT_BOARD_ID
+from .board import DEFAULT_BOARD_ID, DEFAULT_BOARD_PUBLIC_ID
 from .board_catalog import BoardCatalog
 from .i18n import language_manager, t
 from .lab_workspace import LabWorkspace
@@ -88,7 +88,7 @@ class LabManagerDialog(QDialog):
     active_lab_changed = pyqtSignal(Path)
 
     def __init__(self, workspace: LabWorkspace, selected_lab: Path, parent=None,
-                 board_id: str = "alhambra-ii"):
+                 board_id: str = DEFAULT_BOARD_PUBLIC_ID):
         super().__init__(parent)
         self._workspace = workspace
         self._board_id = board_id
