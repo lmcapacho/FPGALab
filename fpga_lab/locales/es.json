@@ -385,5 +385,9 @@
   "Rotation": "Rotación",
   "Mirror horizontally": "Reflejar horizontalmente",
   "Mirror vertically": "Reflejar verticalmente",
+  "Role": "Función",
+  "No special role": "Sin función especial",
+  "Power indicator": "Indicador de encendido",
+  "Reset button": "Botón de reinicio",
   "Drag an endpoint to change the line. Hold Shift for horizontal or vertical.": "Arrastra un extremo para cambiar la línea. Mantén Shift para fijarla horizontal o vertical."
 }

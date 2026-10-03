@@ -15,6 +15,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Changed
 
+- Board reset buttons and power indicators now use optional layout roles instead of fixed signal names.
 - Separated virtual-cycle input scheduling from UART encoding, with protocol-neutral multi-channel sequencing and transport tests for future serial peripherals.
 
 ### Fixed

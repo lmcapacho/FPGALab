@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -80,6 +81,31 @@ def test_board_reset_runs_once_on_press_not_release(tmp_path):
     lab._bouncy_input("RESET", 0)
 
     assert requests == [True]
+    lab.close()
+    lab.deleteLater()
+
+
+def test_board_reset_and_power_follow_layout_roles(tmp_path):
+    lab_file = tmp_path / "lab.json"
+    lab_file.write_text('{"peripherals": []}', encoding="utf-8")
+    lab = FPGAVirtualLab(lab_file=lab_file)
+    elements = tuple(
+        replace(element, signal="RESTART" if element.role == "reset" else "ON_LED")
+        if element.role in {"reset", "power"} else element
+        for element in lab._layout.elements
+    )
+    lab._layout = replace(lab._layout, elements=elements)
+    resets: list[bool] = []
+    lights: list[tuple[str, float]] = []
+    lab.reset_requested.connect(lambda: resets.append(True))
+    lab._board_view.set_led_brightness = lambda name, brightness: lights.append((name, brightness))
+
+    lab.start_simulation()
+    lab._bouncy_input("RESTART", 1)
+    lab._bouncy_input("RESTART", 0)
+
+    assert lights == [("ON_LED", 1.0)]
+    assert resets == [True]
     lab.close()
     lab.deleteLater()
 

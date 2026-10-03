@@ -33,6 +33,11 @@ FPGALab consumes the project-specific PCF generated in the Icestudio project's
 definition, layout, profile, and PCF. Invalid packages are skipped with a
 diagnostic. Its `board_id` is the directory name (for example, `alhambra_ii`);
 the `id` in `board.json` remains the board's public identifier.
+In `layout.json`, a board LED may declare `"role": "power"` and a board button
+may declare `"role": "reset"`. These optional roles control the simulation
+indicator and reset action without depending on the elements' signal names.
+Select the element in Edit layout to assign its role; each role can belong to
+only one element.
 
 ## External peripherals
 

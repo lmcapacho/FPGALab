@@ -33,6 +33,11 @@ el `pinout.pcf` empaquetado sirve como referencia del pinout de la tarjeta.
 layout, perfil y PCF. Omite los paquetes inválidos y conserva un diagnóstico.
 Su `board_id` es el nombre de la carpeta (por ejemplo, `alhambra_ii`); el campo
 `id` de `board.json` sigue siendo el identificador público de la tarjeta.
+En `layout.json`, un LED de la tarjeta puede declarar `"role": "power"` y un
+botón puede declarar `"role": "reset"`. Estos roles opcionales controlan el
+indicador de ejecución y el reinicio sin depender del nombre de la señal.
+Selecciona el elemento en Editar layout para asignar su función; cada función
+puede pertenecer a un solo elemento.
 
 ## Periféricos externos
 

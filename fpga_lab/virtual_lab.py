@@ -279,7 +279,8 @@ class FPGAVirtualLab(QWidget):
         self._running = True
         self._peripherals.set_powered(True)
         self.play_requested.emit()
-        self._board_view.set_led_brightness("PWR", 1.0)
+        if power_signal := self._layout.signal_for_role("power"):
+            self._board_view.set_led_brightness(power_signal, 1.0)
         self._edit_layout_button.setEnabled(False)
         missing = self._peripherals.missing_required_connections()
         if missing:
@@ -319,7 +320,7 @@ class FPGAVirtualLab(QWidget):
         """Three quick transitions make button bounce perceptible and configurable."""
         if not self._running:
             return
-        if name == "RESET":
+        if name == self._layout.signal_for_role("reset"):
             if final_value:
                 self.reset_requested.emit()
             return

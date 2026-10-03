@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from dataclasses import replace
 
 from PyQt6.QtCore import QSettings, QTimer, Qt
 from PyQt6.QtGui import QColor, QPainter, QPen
@@ -105,6 +106,10 @@ class BoardLayoutEditor(QDialog):
         form.addRow(t("Type"), self._kind)
         form.addRow(t("Signal"), self._signal)
         form.addRow(t("Position"), self._position)
+        self._role = QComboBox()
+        self._role.setEnabled(False)
+        self._role.currentIndexChanged.connect(self._change_role)
+        form.addRow(t("Role"), self._role)
         side.addLayout(form)
         transform_form = QFormLayout()
         self._rotation = QComboBox()
@@ -163,6 +168,7 @@ class BoardLayoutEditor(QDialog):
             element.width * self._bounds.width() / width,
             element.height * self._bounds.height() / height,
             element.color,
+            element.role,
         )
 
     def _map_to_layout(self, item: EditableItem) -> tuple[float, float]:
@@ -195,18 +201,42 @@ class BoardLayoutEditor(QDialog):
         item = selected[0]; element = self._elements[item.element_id]
         color = QColorDialog.getColor(QColor(element.color), self, t("Component color"))
         if color.isValid():
-            self._elements[element.id] = BoardLayoutElement(element.id, element.kind, element.signal, element.x, element.y, element.width, element.height, color.name())
+            self._elements[element.id] = replace(element, color=color.name())
+
+    def _change_role(self) -> None:
+        selected = self._scene.selectedItems()
+        if not selected:
+            return
+        element_id = selected[0].element_id
+        role = self._role.currentData()
+        if role is not None:
+            for other_id, element in self._elements.items():
+                if other_id != element_id and element.role == role:
+                    self._elements[other_id] = replace(element, role=None)
+        self._elements[element_id] = replace(self._elements[element_id], role=role)
 
     def _show_selection(self) -> None:
         selected = self._scene.selectedItems()
         if not selected:
             self._id.setText("—"); self._kind.setText("—"); self._signal.setText("—"); self._position.setText("—")
+            self._role.setEnabled(False)
+            self._role.clear()
             return
         item = selected[0]
         source = self._elements[item.element_id]
         x, y = self._map_to_layout(item)
         self._id.setText(source.id); self._kind.setText(source.kind); self._signal.setText(source.signal)
         self._position.setText(f"x={x}, y={y}")
+        self._role.blockSignals(True)
+        self._role.clear()
+        self._role.addItem(t("No special role"), None)
+        if source.kind == "led":
+            self._role.addItem(t("Power indicator"), "power")
+        elif source.kind == "button":
+            self._role.addItem(t("Reset button"), "reset")
+        self._role.setCurrentIndex(max(0, self._role.findData(source.role)))
+        self._role.setEnabled(True)
+        self._role.blockSignals(False)
 
     def _prepare_canvas(self) -> None:
         self.fit_to_canvas()
@@ -241,6 +271,7 @@ class BoardLayoutEditor(QDialog):
         self._canvas.fitInView(self._bounds, Qt.AspectRatioMode.KeepAspectRatio)
 
     def save(self) -> None:
+        replace(self._layout, elements=tuple(self._elements.values())).validate()
         prompt = t(
             "This changes the packaged board layout used by FPGALab. "
             "Continue and keep a backup of the previous layout?"
@@ -258,6 +289,10 @@ class BoardLayoutEditor(QDialog):
             x, y = self._map_to_layout(item); rect = item.sceneBoundingRect(); element = self._elements[element_id]
             component = original.get(element_id, {})
             component.update({"id": element_id, "type": element.kind, "signal": element.signal, "x": x, "y": y, "width": round(rect.width(), 3), "height": round(rect.height(), 3), "color": element.color})
+            if element.role is None:
+                component.pop("role", None)
+            else:
+                component["role"] = element.role
             raw["components"].append(component)
         raw["transform"] = {
             "rotation": self._rotation.currentIndex() * 90,

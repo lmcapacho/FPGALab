@@ -20,6 +20,7 @@ class BoardLayoutElement:
     width: float
     height: float
     color: str = "#22c55e"
+    role: str | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class BoardLayout:
                 x=float(item["x"]), y=float(item["y"]),
                 width=float(item["width"]), height=float(item["height"]),
                 color=item.get("color", "#22c55e"),
+                role=item.get("role"),
             )
             for item in raw["components"]
         )
@@ -81,6 +83,18 @@ class BoardLayout:
                 raise ValueError(t("Unsupported component type: {kind}", kind=element.kind))
             if element.width <= 0 or element.height <= 0:
                 raise ValueError(f"Invalid size for {element.id}")
+            if element.role not in {None, "power", "reset"}:
+                raise ValueError(f"Unsupported board control role: {element.role}")
+            if element.role == "power" and element.kind != "led":
+                raise ValueError("Power control must be an LED")
+            if element.role == "reset" and element.kind != "button":
+                raise ValueError("Reset control must be a button")
+        roles = [element.role for element in self.elements if element.role is not None]
+        if len(roles) != len(set(roles)):
+            raise ValueError("Board layout contains duplicate control roles")
+
+    def signal_for_role(self, role: str) -> str | None:
+        return next((element.signal for element in self.elements if element.role == role), None)
 
 
 def bundled_layout(board_id: str = DEFAULT_BOARD_ID) -> Path:
