@@ -195,5 +195,5 @@
       "location": "header.bottom.DD5"
     }
   ],
-  "pinout_pcf": "alhambra_ii.pcf"
+  "pinout_pcf": "pinout.pcf"
 }

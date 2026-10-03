@@ -29,6 +29,10 @@ Cada carpeta contiene la definición, el pinout, el perfil, el layout y el SVG
 de la tarjeta. `alhambra_ii/` es la estructura de referencia para futuras
 tarjetas. FPGALab usa el PCF específico generado por Icestudio en `ice-build`;
 el `pinout.pcf` empaquetado sirve como referencia del pinout de la tarjeta.
+`BoardCatalog` descubre estas carpetas y valida sus archivos, definición,
+layout, perfil y PCF. Omite los paquetes inválidos y conserva un diagnóstico.
+Su `board_id` es el nombre de la carpeta (por ejemplo, `alhambra_ii`); el campo
+`id` de `board.json` sigue siendo el identificador público de la tarjeta.
 
 ## Periféricos externos
 

@@ -29,6 +29,10 @@ directory keeps its definition, pin constraints, profile, layout, and SVG in
 one place. The Alhambra II directory is the reference layout for future boards.
 FPGALab consumes the project-specific PCF generated in the Icestudio project's
 `ice-build` directory; the packaged `pinout.pcf` is the board pinout reference.
+`BoardCatalog` discovers these directories and validates their required files,
+definition, layout, profile, and PCF. Invalid packages are skipped with a
+diagnostic. Its `board_id` is the directory name (for example, `alhambra_ii`);
+the `id` in `board.json` remains the board's public identifier.
 
 ## External peripherals
 
