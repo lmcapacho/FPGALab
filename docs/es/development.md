@@ -38,6 +38,10 @@ botón puede declarar `"role": "reset"`. Estos roles opcionales controlan el
 indicador de ejecución y el reinicio sin depender del nombre de la señal.
 Selecciona el elemento en Editar layout para asignar su función; cada función
 puede pertenecer a un solo elemento.
+El orden de `controls.leds` en `board.json` determina el orden de los valores
+LED publicados por el worker. Cada nombre de endpoint selecciona el LED visual
+correspondiente en `layout.json`; una tarjeta puede declarar cualquier número
+de LEDs, incluso ninguno.
 
 ## Periféricos externos
 

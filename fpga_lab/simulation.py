@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .i18n import t
+from .board import BoardDefinition, bundled_board_definition
 from .profile import BoardProfile
 from .sink_bind import BoundBit, VgaTiming
 from .temporal import SignalWindow
@@ -435,10 +436,11 @@ class VerilatorSimulation:
     def streaming_reset(self) -> None:
         self._streaming_reset()
 
-    def read_leds(self) -> list[bool]:
-        """UI convention: LED0 is the first item in the returned list."""
-        return [bool(self.get_output(f"LED{index}")) if f"LED{index}" in self._getters else False
-                for index in range(8)]
+    def read_leds(self, endpoints: tuple[str, ...] | None = None) -> list[bool]:
+        """Read named board LEDs in declaration order."""
+        if endpoints is None:
+            endpoints = BoardDefinition.load(bundled_board_definition()).led_endpoints
+        return [bool(self.get_output(name)) if name in self._getters else False for name in endpoints]
 
     def close(self) -> None:
         if getattr(self, "_lib", None) is not None:

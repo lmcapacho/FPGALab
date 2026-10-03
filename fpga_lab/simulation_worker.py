@@ -8,7 +8,7 @@ from time import perf_counter
 from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 
 from .edge_drive import TimedDriveScheduler
-from .board import bundled_board_clock_hz
+from .board import BoardDefinition, bundled_board_clock_hz, bundled_board_definition
 from .i18n import t
 from .simulation import EdgeEvent, VgaStats, VerilatorSimulation
 from .sink_bind import VgaBinding
@@ -87,6 +87,7 @@ class SimulationWorker(QObject):
         ui_refresh_hz: int = 60,
         observation_hz: int = 1_000_000,
         led_sources: dict[int, tuple[str, int]] | None = None,
+        led_endpoints: tuple[str, ...] | None = None,
     ):
         super().__init__()
         if clock_hz <= 0 or ui_refresh_hz <= 0 or observation_hz <= 0:
@@ -103,8 +104,16 @@ class SimulationWorker(QObject):
         self._performance_cycles = 0
         self._performance_wall_seconds = 0.0
         self._measured_virtual_hz = 0.0
-        self._led_models = [LedModel() for _ in range(8)]
-        self._led_sources = led_sources or {index: (f"LED{index}", 0) for index in range(8)}
+        self._led_endpoints = (
+            tuple(led_endpoints) if led_endpoints is not None
+            else BoardDefinition.load(bundled_board_definition()).led_endpoints
+        )
+        self._led_models = [LedModel() for _ in self._led_endpoints]
+        resolved = led_sources or {}
+        self._led_sources = {
+            index: resolved.get(index, (endpoint, 0))
+            for index, endpoint in enumerate(self._led_endpoints)
+        }
         self._vga_bindings: tuple[VgaBinding, ...] = ()
         self._sink_id: int | None = None
         self._blank_next = False
@@ -230,7 +239,7 @@ class SimulationWorker(QObject):
         self._drive_scheduler.reset()
         self._blank_next = True
         self.state_changed.emit(SimulationFrame(
-            led_brightness=tuple([0.0] * 8),
+            led_brightness=(0.0,) * len(self._led_models),
             outputs={},
             sinks=self._blank_sinks(),
             temporal=TemporalFrame(),
@@ -296,7 +305,7 @@ class SimulationWorker(QObject):
             virtual_elapsed = cycles / self._clock_hz if self._clock_hz else 0.0
             leds = []
             for index, model in enumerate(self._led_models):
-                port, bit = self._led_sources.get(index, (f"LED{index}", 0))
+                port, bit = self._led_sources[index]
                 signal = windows.get(f"{port}[{bit}]")
                 leds.append(model.advance({"anode": signal}, virtual_elapsed) if signal else 0.0)
             outputs = {

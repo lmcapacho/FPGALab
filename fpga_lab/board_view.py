@@ -166,7 +166,7 @@ class BoardView(QGraphicsView):
         self._layout.source.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
 
     def set_led_brightness(self, signal: str, brightness: float) -> None:
-        if led := self._leds.get(signal):
+        if led := self._led_items.get(signal) or self._leds.get(signal):
             led.set_brightness(brightness)
 
     def clear_leds(self) -> None:

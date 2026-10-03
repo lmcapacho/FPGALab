@@ -96,7 +96,10 @@ class FPGAVirtualLab(QWidget):
         self._worker: SimulationWorker | None = None
         if simulation is not None:
             self._thread = QThread(self)
-            self._worker = SimulationWorker(simulation, clock_hz, ui_refresh_hz, observation_hz, self._led_sources)
+            self._worker = SimulationWorker(
+                simulation, clock_hz, ui_refresh_hz, observation_hz,
+                self._led_sources, board.led_endpoints,
+            )
             self._worker.moveToThread(self._thread)
             self._thread.started.connect(self._worker.start)
             self.set_input_requested.connect(self._worker.set_input)
@@ -349,8 +352,8 @@ class FPGAVirtualLab(QWidget):
     def _paint_state(self, frame: SimulationFrame) -> None:
         if self._ignore_state or not self._running:
             return
-        for index, state in enumerate(frame.led_brightness):
-            self._board_view.set_led_brightness(f"LED{index}", float(state))
+        for endpoint, state in zip(self._board.led_endpoints, frame.led_brightness):
+            self._board_view.set_led_brightness(endpoint, float(state))
         self._peripherals.update_frame(frame)
         if self._running and self._has_clock is True and frame.virtual_hz > 0.0:
             self.clock_performance_changed.emit(float(self._clock_hz), frame.virtual_hz)
