@@ -1,6 +1,8 @@
 # Labs and workbench
 
-A **Lab** is a reusable peripheral arrangement independent from an Icestudio project. It stores components, pin assignments, properties, positions, zoom, and camera state.
+A **Lab** is a reusable peripheral arrangement independent from an Icestudio project. It stores its board, components, pin assignments, properties, positions, zoom, and camera state. The virtual clock normally uses the selected board's `clock_hz`. In Simulation settings, enable **Use a custom clock for this Lab** to override it for one Lab; restoring defaults returns to the board clock. Interface refresh and temporal sampling remain user-wide settings. The effective temporal sampling rate is shown in the dialog and cannot exceed the virtual clock.
+
+On first launch after this change, a previously saved global virtual clock is assigned to the active Lab. Other Labs continue to use their own board clock unless configured separately. The `--clock-hz` command-line option overrides the clock for the current launch without changing a Lab.
 
 ## Manage Labs
 

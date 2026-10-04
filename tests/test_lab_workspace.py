@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 
 from PyQt6.QtCore import QSettings
 
@@ -34,6 +35,29 @@ def test_lab_board_metadata_is_read_and_updated_without_losing_content(tmp_path)
     updated = json.loads(lab.read_text(encoding="utf-8"))
     assert updated["metadata"]["board_id"] == "alhambra-ii"
     assert updated["custom"] == {"keep": True}
+
+
+def test_lab_clock_override_is_optional_and_board_change_restores_board_default(tmp_path):
+    workspace = LabWorkspace(tmp_path / "workspace")
+    lab = workspace.create("Clock test").path
+    assert workspace.clock_override_hz(lab) is None
+
+    workspace.set_clock_override_hz(lab, 25_175_000)
+    assert workspace.clock_override_hz(lab) == 25_175_000
+    workspace.set_board_id(lab, "another-board")
+    assert workspace.clock_override_hz(lab) is None
+
+    workspace.set_clock_override_hz(lab, 8_000_000)
+    workspace.set_clock_override_hz(lab, None)
+    assert workspace.clock_override_hz(lab) is None
+
+
+@pytest.mark.parametrize("invalid", [True, 0, -1, "12000000", 1_000_000_001])
+def test_lab_rejects_invalid_clock_overrides(tmp_path, invalid):
+    workspace = LabWorkspace(tmp_path / "workspace")
+    lab = workspace.create("Invalid clock").path
+    with pytest.raises(ValueError):
+        workspace.set_clock_override_hz(lab, invalid)
 
 
 def test_workspace_falls_back_when_the_last_lab_no_longer_exists(tmp_path):

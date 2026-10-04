@@ -16,6 +16,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Changed
 
+- Virtual clock defaults to the selected board's frequency, with an optional per-Lab override; older global clock settings migrate to the active Lab. Interface refresh and temporal sampling remain global.
 - Removed remaining runtime assumptions that unnamed profiles and generic simulation workers belong to Alhambra II; board-specific labels and LED endpoints now come from the selected board package.
 - The selected Lab now determines the active board; changing the board selector updates the Lab, and the board title follows the selected definition during simulation.
 - Board LED sampling and display now follow the configured endpoints and count instead of assuming eight LEDs named `LED0`–`LED7`.

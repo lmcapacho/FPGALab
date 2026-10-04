@@ -105,12 +105,40 @@ class LabWorkspace:
         identifier = metadata.get("board_id")
         return identifier if isinstance(identifier, str) and identifier.strip() else None
 
+    def clock_override_hz(self, lab: str | Path) -> int | None:
+        """Return a Lab's optional virtual clock override."""
+        raw = json.loads(Path(lab).read_text(encoding="utf-8"))
+        metadata = raw.get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError("The Lab metadata is invalid.")
+        value = metadata.get("virtual_clock_hz")
+        if value is None:
+            return None
+        if type(value) is not int or not 1 <= value <= 1_000_000_000:
+            raise ValueError("The Lab virtual clock must be between 1 and 1,000,000,000 Hz.")
+        return value
+
+    def set_clock_override_hz(self, lab: str | Path, clock_hz: int | None) -> None:
+        """Save or remove the Lab's virtual clock without changing other data."""
+        if clock_hz is not None and (type(clock_hz) is not int or not 1 <= clock_hz <= 1_000_000_000):
+            raise ValueError("The Lab virtual clock must be between 1 and 1,000,000,000 Hz.")
+        target = self._existing_lab_path(lab)
+        raw = json.loads(target.read_text(encoding="utf-8"))
+        self._validate_lab_document(raw)
+        metadata = raw.setdefault("metadata", {})
+        if clock_hz is None:
+            metadata.pop("virtual_clock_hz", None)
+        else:
+            metadata["virtual_clock_hz"] = clock_hz
+        target.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+
     def set_board_id(self, lab: str | Path, board_id: str) -> None:
         """Persist a user-selected board while preserving the rest of the Lab."""
         target = self._existing_lab_path(lab)
         raw = json.loads(target.read_text(encoding="utf-8"))
         self._validate_lab_document(raw)
         raw.setdefault("metadata", {})["board_id"] = board_id
+        raw["metadata"].pop("virtual_clock_hz", None)
         target.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
 
     def duplicate(self, lab: str | Path) -> LabDescriptor:

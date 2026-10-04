@@ -912,7 +912,13 @@ class PeripheralsPanel(QWidget):
         self._restore_history_document(after, t("Redid: {action}", action=message))
 
     def _restore_history_document(self, raw: dict[str, object], message: str) -> None:
-        self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+        restored = copy.deepcopy(raw)
+        current = json.loads(self._lab.read_text(encoding="utf-8"))
+        if "metadata" in current:
+            restored["metadata"] = current["metadata"]
+        else:
+            restored.pop("metadata", None)
+        self._lab.write_text(json.dumps(restored, indent=2) + "\n", encoding="utf-8")
         self._reload()
         self._show_status(message)
         self._update_history_actions()

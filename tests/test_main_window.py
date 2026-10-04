@@ -44,8 +44,10 @@ def test_main_window_stays_open_when_the_active_lab_cannot_close(tmp_path):
 
 def test_board_selector_persists_and_supplies_controller_board_id(tmp_path, monkeypatch):
     from fpga_lab import app as app_module
+    from fpga_lab.simulation_settings import SimulationSettings
 
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    settings.setValue(SimulationSettings.CLOCK_KEY, 25_175_000)
     workspace = LabWorkspace(tmp_path / "labs", settings)
     packages = [
         SimpleNamespace(board_id="alhambra_ii", definition=SimpleNamespace(board_id="alhambra-ii", label="Alhambra II", clock_hz=12_000_000)),
@@ -75,12 +77,20 @@ def test_board_selector_persists_and_supplies_controller_board_id(tmp_path, monk
         SimpleNamespace(cache_dir=tmp_path / "cache", clock_hz=None, ui_refresh_hz=None,
                         observation_hz=None, profile=None),
     )
+    assert workspace.clock_override_hz(window.selected_lab()) == 25_175_000
+    assert not settings.contains(SimulationSettings.CLOCK_KEY)
+    assert controller._simulation_settings.clock_hz == 25_175_000
+    controller._namespace.clock_hz = 5_000_000
+    assert controller._effective_clock_hz("alhambra_ii") == 5_000_000
+    controller._namespace.clock_hz = None
     window.select_board("test_board")
 
     assert controller._board_id == "test_board"
     assert window.active_lab().board_id == "test_board"
     assert settings.value(window.BOARD_KEY) == "test_board"
     assert workspace.board_id(window.selected_lab()) == "test-board"
+    assert workspace.clock_override_hz(window.selected_lab()) is None
+    assert controller._simulation_settings.clock_hz == 1_000_000
     window.set_project_loading(True)
     assert not window._board.isEnabled()
     window.set_project_loading(False)
@@ -91,6 +101,7 @@ def test_board_selector_persists_and_supplies_controller_board_id(tmp_path, monk
     restored.close()
 
     other = workspace.create("Other", board_id="alhambra-ii")
+    workspace.set_clock_override_hz(other.path, 8_000_000)
     next_window = FPGALabMainWindow(workspace, settings=settings, board_catalog=Catalog())
     next_window.set_lab(FakeLab(lab_file=next_window.selected_lab(), board_id="test_board"))
     next_controller = app_module.ApplicationController(
@@ -103,6 +114,7 @@ def test_board_selector_persists_and_supplies_controller_board_id(tmp_path, monk
     assert next_controller._board_id == "alhambra_ii"
     assert next_window.active_lab().board_id == "alhambra_ii"
     assert workspace.board_id(other.path) == "alhambra-ii"
+    assert next_controller._simulation_settings.clock_hz == 8_000_000
     next_window.close()
 
 
@@ -125,6 +137,65 @@ def test_lab_without_board_uses_default_and_unknown_board_is_not_rewritten(tmp_p
     assert window.selected_lab() == legacy.resolve()
     assert workspace.board_id(unknown) == "future-board"
     assert warnings
+    window.close()
+
+
+def test_legacy_clock_migration_preserves_an_existing_lab_override(tmp_path):
+    from fpga_lab.app import migrate_legacy_clock
+    from fpga_lab.simulation_settings import SimulationSettings
+
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    workspace = LabWorkspace(tmp_path / "labs", settings)
+    lab = workspace.ensure_default()
+    workspace.set_clock_override_hz(lab, 8_000_000)
+    settings.setValue(SimulationSettings.CLOCK_KEY, 25_000_000)
+    window = FPGALabMainWindow(workspace, settings=settings)
+
+    migrate_legacy_clock(settings, window)
+
+    assert workspace.clock_override_hz(lab) == 8_000_000
+    assert not settings.contains(SimulationSettings.CLOCK_KEY)
+    window.close()
+
+
+def test_simulation_settings_save_lab_clock_and_global_refresh_separately(tmp_path, monkeypatch):
+    from fpga_lab import app as app_module
+    from fpga_lab.simulation_settings import SimulationSettings
+
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    workspace = LabWorkspace(tmp_path / "labs", settings)
+    window = FPGALabMainWindow(workspace, settings=settings)
+    controller = app_module.ApplicationController(
+        _APPLICATION, window,
+        SimpleNamespace(cache_dir=tmp_path / "cache", clock_hz=None,
+                        ui_refresh_hz=None, observation_hz=None, profile=None),
+    )
+
+    class AcceptedDialog:
+        class DialogCode:
+            Accepted = 1
+
+        def __init__(self, values, board_clock_hz, clock_override_hz, parent):
+            assert board_clock_hz == 12_000_000
+            assert clock_override_hz is None
+
+        def exec(self):
+            return self.DialogCode.Accepted
+
+        def clock_override_hz(self):
+            return 8_000_000
+
+        def values(self):
+            return SimulationSettings(clock_hz=8_000_000, ui_refresh_hz=75, observation_hz=500_000)
+
+    monkeypatch.setattr(app_module, "SimulationSettingsDialog", AcceptedDialog)
+    controller.configure_simulation()
+
+    assert workspace.clock_override_hz(window.selected_lab()) == 8_000_000
+    assert controller.clock_hz == 8_000_000
+    assert settings.value(SimulationSettings.UI_REFRESH_KEY, type=int) == 75
+    assert settings.value(SimulationSettings.OBSERVATION_KEY, type=int) == 500_000
+    assert not settings.contains(SimulationSettings.CLOCK_KEY)
     window.close()
 
 

@@ -84,6 +84,24 @@ class PendingProjectRun:
     board_id: str = DEFAULT_BOARD_ID
 
 
+def migrate_legacy_clock(store: QSettings, window: FPGALabMainWindow) -> None:
+    """Move the former global clock to the active Lab once."""
+    if not store.contains(SimulationSettings.CLOCK_KEY):
+        return
+    try:
+        legacy_hz = int(store.value(SimulationSettings.CLOCK_KEY))
+    except (TypeError, ValueError):
+        legacy_hz = 0
+    try:
+        current_override = window.lab_clock_override_hz()
+    except (OSError, ValueError, json.JSONDecodeError):
+        return
+    if 1 <= legacy_hz <= 1_000_000_000 and current_override is None:
+        window.save_selected_lab_clock_override(legacy_hz)
+    store.remove(SimulationSettings.CLOCK_KEY)
+    store.sync()
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line options while keeping the normal path GUI-first."""
     parser = argparse.ArgumentParser(description="Open the virtual FPGA lab.")
@@ -138,13 +156,11 @@ class ApplicationController(QObject):
         self._namespace = namespace
         VerilatorBuildCache(namespace.cache_dir).maintain()
         self._board_id = window.selected_board_id()
-        self._clock_is_customized = namespace.clock_hz is not None or QSettings(
-            "FPGALab", "FPGALab"
-        ).contains(SimulationSettings.CLOCK_KEY)
+        self._settings_store = window.user_settings()
+        migrate_legacy_clock(self._settings_store, window)
         self._simulation_settings = SimulationSettings.load(
-            default_clock_hz=window.board_clock_hz(self._board_id)
+            self._settings_store, default_clock_hz=self._effective_clock_hz(self._board_id)
         ).with_overrides(
-            clock_hz=namespace.clock_hz,
             ui_refresh_hz=namespace.ui_refresh_hz,
             observation_hz=namespace.observation_hz,
         )
@@ -162,6 +178,23 @@ class ApplicationController(QObject):
         app.aboutToQuit.connect(self.shutdown)
         window.set_clock_performance(self._simulation_settings.clock_hz)
 
+    def _lab_clock_override_hz(self) -> int | None:
+        try:
+            return self._window.lab_clock_override_hz()
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            self._window.set_status(t("Invalid Lab clock; using the board clock: {error}", error=error))
+            return None
+
+    def _effective_clock_hz(self, board_id: str, *, use_lab_override: bool = True) -> int:
+        if self._namespace.clock_hz is not None:
+            return self._namespace.clock_hz
+        override = self._lab_clock_override_hz() if use_lab_override else None
+        return override if override is not None else self._window.board_clock_hz(board_id)
+
+    @property
+    def clock_hz(self) -> int:
+        return self._simulation_settings.clock_hz
+
     def select_board(self, board_id: str) -> None:
         """Use the selected package for the visible board and the next build."""
         if board_id == self._board_id:
@@ -172,10 +205,7 @@ class ApplicationController(QObject):
             self._window.set_status(t("Could not stop the previous simulation safely."))
             return
         try:
-            clock_hz = (
-                self._simulation_settings.clock_hz if self._clock_is_customized
-                else self._window.board_clock_hz(board_id)
-            )
+            clock_hz = self._effective_clock_hz(board_id, use_lab_override=self._switching_lab)
             lab = FPGAVirtualLab(
                 clock_hz=clock_hz, lab_file=self._window.selected_lab(), board_id=board_id
             )
@@ -184,10 +214,7 @@ class ApplicationController(QObject):
             QMessageBox.warning(self._window, t("Cannot load lab"), str(error))
             return
         self._board_id = board_id
-        if not self._clock_is_customized:
-            self._simulation_settings = self._simulation_settings.with_overrides(
-                clock_hz=self._window.board_clock_hz(board_id)
-            )
+        self._simulation_settings = self._simulation_settings.with_overrides(clock_hz=clock_hz)
         self._window.set_lab(lab)
         if not self._switching_lab:
             self._window.save_selected_lab_board(board_id)
@@ -210,11 +237,15 @@ class ApplicationController(QObject):
             return
         if not isinstance(active_lab, FPGAVirtualLab):
             return
+        self._simulation_settings = self._simulation_settings.with_overrides(
+            clock_hz=self._effective_clock_hz(board_id)
+        )
         try:
             active_lab.set_lab_file(lab_file)
         except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
             QMessageBox.warning(self._window, t("Cannot load lab"), str(error))
             return
+        self._window.set_clock_performance(self._simulation_settings.clock_hz)
         self._window.set_status(t("Lab loaded: {name}", name=lab_file.stem.removesuffix(".lab")))
 
     def execute_project(self, ice_file: Path) -> None:
@@ -375,12 +406,18 @@ class ApplicationController(QObject):
 
     def configure_simulation(self) -> None:
         """Persist runtime rates selected in the graphical interface."""
-        dialog = SimulationSettingsDialog(self._simulation_settings, self._window)
+        dialog = SimulationSettingsDialog(
+            self._simulation_settings,
+            self._window.board_clock_hz(self._board_id),
+            self._lab_clock_override_hz(),
+            self._window,
+        )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
-        self._simulation_settings = dialog.values()
-        self._simulation_settings.save()
-        self._clock_is_customized = True
+        self._window.save_selected_lab_clock_override(dialog.clock_override_hz())
+        self._simulation_settings = dialog.values().with_overrides(clock_hz=self._effective_clock_hz(self._board_id))
+        self._simulation_settings.save(self._settings_store)
+        self._window.set_clock_performance(self._simulation_settings.clock_hz)
         self._window.set_status(t("Simulation settings saved. They will apply on the next run."))
 
     def load_advanced_library(self, library: Path) -> None:
@@ -396,6 +433,7 @@ class ApplicationController(QObject):
             self._simulation_settings.ui_refresh_hz,
             self._simulation_settings.observation_hz,
             board_id=self._board_id,
+            lab_file=self._window.selected_lab(),
         ))
         self._window.set_clock_performance(
             self._simulation_settings.clock_hz if profile.clock_name is not None else None
@@ -436,11 +474,11 @@ def main() -> None:
     workspace = LabWorkspace()
     window = FPGALabMainWindow(workspace)
     window.setWindowIcon(application_icon())
+    controller = ApplicationController(app, window, namespace)
     window.set_lab(FPGAVirtualLab(
-        clock_hz=SimulationSettings.load(default_clock_hz=window.board_clock_hz(window.selected_board_id())).clock_hz,
+        clock_hz=controller.clock_hz,
         lab_file=window.selected_lab(), board_id=window.selected_board_id(),
     ))
-    controller = ApplicationController(app, window, namespace)
     update_controller = UpdateController(window)
     window.update_requested.connect(update_controller.check_manually)
     QTimer.singleShot(1200, update_controller.check_on_startup)

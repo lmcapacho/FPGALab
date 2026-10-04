@@ -36,6 +36,9 @@ the `id` in `board.json` remains the board's public identifier.
 Labs store the public identifier in `metadata.board_id`. The GUI resolves it to
 the package directory ID when opening a Lab; changing the board selector updates
 that Lab metadata. Labs without this field use the default Alhambra II board.
+An optional positive `metadata.virtual_clock_hz` overrides the board's `clock_hz`
+for that Lab. Changing the board clears the override. Interface refresh and
+temporal sampling are user-wide settings; `--clock-hz` is a session override.
 In `layout.json`, a board LED may declare `"role": "power"` and a board button
 may declare `"role": "reset"`. These optional roles control the simulation
 indicator and reset action without depending on the elements' signal names.

@@ -284,6 +284,29 @@ def test_group_movement_can_be_undone_and_redone(tmp_path):
     panel.deleteLater()
 
 
+def test_workbench_undo_does_not_revert_lab_clock_metadata(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    lab = tmp_path / "clock-history.lab"
+    lab.write_text(json.dumps({
+        "metadata": {"board_id": "alhambra-ii"},
+        "peripherals": [{
+            "id": "led_1", "type": "led", "connections": {},
+            "properties": {"position": [10, 10]},
+        }],
+    }), encoding="utf-8")
+    panel = PeripheralsPanel(board, None, lab)
+    panel._save_positions([("led_1", 30, 40)])
+    raw = json.loads(lab.read_text(encoding="utf-8"))
+    raw["metadata"]["virtual_clock_hz"] = 25_175_000
+    lab.write_text(json.dumps(raw), encoding="utf-8")
+
+    panel.undo()
+    assert json.loads(lab.read_text(encoding="utf-8"))["metadata"]["virtual_clock_hz"] == 25_175_000
+    panel.redo()
+    assert json.loads(lab.read_text(encoding="utf-8"))["metadata"]["virtual_clock_hz"] == 25_175_000
+    panel.deleteLater()
+
+
 def test_multiple_selected_peripherals_are_deleted_as_one_undoable_action(tmp_path, monkeypatch):
     monkeypatch.setattr(language_manager, "_language", "es")
     board = BoardDefinition.load(bundled_board_definition())

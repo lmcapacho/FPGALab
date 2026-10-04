@@ -485,6 +485,15 @@ class FPGALabMainWindow(QMainWindow):
     def board_clock_hz(self, board_id: str) -> int:
         return self._board_catalog.get(board_id).definition.clock_hz
 
+    def user_settings(self) -> QSettings:
+        return self._settings
+
+    def lab_clock_override_hz(self) -> int | None:
+        return self._workspace.clock_override_hz(self._selected_lab)
+
+    def save_selected_lab_clock_override(self, clock_hz: int | None) -> None:
+        self._workspace.set_clock_override_hz(self._selected_lab, clock_hz)
+
     def board_id_for_lab(self, lab: Path) -> str:
         identifier = self._workspace.board_id(lab)
         if identifier is None:

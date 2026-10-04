@@ -36,6 +36,10 @@ Su `board_id` es el nombre de la carpeta (por ejemplo, `alhambra_ii`); el campo
 Los Labs guardan el identificador público en `metadata.board_id`. Al abrir un
 Lab, la interfaz lo resuelve al nombre de la carpeta del paquete; cambiar el
 selector actualiza esos metadatos. Un Lab sin este campo usa Alhambra II.
+El campo positivo opcional `metadata.virtual_clock_hz` reemplaza el `clock_hz`
+de la tarjeta para ese Lab. Cambiar la tarjeta elimina ese ajuste. El refresco
+de interfaz y el muestreo temporal son globales por usuario; `--clock-hz` solo
+se aplica a la ejecución actual.
 En `layout.json`, un LED de la tarjeta puede declarar `"role": "power"` y un
 botón puede declarar `"role": "reset"`. Estos roles opcionales controlan el
 indicador de ejecución y el reinicio sin depender del nombre de la señal.
