@@ -1,18 +1,56 @@
 # Arquitectura y contribución
 
-## Ruta de simulación
+## Arquitectura de simulación
 
 ```text
-Proyecto .ice de Icestudio
-  -> main.v y PCF o XDC generados
-  -> interfaz Verilog y perfil de tarjeta
-  -> modelo nativo de Verilator en caché
-  -> enlace de simulación con ctypes
-  -> SimulationWorker
-  -> vista de tarjeta y mesa de periféricos
+Diseño de Icestudio (.ice)
+        │
+        ├── ice-build/<diseño>/main.v ──► interfaz Verilog + perfil de tarjeta
+        └── ice-build/<diseño>/main.pcf o main.xdc
+                  │                         │
+                  └── redes HDL ↔ pines FPGA ↔ endpoints de tarjeta
+                                            │
+                                            ▼
+                           caché de compilación Verilator
+                                            │
+                           wrapper C++ + captura nativa
+                                            │
+                                            ▼
+                    biblioteca del diseño (.so / .dll / .dylib)
+                                            │
+                                      enlace ctypes
+                                            │
+                                            ▼
+                         SimulationWorker (hilo de Qt)
+                                            │  actualizaciones SimulationFrame
+                         ┌──────────────────┴──────────────────┐
+                         ▼                                     ▼
+                Vista y controles de tarjeta       Mesa de periféricos
+                (SVG + layout JSON)                 (Lab + manifiestos)
+                                                               │
+                                            GPIO / temporal / VGA / flancos
+
+Conexión del Lab: terminal → endpoint de tarjeta → pin FPGA → red HDL
 ```
 
 El wrapper nativo agrupa ciclos virtuales de FPGA y publica objetos `SimulationFrame`. Las entradas GPIO, salidas muestreadas, observaciones temporales y destinos de streaming como VGA permanecen como rutas de datos independientes.
+
+El wrapper C++ generado expone asignación de entradas, lectura de salidas,
+avance de reloj, ejecución por lotes, mediciones temporales y captura de flujos
+mediante una ABI nativa. Python enlaza la biblioteca propia de cada diseño
+(`.so`, `.dll` o `.dylib`) con `ctypes`; `SimulationWorker` la ejecuta fuera
+del hilo de interfaz y entrega cuadros compactos a la tarjeta y a la mesa.
+Qt no se actualiza a la frecuencia de reloj de la FPGA. La compilación
+incremental usa una caché administrada del usuario, fuera de `ice-build`.
+
+Las entradas GPIO, salidas muestreadas, observaciones temporales para LED y
+displays, captura VGA por ciclo y flancos/entradas temporizadas de la API
+UART/SPI en desarrollo son rutas distintas dentro de ese flujo.
+
+Las restricciones del proyecto relacionan los nombres HDL generados con los
+endpoints físicos de la tarjeta; así funcionan LEDs y controles aunque la red
+HDL no se llame como su etiqueta visual. Un periférico puede seguir conectado
+físicamente en el Lab aunque el HDL actual no utilice ese pin.
 
 ## Módulos principales
 
@@ -27,7 +65,17 @@ El wrapper nativo agrupa ciclos virtuales de FPGA y publica objetos `SimulationF
 Los recursos de cada tarjeta se agrupan en `fpga_lab/assets/boards/<board-id>/`.
 Cada carpeta contiene la definición, el pinout, el perfil, el layout y el SVG
 de la tarjeta. `alhambra_ii/` es la estructura de referencia para futuras
-tarjetas. FPGALab usa el `main.pcf` o `main.xdc` específico del proyecto en
+tarjetas.
+
+| Archivo | Propósito |
+| --- | --- |
+| `board.json` | Identidad, endpoints físicos, reloj y controles integrados. |
+| `pinout.pcf` o `pinout.xdc` | Restricciones de pines de referencia; incluye solo uno. |
+| `profile.json` | Perfil de puertos de entrada y salida del modelo nativo. |
+| `layout.json` | Controles interactivos, posiciones y referencia al SVG. |
+| `board.svg` | Imagen vectorial de la tarjeta. |
+
+FPGALab usa el `main.pcf` o `main.xdc` específico del proyecto en
 `ice-build`; cada paquete de tarjeta incluye exactamente un `pinout.pcf` o
 `pinout.xdc` como referencia. En XDC se leen asignaciones literales
 `set_property PACKAGE_PIN <pin> [get_ports {<puerto>}]`, incluidos bits de bus
@@ -58,9 +106,31 @@ de LEDs, incluso ninguno.
 
 La [API de periféricos externos v1](peripheral-api.md) documenta los campos del manifiesto, renderizadores reutilizables, metadatos del paquete, ejemplos, validación e instalación. Consúltala para crear un paquete compartible. FPGALab no carga código Python de las carpetas de periféricos del usuario.
 
+Hay dos ubicaciones diferentes:
+
+```text
+# Integrado en FPGALab (repositorio principal; puede usar un renderizador interno)
+fpga_lab/peripherals/<peripheral-id>/
+├── manifest.json
+└── icon.svg
+fpga_lab/peripherals/renderers/<renderer>.py
+
+# Paquete externo/instalable (declarativo; sin código Python)
+examples/peripherals/<peripheral-id>/
+├── manifest.json
+├── icon.svg
+└── archivos SVG referenciados por el manifiesto
+```
+
+Agrega un periférico integrado solo cuando su comportamiento deba formar parte
+del catálogo principal. Para un componente compartible, empieza en
+`examples/peripherals/`, valida la carpeta y luego instálala desde el catálogo
+o empaquétala como ZIP. Los paquetes externos deben usar los renderizadores que
+FPGALab ya proporciona.
+
 ## Agregar un periférico integrado
 
-Crea `fpga_lab/peripherals/<id>/manifest.json` y los recursos SVG con licencia compatible. Define terminales, conexiones obligatorias, propiedades, renderizador, tamaño y modo de simulación. Reutiliza un renderizador genérico cuando sea posible.
+Crea `fpga_lab/peripherals/<id>/manifest.json` y los recursos SVG con licencia compatible. Define terminales, conexiones obligatorias, propiedades, renderizador, tamaño y modo de simulación. Reutiliza un renderizador genérico cuando sea posible; agrega una clase de renderizador en `fpga_lab/peripherals/renderers/` solo cuando el comportamiento no pueda describirse con los renderizadores existentes.
 
 Consulta la [referencia del API](peripheral-api.md#visual-renderizadores-reutilizables) para ver los renderizadores disponibles y sus campos.
 

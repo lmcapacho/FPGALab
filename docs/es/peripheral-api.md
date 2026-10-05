@@ -2,6 +2,10 @@
 
 Un periférico externo es una carpeta con `manifest.json` y, cuando corresponde, archivos SVG. FPGALab lee sus datos al iniciar o al instalarlo desde el catálogo. El paquete no ejecuta código Python propio. La API versión 1 está disponible en FPGALab 0.1.0rc4. La versión 2 añade flujos de flancos en la versión de desarrollo posterior a RC4; no forma parte de sus artefactos.
 
+Los ejemplos del repositorio están en `examples/peripherals/<peripheral-id>/`.
+Al instalarse, un paquete se copia al catálogo del usuario; no se copia en
+`fpga_lab/peripherals/`, que está reservado para componentes integrados.
+
 ## Empezar con un ejemplo
 
 El [relé simple](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/simple_relay) muestra el paquete de salida digital más pequeño. Los ejemplos de [pulsador](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/simple_button), [barra de LED](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/led_bar), [medidor PWM](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/pwm_meter) y [servo](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/pulse_servo) cubren los demás comportamientos reutilizables.

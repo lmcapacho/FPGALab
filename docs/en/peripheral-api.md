@@ -2,6 +2,10 @@
 
 An external peripheral is a folder containing `manifest.json` and, when needed, SVG files. FPGALab reads it at startup or when installed from the catalog. A package does not execute its own Python code. API version 1 is available in FPGALab 0.1.0rc4. API version 2 adds edge streams in the development version after RC4; it is not part of the RC4 artifacts.
 
+Repository examples live under `examples/peripherals/<peripheral-id>/`. When
+installed, a package is copied to the user catalog; it is not copied into
+`fpga_lab/peripherals/`, which is reserved for bundled components.
+
 ## Start from an example
 
 The [simple relay](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/simple_relay) is the smallest digital output package. The [button](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/simple_button), [LED bar](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/led_bar), [PWM meter](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/pwm_meter), and [servo](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/pulse_servo) demonstrate the other reusable behaviors.

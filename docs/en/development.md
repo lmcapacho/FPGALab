@@ -1,18 +1,56 @@
 # Architecture and contribution
 
-## Simulation path
+## Simulation architecture
 
 ```text
-Icestudio .ice project
-  -> generated main.v and PCF or XDC
-  -> Verilog interface and board profile
-  -> cached Verilator native model
-  -> ctypes simulation binding
-  -> SimulationWorker
-  -> board view and peripheral workbench
+Icestudio design (.ice)
+        │
+        ├── ice-build/<design>/main.v ──► Verilog interface + board profile
+        └── ice-build/<design>/main.pcf or main.xdc
+                  │                         │
+                  └── HDL nets ↔ FPGA pins ↔ board endpoints
+                                            │
+                                            ▼
+                       Verilator incremental build cache
+                                            │
+                       generated C++ wrapper + native capture
+                                            │
+                                            ▼
+                    per-design library (.so / .dll / .dylib)
+                                            │
+                                      ctypes binding
+                                            │
+                                            ▼
+                              SimulationWorker (Qt thread)
+                                            │  compact SimulationFrame updates
+                         ┌──────────────────┴──────────────────┐
+                         ▼                                     ▼
+                 Board view and controls           Peripheral workbench
+                 (SVG + layout JSON)               (Lab + catalog manifests)
+                                                               │
+                                             GPIO / temporal / VGA / edge streams
+
+Lab connection: peripheral terminal → board endpoint → FPGA pin → HDL net
 ```
 
 The native wrapper batches virtual FPGA cycles and publishes `SimulationFrame` objects. GPIO inputs, sampled outputs, temporal observations, and streaming sinks such as VGA remain separate data paths.
+
+The generated C++ wrapper exposes input setters, output getters, clock stepping,
+batched execution, temporal measurements, and streaming hooks through a native
+ABI. Python binds the per-design shared library (`.so`, `.dll`, or `.dylib`)
+with `ctypes`; `SimulationWorker` runs it off the GUI thread and delivers compact
+frames to the board and workbench. Qt does not refresh at the FPGA clock rate.
+Incremental builds are kept in a managed user cache, outside Icestudio's
+`ice-build` directory.
+
+GPIO inputs, sampled outputs, temporal observations for LEDs and displays,
+cycle-accurate VGA streaming, and edge streams/timed input for the development
+UART/SPI API are distinct paths within that runtime flow.
+
+Project constraints map generated HDL names to physical board endpoints, so
+LEDs and controls work even when the HDL net is not named after its visual
+label. A peripheral may stay physically connected in a Lab when the current
+HDL does not use that board pin.
 
 ## Main modules
 
@@ -27,6 +65,15 @@ The native wrapper batches virtual FPGA cycles and publishes `SimulationFrame` o
 Board assets live together in `fpga_lab/assets/boards/<board-id>/`. Each board
 directory keeps its definition, pin constraints, profile, layout, and SVG in
 one place. The Alhambra II directory is the reference layout for future boards.
+
+| File | Purpose |
+| --- | --- |
+| `board.json` | Board identity, physical endpoints, clock, and integrated controls. |
+| `pinout.pcf` or `pinout.xdc` | Reference pin constraints; include exactly one. |
+| `profile.json` | Native-model input and output port profile. |
+| `layout.json` | Interactive controls, placement, and SVG reference. |
+| `board.svg` | Scalable artwork. |
+
 FPGALab consumes the project-specific `main.pcf` or `main.xdc` in the Icestudio
 project's `ice-build` directory; a board package provides exactly one
 `pinout.pcf` or `pinout.xdc` as its pinout reference. For XDC, FPGALab reads
@@ -56,9 +103,30 @@ LED in `layout.json`; a board may declare any number of LEDs, including none.
 
 The [external peripheral API v1](peripheral-api.md) documents the manifest fields, reusable renderers, package metadata, examples, validation, and installation. Use it when creating a shareable package. FPGALab does not load Python code from user peripheral folders.
 
+There are two different locations:
+
+```text
+# Bundled with FPGALab (core repository; may use an internal renderer)
+fpga_lab/peripherals/<peripheral-id>/
+├── manifest.json
+└── icon.svg
+fpga_lab/peripherals/renderers/<renderer>.py
+
+# External/installable package (declarative; no Python code)
+examples/peripherals/<peripheral-id>/
+├── manifest.json
+├── icon.svg
+└── artwork SVG files referenced by the manifest
+```
+
+Add a bundled peripheral only when its behavior belongs in the core catalog.
+For a shareable component, start in `examples/peripherals/`, validate the
+folder, and install it from the catalog or package it as a ZIP. External
+packages must use one of the renderers already provided by FPGALab.
+
 ## Add a bundled peripheral
 
-Create `fpga_lab/peripherals/<id>/manifest.json` and its licensed SVG resources. Define terminal direction, required connections, properties, visual renderer, size, and simulation mode. Reuse a generic renderer when possible; add a renderer class only when the behavior cannot be described by existing primitives.
+Create `fpga_lab/peripherals/<id>/manifest.json` and its licensed SVG resources. Define terminal direction, required connections, properties, visual renderer, size, and simulation mode. Reuse a generic renderer when possible; add a renderer class under `fpga_lab/peripherals/renderers/` only when the behavior cannot be described by existing primitives.
 
 See the [API reference](peripheral-api.md#visual-reusable-renderers) for the available renderers and their manifest fields.
 

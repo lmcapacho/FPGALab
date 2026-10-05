@@ -30,6 +30,7 @@ Read the relevant [architecture guide](docs/en/development.md) and [peripheral A
 - Use synthetic fixtures and `tmp_path` in tests. Never depend on a developer's local `.ice`, Lab, toolchain installation, or cached model. Native harness tests may skip when a C++ compiler is unavailable.
 - Prefer a few tests for contracts and regressions over one test per cosmetic adjustment. Verify a GUI fix visually when automated assertions cannot establish its appearance.
 - Update both language versions of the documentation when changing a public workflow or peripheral API, and note user-visible changes under `Unreleased` in `CHANGELOG.md`.
+- Keep `README.md` as a concise project entry point: purpose, current scope, installation prerequisites, first-run steps, and links to the English and Spanish guides. Put detailed toolchain setup, architecture, APIs, and exhaustive controls in `docs/en/` and `docs/es/`, not in the README.
 
 ## Change hygiene
 

@@ -2,259 +2,58 @@
 
 [![CI tests](https://github.com/lmcapacho/FPGALab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lmcapacho/FPGALab/actions/workflows/ci.yml)
 
-FPGALab is an interactive virtual FPGA laboratory for Icestudio and Verilog designs. It turns an Icestudio export into a native Verilator model and connects that model to a PyQt6 desktop interface, so learners can interact with a virtual board and installable peripherals without requiring physical hardware.
-
-User and contributor documentation is available in [English](https://lmcapacho.github.io/FPGALab/en/) and [Spanish](https://lmcapacho.github.io/FPGALab/es/).
-
-The first supported board is **Alhambra II**. Boards, workbench parts, and their visual renderers are separated from the simulation engine so the platform can grow without coupling every peripheral to the core application.
-
-## Screenshot
+FPGALab is a desktop virtual FPGA laboratory for Icestudio and Verilog designs. It compiles an Icestudio-generated design with Verilator, then lets you interact with a virtual board and peripherals—LEDs, buttons, displays, sensors, VGA, and more—without physical hardware. It is designed for learning and experimentation.
 
 ![FPGALab showing the Alhambra II board and virtual peripheral workbench](docs/images/fpgalab-workbench.png)
 
-## What it does
+The first officially supported board is **Alhambra II**. You can create and share Labs with different peripheral arrangements, install declarative peripheral packages, and switch between English and Spanish. Simulation requires an external Verilator toolchain and native build tools; the virtual clock speed achievable depends on your computer and design.
 
-- Opens an Icestudio `.ice` design and finds its generated `main.v` and PCF or XDC file in `ice-build`.
-- Builds the design with Verilator only when the HDL, PCF, profile, or build settings have changed.
-- Runs the compiled model through a native C ABI and Python `ctypes`, without VCD-based interaction.
-- Emulates a configurable virtual clock (12 MHz by default) while refreshing the GUI at a human-friendly rate.
-- Maps Alhambra II LEDs, switches, reset, and GPIO endpoints through the design PCF.
-- Provides a reusable laboratory workspace with LEDs, momentary buttons, toggle and DIP switches, a vehicle-presence sensor, traffic lights, seven-segment and BCD displays, and VGA monitors.
-- Supports multiple selection, group movement, duplication, deletion, undo/redo, zoom, panning, and fitting all components in the workbench.
-- Keeps physical board artwork and interactive element placement in SVG and JSON assets.
-- Offers an English interface by default, with Spanish available from the `EN / ES` language selector.
+## What you can do
 
-## Architecture
+- Simulate an Icestudio design with its board controls and connected peripherals, without uploading to hardware.
+- Arrange LEDs, switches, sensors, displays, and VGA monitors on a zoomable workbench.
+- Save a Lab separately from the design and import or export it as a portable `.lab` file to share with others.
+- Install additional declarative peripherals from a folder or ZIP package without changing FPGALab itself.
+- Reuse compiled models when the design and relevant build inputs have not changed.
 
-```text
-Icestudio design (.ice)
-        │
-        ├── ice-build/<design>/main.v
-        └── ice-build/<design>/main.pcf
-        │
-        ▼
-Project discovery + VerilogInterface + BoardProfile
-        │                              │
-        │                              └── PCF maps HDL nets to board endpoints
-        ▼
-Verilator build cache ──► generated C++ wrapper + native capture code
-        │
-        ▼
-Per-design shared library (.so / .dll / .dylib)
-        │
-        ▼
-ctypes VerilatorSimulation
-        │
-        ▼
-SimulationWorker (QThread + QTimer)
-        │
-        ├── BoardView
-        │     └── board LEDs, switches, reset, SVG layout
-        │
-        └── Peripheral catalog + virtual workbench
-              │
-              ├── gpio_driven       → buttons, switches and sensors drive FPGA inputs
-              ├── gpio_sampled      → BCD display reads the current FPGA outputs
-              ├── gpio_temporal     → LED, traffic light, display brightness
-              ├── streaming_sink    → cycle-accurate VGA frame capture
-              └── edge_stream       → timestamped UART/SPI development monitors
-                    └── timed input → cycle-accurate protocol stimulus
-                    ▲
-                    │
-       lab JSON: terminal → board endpoint → FPGA pin → PCF HDL net
-```
+FPGALab uses virtual FPGA time for simulation and a separate, slower refresh rate for the interface. The status bar reports the speed your computer actually achieves.
 
-The C++ wrapper exposes native getters, setters, clock stepping, batched cycle execution, temporal predicates, and streaming hooks. Python sends inputs to the model and receives compact frame summaries; the GUI never has to refresh at the FPGA clock rate.
+## Get started
 
-## Requirements
+1. Download FPGALab for Linux, Windows, or macOS from [GitHub Releases](https://github.com/lmcapacho/FPGALab/releases) and extract the package completely if it is an archive.
+2. Install or locate Verilator 5+, GNU Make-compatible tools, and a C++17 compiler. See the [toolchain guide](https://lmcapacho.github.io/FPGALab/en/troubleshooting/) for platform-specific instructions.
+3. Open a design in Icestudio and generate its Verilog output (`main.v` and a PCF or XDC pin-constraint file).
+4. Open the `.ice` file in FPGALab, select or create a Lab, and press **Run**. The first run compiles the model; later runs reuse the build cache when possible.
+5. Add peripherals from the floating catalog and connect their terminals to board pins. Press **Stop** before changing the design, board, or Lab.
 
-- Python 3.10 or newer
-- [Verilator](https://www.veripool.org/verilator/) 5.x or newer
-- A C++17 compiler and GNU Make-compatible build tools
-  - Linux: GCC or Clang with `make`
-  - Windows: MSYS2/MinGW64 is recommended
-  - macOS: Xcode Command Line Tools (`xcode-select --install`)
-- PyQt6 (installed automatically with the Python package)
+For installation details and the full first-run workflow, see [Getting started](https://lmcapacho.github.io/FPGALab/en/getting-started/) or [Primeros pasos](https://lmcapacho.github.io/FPGALab/es/getting-started/).
 
-### Simulation toolchain
+### Run from source
 
-FPGALab resolves Verilator in this order: the toolchain installed by Apio/Icestudio, a standalone OSS CAD Suite configured with `FPGALAB_OSS_CAD_SUITE`, and finally `verilator` on the system `PATH`. Common locations include `%USERPROFILE%\.icestudio\apio\packages\oss-cad-suite` on Windows and `~/.apio/packages/oss-cad-suite` on Linux and macOS. The historical `tools-oss-cad-suite` package name is also supported.
-
-Some Icestudio installations store their packages under `AppData` or another custom location. In that case, set `FPGALAB_OSS_CAD_SUITE` to the directory containing the suite's `bin` and `share` folders. Use `MSYS2_ROOT` as well when MSYS2 is not installed at the standard `C:\msys64` location. An explicit `FPGALAB_VERILATOR` setting can point directly to a Verilator executable.
-
-OSS CAD Suite is recommended for a portable toolchain installation, but generated Verilator models still require GNU Make-compatible build tools and a C++17 compiler. On Windows, install MSYS2 and run the following command in an MSYS2 UCRT64 terminal; FPGALab detects the standard `C:\msys64` installation automatically.
-
-```bash
-pacman -S --needed make python mingw-w64-ucrt-x86_64-gcc
-```
-
-On macOS, install Apple's command-line build tools and Verilator before running a design. Homebrew is one supported way to install Verilator:
-
-```bash
-xcode-select --install
-brew install verilator
-verilator --version
-```
-
-```bash
-# Linux/macOS example
-export FPGALAB_OSS_CAD_SUITE=/path/to/oss-cad-suite
-fpga-lab
-```
-
-## Installation
-
-Prebuilt packages for Linux, Windows, and macOS are available from [GitHub Releases](https://github.com/lmcapacho/FPGALab/releases). Extract the downloaded package completely before starting FPGALab.
-
-To install the current source version:
+Requires Python 3.10 or newer in addition to the simulation toolchain:
 
 ```bash
 git clone https://github.com/lmcapacho/FPGALab.git
 cd FPGALab
-
 python -m venv .venv
-source .venv/bin/activate       # Windows PowerShell: .venv\Scripts\Activate.ps1
+source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -e .
-
-verilator --version
-```
-
-## Run FPGALab
-
-Start the desktop application:
-
-```bash
 fpga-lab
 ```
 
-Or open an Icestudio design directly:
+## Documentation
 
-```bash
-fpga-lab --ice /path/to/design.ice
-```
+Documentation is available in [English](https://lmcapacho.github.io/FPGALab/en/) and [Español](https://lmcapacho.github.io/FPGALab/es/):
 
-Use the top bar to select a design, select or create a laboratory, and start the simulation. The Run and Stop controls are located at the bottom-right of the application window.
-
-### Icestudio workflow
-
-1. Create or open a design in Icestudio.
-2. Generate the Verilog output so that Icestudio produces `ice-build/<design>/main.v` and its PCF file.
-3. Open the `.ice` file in FPGALab.
-4. Press Run. FPGALab automatically determines whether the cached native model can be reused or needs rebuilding.
-5. Interact with the board and peripherals while the model is running.
-
-FPGALab does not write Verilator artifacts into `ice-build`. Compiled models are stored in the user cache.
-
-### Workbench controls
-
-Use the floating catalog button to add peripherals. Drag empty space to select several components, and drag a selected component to move the group. The mouse wheel controls zoom; `Ctrl`+drag or middle-button drag pans the workbench. The toolbar provides undo, redo, 100% zoom, and fit-to-content actions. `Ctrl+D` duplicates the selection and `Delete` removes it.
-
-## Virtual time and visual refresh
-
-The virtual FPGA advances according to elapsed host time and the configured FPGA clock (12 MHz by default). The native wrapper batches many FPGA cycles in C++ for each visual frame, avoiding a Python-to-C boundary crossing per cycle.
-
-The Simulation Settings button in the bottom toolbar configures the virtual FPGA clock, interface refresh rate (60 Hz by default), and temporal sampling rate (1 MHz by default). These preferences are stored in the platform's standard FPGALab user settings and apply on the next run. External temporal peripherals define output predicates in their manifests; the native engine samples them at the configured temporal rate and delivers duty cycle, transition count, and final state to the GUI for each visual frame. Select a temporal rate equal to the FPGA clock when an experiment requires cycle-level observation; lower rates reduce instrumentation cost while remaining well above human-visible frequencies.
-
-This lets a visual LED or seven-segment display show slow blinking, PWM brightness, and multiplexing without making Qt run at 12 MHz. A display common can be tied to `GND` or `VCC`, or driven by an FPGA pin for multiplexed designs.
-
-If the host cannot sustain the requested virtual frequency, select a lower FPGA clock in Simulation Settings.
-
-VGA 640×480 labs should use a virtual clock near 25 MHz. FPGALab does not change the clock automatically and warns when a VGA monitor is used with the 12 MHz Alhambra default. The catalog provides 1-bit, 6-bit, and 12-bit VGA monitors.
-
-## Board mapping and GPIO
-
-For Icestudio projects, the PCF is used to relate generated HDL net names to physical Alhambra II endpoints. This allows board LEDs and switches to work even when Icestudio-generated signal names differ from labels such as `LED0` or `SW1`.
-
-External peripherals are configured from the virtual workbench. Their terminals are assigned to board GPIO endpoints, and FPGALab resolves those endpoints through the PCF when the HDL connects them. A peripheral may remain physically connected even if the current HDL does not use that pin.
-
-## Laboratories
-
-Laboratories are reusable configurations independent from Icestudio project folders. They store external peripherals, settings, pin assignments, positions, and the workbench zoom and camera position.
-
-Default locations are:
-
-- Linux: `~/FPGALab/labs`
-- macOS: `~/FPGALab/labs`
-- Windows: `Documents/FPGALab/labs`
-
-Set `FPGALAB_WORKSPACE` to use a different workspace root.
-
-The most recently selected lab is remembered in the platform's standard FPGALab user settings and is restored when the application starts.
-
-Use **Import…** and **Export…** in the Lab manager to share portable `*.lab` files. Their content is JSON, but the user-facing extension is simply `.lab`. Existing `*.lab.json` files remain supported. An imported Lab is validated and copied into the local workspace without overwriting an existing Lab. Lab files contain no machine-specific paths, so they can be shared alongside the corresponding Icestudio `.ice` design.
-
-## Catalog, board assets, and extensibility
-
-Peripheral definitions can be bundled with FPGALab or installed by users from a folder or ZIP package:
-
-```text
-fpga_lab/peripherals/<peripheral-id>/manifest.json
-fpga_lab/peripherals/<peripheral-id>/icon.svg
-fpga_lab/peripherals/renderers/<renderer>.py
-```
-
-The manifest declares terminals, directions, configuration properties, simulation class, visual renderer, category, description, search keywords, package metadata, and catalog icon. The searchable catalog and generic configuration dialog are built from this metadata. API v1 and the declarative peripheral packages are part of RC4; API v2 edge streams, the UART terminal, and the SPI monitor are development features after RC4 and are not included in the RC4 artifacts.
-
-The current simulation classes are:
-
-| Class | Purpose |
-| --- | --- |
-| `gpio_driven` | A workbench control drives an FPGA input, for example a button or sensor. |
-| `gpio_sampled` | A peripheral reads the current FPGA output values, for example the BCD display. |
-| `gpio_temporal` | An FPGA output is evaluated over virtual time, for example an LED, traffic light, or seven-segment display. |
-| `streaming_sink` | A native C++ sink consumes every virtual clock edge, currently used for VGA capture. |
-| `edge_stream` | Development API v2 path for timestamped output capture and cycle-scheduled input stimulus. |
-
-A board is described by one packaged directory per board:
-
-- `fpga_lab/assets/boards/<board-id>/board.json` — physical endpoints and capabilities
-- `fpga_lab/assets/boards/<board-id>/pinout.pcf` or `pinout.xdc` — board pin constraints/reference pinout
-- `fpga_lab/assets/boards/<board-id>/layout.json` — interactive controls and geometry
-- `fpga_lab/assets/boards/<board-id>/board.svg` — scalable board artwork
-- `fpga_lab/assets/boards/<board-id>/profile.json` — Verilator port profile
-
-The `alhambra_ii/` directory is the reference layout for future boards. The PCF is the board resource used as the pinout reference for Icestudio; FPGALab consumes the project-specific PCF generated in the selected design's `ice-build` directory.
-
-This separation makes it possible to calibrate controls visually, add new integrated controls, add a catalog peripheral, or introduce another FPGA board without changing the core simulation loop.
-
-## Updates
-
-FPGALab checks GitHub Releases shortly after startup without interrupting the workflow. The update button in the status bar runs a manual check. When a newer compatible release is available, FPGALab offers to open its GitHub release page, where the platform package can be downloaded.
-
-Release candidates are considered while running a release candidate build. Stable builds only check stable releases.
-
-### Windows release assets
-
-Windows releases provide two options: `windows-x64.exe` is a self-contained executable and is the recommended download; `windows-x64-portable.zip` contains an application folder and must be fully extracted before starting `FPGALab.exe`. Do not run the executable from Windows Explorer's compressed-folder view, because `_internal` dependencies are not available there.
-
-Windows SmartScreen may display an `Unknown publisher` warning until the application is Authenticode-signed and builds reputation. This is independent from the application package contents.
-
-### macOS release assets
-
-macOS releases provide separate `macos-x86_64.zip` (Intel) and `macos-arm64.zip` (Apple Silicon) application bundles. Extract the ZIP completely before opening `FPGALab.app`. Builds are ad-hoc signed for integrity but are not Apple-notarized yet, so macOS may require using **Open** from the context menu on first launch. The bundled application includes Python and PyQt6; Verilator and the Xcode Command Line Tools are still required to compile Icestudio designs.
-
-## Command-line options
-
-```text
---ice PATH                 Icestudio design to open
---library PATH             Prebuilt simulation library (advanced mode)
---profile PATH             Manual board profile (advanced mode)
---cache-dir PATH           Override the Verilator build cache
---clock-hz INTEGER         Override the saved virtual clock for this launch
---ui-refresh-hz INTEGER    Override the saved GUI refresh rate for this launch
---observation-hz INTEGER   Override the saved sampling rate for this launch
-```
+- [Labs and workbench](https://lmcapacho.github.io/FPGALab/en/labs-and-workbench/) — manage, share, and arrange Labs.
+- [Toolchain and troubleshooting](https://lmcapacho.github.io/FPGALab/en/troubleshooting/) — dependencies and platform-specific setup.
+- [External peripheral API](https://lmcapacho.github.io/FPGALab/en/peripheral-api/) — create and install peripherals.
+- [Architecture diagram and contribution](https://lmcapacho.github.io/FPGALab/en/development/#simulation-architecture/) — simulation flow, board packages, and development.
 
 ## Project status
 
-FPGALab is under active development. Alhambra II is currently the only officially supported board. Simulation still requires an external Verilator toolchain and native build tools. Windows packages are not Authenticode-signed and macOS packages are not Apple-notarized. The virtual frequency that can be sustained depends on the host computer and the complexity of the simulated design and Lab.
+FPGALab is under active development. Alhambra II is the only officially supported board at present. Windows packages are not Authenticode-signed and macOS packages are not Apple-notarized. See [Releases](https://github.com/lmcapacho/FPGALab/releases) and the [Changelog](CHANGELOG.md) for the current version and changes.
 
-## Project stewardship
+FPGALab was initiated and is led and maintained by **Luis Miguel Capacho**. See [AUTHORS.md](AUTHORS.md) for contributors, [AI_USAGE.md](AI_USAGE.md) for the AI-assisted development policy, and [CITATION.cff](CITATION.cff) for citation metadata.
 
-FPGALab was initiated and is led and maintained by **Luis Miguel Capacho**. Human contributors and their roles are listed in [AUTHORS.md](AUTHORS.md). Generative AI tools have assisted implementation, refactoring, testing, and documentation under human direction and review; the development policy is described in [AI_USAGE.md](AI_USAGE.md).
-
-If you use FPGALab in academic work, GitHub can generate a citation from [CITATION.cff](CITATION.cff).
-
-## License
-
-Copyright © 2026 Luis Miguel Capacho and contributors. FPGALab is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE). See [NOTICE](NOTICE) for attribution and project provenance.
+Copyright © 2026 Luis Miguel Capacho and contributors. Licensed under the [GNU Affero General Public License v3.0 or later](LICENSE). See [NOTICE](NOTICE) for attribution and provenance.
