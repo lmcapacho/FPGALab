@@ -14,7 +14,7 @@ The first supported board is **Alhambra II**. Boards, workbench parts, and their
 
 ## What it does
 
-- Opens an Icestudio `.ice` design and finds its generated `main.v` and PCF file in `ice-build`.
+- Opens an Icestudio `.ice` design and finds its generated `main.v` and PCF or XDC file in `ice-build`.
 - Builds the design with Verilator only when the HDL, PCF, profile, or build settings have changed.
 - Runs the compiled model through a native C ABI and Python `ctypes`, without VCD-based interaction.
 - Emulates a configurable virtual clock (12 MHz by default) while refreshing the GUI at a human-friendly rate.
@@ -208,7 +208,7 @@ The current simulation classes are:
 A board is described by one packaged directory per board:
 
 - `fpga_lab/assets/boards/<board-id>/board.json` — physical endpoints and capabilities
-- `fpga_lab/assets/boards/<board-id>/pinout.pcf` — board pin constraints/reference pinout
+- `fpga_lab/assets/boards/<board-id>/pinout.pcf` or `pinout.xdc` — board pin constraints/reference pinout
 - `fpga_lab/assets/boards/<board-id>/layout.json` — interactive controls and geometry
 - `fpga_lab/assets/boards/<board-id>/board.svg` — scalable board artwork
 - `fpga_lab/assets/boards/<board-id>/profile.json` — Verilator port profile

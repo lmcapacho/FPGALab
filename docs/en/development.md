@@ -4,7 +4,7 @@
 
 ```text
 Icestudio .ice project
-  -> generated main.v and PCF
+  -> generated main.v and PCF or XDC
   -> Verilog interface and board profile
   -> cached Verilator native model
   -> ctypes simulation binding
@@ -27,10 +27,14 @@ The native wrapper batches virtual FPGA cycles and publishes `SimulationFrame` o
 Board assets live together in `fpga_lab/assets/boards/<board-id>/`. Each board
 directory keeps its definition, pin constraints, profile, layout, and SVG in
 one place. The Alhambra II directory is the reference layout for future boards.
-FPGALab consumes the project-specific PCF generated in the Icestudio project's
-`ice-build` directory; the packaged `pinout.pcf` is the board pinout reference.
+FPGALab consumes the project-specific `main.pcf` or `main.xdc` in the Icestudio
+project's `ice-build` directory; a board package provides exactly one
+`pinout.pcf` or `pinout.xdc` as its pinout reference. For XDC, FPGALab reads
+literal `set_property PACKAGE_PIN <pin> [get_ports {<port>}]` assignments,
+including bus bits and the `-dict` form. Other XDC commands are not evaluated.
+Unsupported `PACKAGE_PIN` expressions produce an error rather than an empty map.
 `BoardCatalog` discovers these directories and validates their required files,
-definition, layout, profile, and PCF. Invalid packages are skipped with a
+definition, layout, profile, and pin constraints. Invalid packages are skipped with a
 diagnostic. Its `board_id` is the directory name (for example, `alhambra_ii`);
 the `id` in `board.json` remains the board's public identifier.
 Labs store the public identifier in `metadata.board_id`. The GUI resolves it to

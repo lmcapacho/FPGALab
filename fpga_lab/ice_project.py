@@ -31,7 +31,7 @@ class IcestudioProject:
         for directory in candidates:
             main_v = directory / "main.v"
             if main_v.is_file():
-                pcf = cls._pcf_in(directory)
+                pcf = cls._constraints_in(directory)
                 return cls(source, directory, main_v, pcf)
 
         expected = preferred / "main.v"
@@ -40,12 +40,18 @@ class IcestudioProject:
         )
 
     @staticmethod
-    def _pcf_in(directory: Path) -> Path | None:
-        main_pcf = directory / "main.pcf"
-        if main_pcf.is_file():
-            return main_pcf
-        candidates = sorted(directory.glob("*.pcf"))
+    def _constraints_in(directory: Path) -> Path | None:
+        for name in ("main.pcf", "main.xdc"):
+            candidate = directory / name
+            if candidate.is_file():
+                return candidate
+        candidates = sorted((*directory.glob("*.pcf"), *directory.glob("*.xdc")))
         return candidates[0] if len(candidates) == 1 else None
+
+    @property
+    def constraints_path(self) -> Path | None:
+        """Physical pin assignments (the legacy field is named pcf)."""
+        return self.pcf
 
     @property
     def sources(self) -> tuple[Path, ...]:

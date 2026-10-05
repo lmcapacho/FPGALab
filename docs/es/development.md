@@ -4,7 +4,7 @@
 
 ```text
 Proyecto .ice de Icestudio
-  -> main.v y PCF generados
+  -> main.v y PCF o XDC generados
   -> interfaz Verilog y perfil de tarjeta
   -> modelo nativo de Verilator en caché
   -> enlace de simulación con ctypes
@@ -27,10 +27,14 @@ El wrapper nativo agrupa ciclos virtuales de FPGA y publica objetos `SimulationF
 Los recursos de cada tarjeta se agrupan en `fpga_lab/assets/boards/<board-id>/`.
 Cada carpeta contiene la definición, el pinout, el perfil, el layout y el SVG
 de la tarjeta. `alhambra_ii/` es la estructura de referencia para futuras
-tarjetas. FPGALab usa el PCF específico generado por Icestudio en `ice-build`;
-el `pinout.pcf` empaquetado sirve como referencia del pinout de la tarjeta.
+tarjetas. FPGALab usa el `main.pcf` o `main.xdc` específico del proyecto en
+`ice-build`; cada paquete de tarjeta incluye exactamente un `pinout.pcf` o
+`pinout.xdc` como referencia. En XDC se leen asignaciones literales
+`set_property PACKAGE_PIN <pin> [get_ports {<puerto>}]`, incluidos bits de bus
+y la forma `-dict`. No se evalúan otros comandos XDC. Una expresión
+`PACKAGE_PIN` no admitida produce un error en vez de un mapa vacío.
 `BoardCatalog` descubre estas carpetas y valida sus archivos, definición,
-layout, perfil y PCF. Omite los paquetes inválidos y conserva un diagnóstico.
+layout, perfil y restricciones de pines. Omite los paquetes inválidos y conserva un diagnóstico.
 Su `board_id` es el nombre de la carpeta (por ejemplo, `alhambra_ii`); el campo
 `id` de `board.json` sigue siendo el identificador público de la tarjeta.
 Los Labs guardan el identificador público en `metadata.board_id`. Al abrir un

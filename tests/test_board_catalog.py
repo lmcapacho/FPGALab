@@ -50,3 +50,16 @@ def test_catalog_skips_invalid_package_and_keeps_valid_board(tmp_path):
     assert len(catalog.diagnostics) == 1
     assert catalog.diagnostics[0].board_id == "unfinished_board"
     assert "layout.json" in catalog.diagnostics[0].reason
+
+
+def test_catalog_accepts_xdc_pinout(tmp_path):
+    source = BoardCatalog().get(DEFAULT_BOARD_ID).directory
+    target = tmp_path / DEFAULT_BOARD_ID
+    target.mkdir()
+    for name in ("board.json", "layout.json", "profile.json", "board.svg"):
+        (target / name).write_bytes((source / name).read_bytes())
+    (target / "pinout.xdc").write_text(
+        "set_property PACKAGE_PIN 1 [get_ports {clk}]\n", encoding="utf-8"
+    )
+    catalog = BoardCatalog(tmp_path)
+    assert catalog.get(DEFAULT_BOARD_ID).pinout_path.suffix == ".xdc"

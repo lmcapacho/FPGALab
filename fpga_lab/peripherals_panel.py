@@ -8,7 +8,7 @@ import re
 from PyQt6.QtGui import QColor, QCursor, QFont, QKeySequence, QPalette
 from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu, QInputDialog
 from .board import BoardDefinition
-from .constraints import PcfParser
+from .constraints import parse_constraints_file
 from .i18n import language_manager, t
 from .peripheral_catalog_panel import PeripheralCatalogPanel
 from .peripherals.catalog import load_catalog, spec_for
@@ -221,8 +221,8 @@ class ConnectionDialog(QDialog):
         if geometry:
             self.restoreGeometry(geometry)
         layout = QVBoxLayout(self)
-        source = str(pcf_path) if pcf_path else t("— no design PCF —")
-        description = QLabel(t("Board endpoints used by the PCF or an external peripheral. PCF: {source} · {count} signals.", source=source, count=len(constraints)))
+        source = str(pcf_path) if pcf_path else t("— no design constraints —")
+        description = QLabel(t("Board endpoints used by design constraints or an external peripheral. Source: {source} · {count} signals.", source=source, count=len(constraints)))
         description.setWordWrap(True)
         layout.addWidget(description)
         table = QTableWidget(self)
@@ -232,7 +232,7 @@ class ConnectionDialog(QDialog):
             t("Board endpoint"),
             t("FPGA pin"),
             t("Direction"),
-            t("HDL net (design PCF)"),
+            t("HDL net (design constraints)"),
             t("External peripheral"),
         ])
         table.verticalHeader().setVisible(False)
@@ -514,7 +514,7 @@ class PeripheralsPanel(QWidget):
 
     def _constraints(self):
         """Load optional design constraints without requiring a PCF for the board UI."""
-        return PcfParser.parse_file(self._pcf) if self._pcf and self._pcf.is_file() else []
+        return parse_constraints_file(self._pcf) if self._pcf and self._pcf.is_file() else []
 
     def set_lab_file(self, lab: str | Path) -> None:
         """Replace the workbench content with another saved laboratory."""
@@ -757,13 +757,13 @@ class PeripheralsPanel(QWidget):
         """Summarize physical terminals and the subset currently present in HDL."""
         total, mapped = getattr(self, "_connection_counts", (0, 0))
         if total == 0:
-            self._connection_status.setText(t("PCF —"))
+            self._connection_status.setText(t("Pins —"))
             self._connection_status.setToolTip(t("No peripheral terminals configured."))
             return
         unmapped = total - mapped
-        self._connection_status.setText(t("PCF {mapped}/{total}", mapped=mapped, total=total))
+        self._connection_status.setText(t("Pins {mapped}/{total}", mapped=mapped, total=total))
         self._connection_status.setToolTip(t(
-            "{mapped}/{total} peripheral terminal(s) are mapped by the current PCF; {unmapped} are physically connected but unused by this HDL.",
+            "{mapped}/{total} peripheral terminal(s) are mapped by the design constraints; {unmapped} are physically connected but unused by this HDL.",
             mapped=mapped,
             total=total,
             unmapped=unmapped,

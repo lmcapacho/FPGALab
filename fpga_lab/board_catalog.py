@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .board import BoardDefinition
 from .board_layout import BoardLayout
-from .constraints import PcfParser
+from .constraints import parse_constraints_file
 from .profile import BoardProfile
 
 
@@ -29,7 +29,8 @@ class BoardPackage:
 
     @property
     def pinout_path(self) -> Path:
-        return self.directory / "pinout.pcf"
+        pcf = self.directory / "pinout.pcf"
+        return pcf if pcf.is_file() else self.directory / "pinout.xdc"
 
 
 @dataclass(frozen=True)
@@ -58,14 +59,19 @@ class BoardCatalog:
 
     @staticmethod
     def _load(directory: Path) -> BoardPackage:
-        required = ("board.json", "layout.json", "profile.json", "board.svg", "pinout.pcf")
+        required = ("board.json", "layout.json", "profile.json", "board.svg")
         missing = [name for name in required if not (directory / name).is_file()]
+        pinouts = [directory / name for name in ("pinout.pcf", "pinout.xdc") if (directory / name).is_file()]
+        if not pinouts:
+            missing.append("pinout.pcf or pinout.xdc")
         if missing:
             raise ValueError(f"Missing board resources: {', '.join(missing)}")
+        if len(pinouts) > 1:
+            raise ValueError("Board package must have exactly one pinout.pcf or pinout.xdc")
         definition = BoardDefinition.load(directory / "board.json")
         layout = BoardLayout.load(directory / "layout.json")
         BoardProfile.load(directory / "profile.json")
-        PcfParser.parse_file(directory / "pinout.pcf")
+        parse_constraints_file(pinouts[0])
         if layout.board_id != directory.name:
             raise ValueError(f"Layout board_id {layout.board_id!r} does not match directory {directory.name!r}")
         if layout.svg.resolve() != (directory / "board.svg").resolve():

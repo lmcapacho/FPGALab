@@ -120,18 +120,18 @@ def project_clock_port(project: IcestudioProject, interface: VerilogInterface, b
     if project.pcf is None:
         return None
     board = BoardDefinition.load(bundled_board_definition(board_id))
-    pin_map = ProjectPinMap.from_pcf(board, project.pcf)
+    pin_map = ProjectPinMap.from_constraints(board, project.pcf)
     inputs = {port.name: port.width for port in interface.ports if port.direction in {"input", "inout"}}
     reference = signal_reference(pin_map.net_for(board.clock_endpoint), inputs) if board.clock_endpoint else None
     return reference[0] if reference is not None and reference[1] == 0 and inputs[reference[0]] == 1 else None
 
 
 def board_sources(project: IcestudioProject, profile: BoardProfile, board_id: str = DEFAULT_BOARD_ID) -> tuple[dict[int, tuple[str, int]], dict[str, tuple[str, int]]]:
-    """Resolve physical board controls to the random HDL names recorded in the PCF."""
+    """Resolve physical board controls to HDL names recorded in constraints."""
     if project.pcf is None:
         return {}, {}
     board = BoardDefinition.load(bundled_board_definition(board_id))
-    pin_map = ProjectPinMap.from_pcf(board, project.pcf)
+    pin_map = ProjectPinMap.from_constraints(board, project.pcf)
     led_sources = {
         index: reference
         for index, endpoint in enumerate(board.led_endpoints)

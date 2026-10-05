@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- PCF and literal XDC `PACKAGE_PIN` support for project pin mapping and board pinout packages.
 - Board selector in the main window, persisted per user and passed to board mapping, compilation setup, and simulation.
 - Internal board catalog that discovers and validates bundled board packages and reports incomplete ones.
 - Peripheral API v2 edge streams: bounded, virtual-cycle-accurate capture of digital output transitions, with an installable UART 8N1 terminal example.
