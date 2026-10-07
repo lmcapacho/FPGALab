@@ -31,8 +31,11 @@ class ProjectPinMap:
             endpoint = next((pin for pin in endpoints if pin.location.startswith("header")), None)
             if endpoint is None and endpoints:
                 endpoint = endpoints[0]
+            # One physical pin may also drive an integrated LED. Keep every
+            # alias while retaining the header as the preferred reverse lookup.
             if endpoint is not None:
-                bindings.append(ProjectPinBinding(constraint.net, constraint.fpga_pin, endpoint.id))
+                ordered = (endpoint, *(pin for pin in endpoints if pin.id != endpoint.id))
+                bindings.extend(ProjectPinBinding(constraint.net, constraint.fpga_pin, pin.id) for pin in ordered)
         return cls(tuple(bindings))
 
     @classmethod

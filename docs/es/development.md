@@ -102,6 +102,38 @@ LED publicados por el worker. Cada nombre de endpoint selecciona el LED visual
 correspondiente en `layout.json`; una tarjeta puede declarar cualquier número
 de LEDs, incluso ninguno.
 
+## Probar la segunda tarjeta
+
+Un pin de `board.json` puede declarar `"active_low": true` (por defecto: false).
+Las mediciones de LED se invierten antes de aplicar persistencia visual; un
+botón activo en bajo envía 1 al soltarlo y 0 al presionarlo. Los niveles de
+reposo se restauran antes de ejecutar y después de un reset de tarjeta. Los
+alias de un pin físico conservan la misma red HDL; la búsqueda inversa prefiere
+un endpoint del conector.
+
+El paquete experimental `icebreaker_bitsy_v1/` usa el identificador
+`iCEBreaker-bitsy1` de Icestudio. La primera validación cubre los dos LED de
+usuario y el botón, activos en bajo, a 12 MHz. No se simulan USB, flash, PSRAM
+ni el bloque físico RGB. Falta confirmar los derechos de redistribución de la
+imagen antes de un release.
+La imagen es un recorte de la tarjeta informativa original de iCEBreaker;
+consulta `ATTRIBUTION.md` del paquete para conocer la fuente y los créditos.
+
+En Icestudio selecciona **iCEBreaker bitsy v1**, crea entradas `clk` (CLK) y
+`button` (BTN), y salidas `red` (LEDR) y `green` (LEDG). Usa este cuerpo en un
+bloque de código, genera Verilog y abre el diseño en FPGALab con Bitsy en su Lab:
+
+```verilog
+reg [23:0] counter = 0;
+always @(posedge clk) counter <= counter + 1'b1;
+assign red = button;          // Both button and LED are active-low.
+assign green = ~counter[23];  // Slow blink at a 12 MHz clock.
+```
+
+Comprueba pulsación/liberación, parpadeo, Stop/Run, un LED externo en P00 y el
+regreso a un Lab de Alhambra II. El paquete sigue siendo experimental hasta
+completar estas pruebas manuales.
+
 ## Periféricos externos
 
 La [API de periféricos externos v1](peripheral-api.md) documenta los campos del manifiesto, renderizadores reutilizables, metadatos del paquete, ejemplos, validación e instalación. Consúltala para crear un paquete compartible. FPGALab no carga código Python de las carpetas de periféricos del usuario.

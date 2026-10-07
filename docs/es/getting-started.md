@@ -29,7 +29,7 @@ El comando de activación anterior se usa en Linux y macOS. En Windows PowerShel
 1. Abre el diseño en Icestudio.
 2. Genera su salida Verilog. El proyecto debe contener `ice-build/<design>/main.v` y un archivo de restricciones de pines PCF o XDC.
 3. Abre el archivo `.ice` con el botón **Browse** de FPGALab.
-4. Selecciona o crea un Lab. Su tarjeta guardada aparece en el selector de la barra superior y determina qué definición se usa para asignar pines y simular. Si cambias el selector, se actualiza el Lab actual. Por ahora, Alhambra II es la única tarjeta incluida.
+4. Selecciona o crea un Lab. Su tarjeta guardada aparece en el selector de la barra superior y determina qué definición se usa para asignar pines y simular. Si cambias el selector, se actualiza el Lab actual. Alhambra II es la tarjeta validada; iCEBreaker Bitsy v1.1c está disponible como segunda tarjeta experimental en la versión de desarrollo.
 5. Presiona **Run**. La primera ejecución puede compilar el modelo nativo; las siguientes reutilizan la caché incremental cuando sea posible.
 6. Interactúa con los controles de la tarjeta y los periféricos externos.
 7. Presiona **Stop** antes de cambiar el proyecto, la tarjeta, el Lab o la configuración de simulación.

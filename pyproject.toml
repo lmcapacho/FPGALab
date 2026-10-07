@@ -36,6 +36,8 @@ fpga_lab = [
     "assets/boards/*/*.svg",
     "assets/boards/*/*.json",
     "assets/boards/*/*.pcf",
+    "assets/boards/*/*.xdc",
+    "assets/boards/*/*.md",
     "assets/icons/*.svg",
     "assets/icons/*.png",
     "assets/icons/*.ico",

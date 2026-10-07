@@ -1,0 +1,43 @@
+# iCEBreaker Bitsy v1 reference pinout, adapted from FPGAwars/Icestudio.
+# Original PCF: Miodrag Milanovic, GPL, March 2018.
+# Physical aliases are intentional; project PCFs assign one HDL net per pin.
+set_io CLK 35
+set_io BTN 2
+set_io LEDR 25
+set_io LEDG 6
+set_io LED_R 39
+set_io LED_G 40
+set_io LED_B 41
+set_io USB_DP 42
+set_io USB_DN 38
+set_io USB_DET 37
+set_io F_SCK 15
+set_io F_SSB 16
+set_io F_IO0 14
+set_io F_IO1 17
+set_io F_IO2 18
+set_io F_IO3 19
+set_io P00 47
+set_io P01 44
+set_io P02 48
+set_io P03 45
+set_io P04 4
+set_io P05 3
+set_io P06 9
+set_io P07 10
+set_io P08 11
+set_io P09 12
+set_io P10 21
+set_io P11 13
+set_io P12 20
+set_io P13 25
+set_io P14 23
+set_io P15 27
+set_io P16 26
+set_io P17 28
+set_io P18 31
+set_io P19 32
+set_io P20 34
+set_io P21 36
+set_io P22 43
+set_io P23 46

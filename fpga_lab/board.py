@@ -17,6 +17,7 @@ class BoardPin:
     fpga_pin: str
     direction: str
     location: str
+    active_low: bool = False
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,7 @@ class BoardDefinition:
                 str(item["fpga_pin"]),
                 item.get("direction", "inout"),
                 item.get("location", "header"),
+                item.get("active_low", False),
             )
             for item in raw["pins"]
         )
@@ -61,6 +63,8 @@ class BoardDefinition:
         for endpoint in (*self.led_endpoints, *self.input_endpoints):
             if endpoint not in known:
                 raise ValueError(t("Board {board_id} references unknown control {endpoint!r}.", board_id=self.board_id, endpoint=endpoint))
+        if any(not isinstance(pin.active_low, bool) for pin in self.pins):
+            raise ValueError("Board pin active_low must be a boolean")
         if self.clock_endpoint is not None and self.clock_endpoint not in known:
             raise ValueError(t("Board {board_id} references unknown clock endpoint {endpoint!r}.", board_id=self.board_id, endpoint=self.clock_endpoint))
 

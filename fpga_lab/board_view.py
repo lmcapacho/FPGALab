@@ -122,7 +122,15 @@ class BoardView(QGraphicsView):
         artwork = QGraphicsSvgItem(str(self._layout.svg))
         artwork.setZValue(-10)
         artwork.setParentItem(self._board_group)
-        return artwork.boundingRect()
+        # Qt converts mm/in dimensions to pixels. Normalize the artwork to
+        # layout coordinates so rotation, fit-to-view, and controls agree.
+        bounds = artwork.boundingRect()
+        origin_x, origin_y, width, height = self._layout.view_box
+        if bounds.width() <= 0 or bounds.height() <= 0:
+            raise ValueError("Board SVG must have non-empty bounds")
+        artwork.setTransform(QTransform.fromScale(width / bounds.width(), height / bounds.height()))
+        artwork.setPos(origin_x, origin_y)
+        return QRectF(origin_x, origin_y, width, height)
 
     def _apply_orientation(self) -> None:
         """Rotate board artwork and its controls as one declarative layout unit."""

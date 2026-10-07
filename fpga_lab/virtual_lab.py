@@ -99,6 +99,7 @@ class FPGAVirtualLab(QWidget):
             self._worker = SimulationWorker(
                 simulation, clock_hz, ui_refresh_hz, observation_hz,
                 self._led_sources, board.led_endpoints,
+                tuple(board.pin(endpoint).active_low for endpoint in board.led_endpoints),
             )
             self._worker.moveToThread(self._thread)
             self._thread.started.connect(self._worker.start)
@@ -281,6 +282,7 @@ class FPGAVirtualLab(QWidget):
         # outputs can contribute to the peripheral persistence models.
         self._running = True
         self._peripherals.set_powered(True)
+        self._restore_board_inputs()
         self.play_requested.emit()
         if power_signal := self._layout.signal_for_role("power"):
             self._board_view.set_led_brightness(power_signal, 1.0)
@@ -326,12 +328,15 @@ class FPGAVirtualLab(QWidget):
         if name == self._layout.signal_for_role("reset"):
             if final_value:
                 self.reset_requested.emit()
+                self._restore_board_inputs()
             return
         port, bit = self._input_sources.get(name, (name, 0))
         if port not in self._available_inputs:
             # Physical controls remain available even when the current HDL
             # does not constrain or read them, exactly as on a real board.
             return
+        active_low = next((pin.active_low for pin in self._board.pins if pin.id == name), False)
+        final_value ^= int(active_low)
         values = [final_value, 1 - final_value, final_value]
         for index, value in enumerate(values):
             timer = QTimer(self)
@@ -340,6 +345,13 @@ class FPGAVirtualLab(QWidget):
             timer.timeout.connect(timer.deleteLater)
             timer.start(index * 2)
             self._bounce_timers.append(timer)
+
+    def _restore_board_inputs(self) -> None:
+        """Apply physical button idle levels before Run and after model Reset."""
+        for endpoint in self._board.input_endpoints:
+            port, bit = self._input_sources.get(endpoint, (endpoint, 0))
+            if port in self._available_inputs:
+                self._set_board_input(port, bit, int(self._board.pin(endpoint).active_low))
 
     def _set_board_input(self, port: str, bit: int, value: int) -> None:
         if not self._running:

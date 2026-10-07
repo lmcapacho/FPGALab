@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Experimental iCEBreaker Bitsy v1.1c board package with a 12 MHz clock, active-low user LEDs/button, GPIO pinout, and board artwork for second-board testing.
 - PCF and literal XDC `PACKAGE_PIN` support for project pin mapping and board pinout packages.
 - Board selector in the main window, persisted per user and passed to board mapping, compilation setup, and simulation.
 - Internal board catalog that discovers and validates bundled board packages and reports incomplete ones.
@@ -26,6 +27,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Fixed
 
+- Board controls now support declared active-low polarity; shared physical pin aliases resolve to the same project net for both integrated controls and headers.
 - Reset fires once per board-button press and keeps UART/SPI monitors usable when virtual-cycle timestamps restart, without discarding their visible history.
 
 ## 0.1.0rc4 — 2026-09-24

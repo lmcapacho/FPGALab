@@ -13,7 +13,7 @@ from .i18n import t
 from .simulation import EdgeEvent, VgaStats, VerilatorSimulation
 from .sink_bind import VgaBinding
 from .serial_edges import uart_8n1_drive_events
-from .temporal import LedModel
+from .temporal import LedModel, SignalWindow
 
 
 @dataclass(frozen=True)
@@ -88,6 +88,7 @@ class SimulationWorker(QObject):
         observation_hz: int = 1_000_000,
         led_sources: dict[int, tuple[str, int]] | None = None,
         led_endpoints: tuple[str, ...] | None = None,
+        led_active_low: tuple[bool, ...] = (),
     ):
         super().__init__()
         if clock_hz <= 0 or ui_refresh_hz <= 0 or observation_hz <= 0:
@@ -109,6 +110,7 @@ class SimulationWorker(QObject):
             else ()
         )
         self._led_models = [LedModel() for _ in self._led_endpoints]
+        self._led_active_low = led_active_low
         resolved = led_sources or {}
         self._led_sources = {
             index: resolved.get(index, (endpoint, 0))
@@ -307,6 +309,11 @@ class SimulationWorker(QObject):
             for index, model in enumerate(self._led_models):
                 port, bit = self._led_sources[index]
                 signal = windows.get(f"{port}[{bit}]")
+                if signal and index < len(self._led_active_low) and self._led_active_low[index]:
+                    signal = SignalWindow(
+                        not signal.start, not signal.end,
+                        signal.half_cycles - signal.high_halves, signal.half_cycles, signal.edges,
+                    )
                 leds.append(model.advance({"anode": signal}, virtual_elapsed) if signal else 0.0)
             outputs = {
                 name: self._simulation.get_output(name)

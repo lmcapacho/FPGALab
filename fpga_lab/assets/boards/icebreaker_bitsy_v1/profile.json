@@ -1,0 +1,7 @@
+{
+  "board_name": "iCEBreaker Bitsy v1.1c",
+  "clock_name": "CLK",
+  "inputs": {"CLK": 1, "BTN": 1},
+  "outputs": {"LEDR": 1, "LEDG": 1},
+  "observed": {"LEDR": 1, "LEDG": 1}
+}

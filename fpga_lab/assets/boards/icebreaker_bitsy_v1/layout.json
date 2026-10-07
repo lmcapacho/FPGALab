@@ -1,0 +1,13 @@
+{
+  "board_id": "icebreaker_bitsy_v1",
+  "svg": "board.svg",
+  "orientation": "vertical",
+  "transform": {"rotation": 90, "mirror_x": false, "mirror_y": false},
+  "viewBox": [0, 0, 74, 36],
+  "components": [
+    {"id": "LEDR", "type": "led", "signal": "LEDR", "x": 8.0, "y": 5.9, "width": 2.5, "height": 1.8, "color": "#ff3030"},
+    {"id": "LEDG", "type": "led", "signal": "LEDG", "x": 8.0, "y": 28.3, "width": 2.5, "height": 1.8, "color": "#22e050"},
+    {"id": "BTN", "type": "button", "signal": "BTN", "x": 19.7, "y": 24.2, "width": 8.2, "height": 5.6},
+    {"id": "CDONE", "type": "led", "signal": "CDONE", "x": 68.2, "y": 28.4, "width": 2.5, "height": 1.8, "color": "#22e050", "role": "power"}
+  ]
+}

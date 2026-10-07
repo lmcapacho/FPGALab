@@ -77,6 +77,20 @@ def test_worker_uses_configured_led_count_and_sources():
     assert frames[-1].led_brightness == (0.0, 0.0)
 
 
+def test_worker_applies_active_low_before_led_persistence():
+    worker = SimulationWorker(
+        FakeSimulation(), led_endpoints=("status_a", "status_b", "unmapped"),
+        led_active_low=(True, True, True),
+    )
+    frames = []
+    worker.state_changed.connect(frames.append)
+    worker._last_frame_time = perf_counter() - 0.02
+    worker._run_frame()
+    assert frames[-1].led_brightness == (0.0, 1.0, 0.0)
+    worker.power_off()
+    assert frames[-1].led_brightness == (0.0, 0.0, 0.0)
+
+
 def test_virtual_board_paints_leds_in_declared_order(tmp_path):
     lab_file = tmp_path / "lab.json"
     lab_file.write_text('{"peripherals": []}', encoding="utf-8")
