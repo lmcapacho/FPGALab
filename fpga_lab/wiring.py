@@ -121,7 +121,17 @@ class VirtualLabProject:
                         ))
                     resolved.append(ResolvedWire(peripheral.peripheral_id, terminal, endpoint, None))
                     continue
-                board_pin = board.pin(endpoint)
+                try:
+                    board_pin = board.pin(endpoint)
+                except KeyError:
+                    if not compatible:
+                        raise
+                    warnings.append(t(
+                        "{identifier}.{terminal}: pin '{endpoint}' is unavailable on {board}; the connection was preserved but is inactive.",
+                        identifier=peripheral.peripheral_id, terminal=terminal,
+                        endpoint=endpoint, board=board.label,
+                    ))
+                    continue
                 expected_direction = terminal_spec.direction
                 if expected_direction and board_pin.direction not in {expected_direction, "inout"}:
                     raise ValueError(t(

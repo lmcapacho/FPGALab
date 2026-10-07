@@ -27,6 +27,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Fixed
 
+- Switching boards preserves connections to unavailable pins as inactive wiring with a compatibility notice instead of preventing the Lab from opening.
 - Board controls now support declared active-low polarity; shared physical pin aliases resolve to the same project net for both integrated controls and headers.
 - Reset fires once per board-button press and keeps UART/SPI monitors usable when virtual-cycle timestamps restart, without discarding their visible history.
 

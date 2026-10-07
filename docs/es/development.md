@@ -118,6 +118,9 @@ ni el bloque físico RGB. Falta confirmar los derechos de redistribución de la
 imagen antes de un release.
 La imagen es un recorte de la tarjeta informativa original de iCEBreaker;
 consulta `ATTRIBUTION.md` del paquete para conocer la fuente y los créditos.
+Al cambiar de tarjeta, las conexiones a pines inexistentes se conservan en el
+Lab, inactivas y con un aviso. Reasígnalas explícitamente para la nueva tarjeta;
+al volver a la anterior se resuelven nuevamente sin perder asignaciones.
 
 En Icestudio selecciona **iCEBreaker bitsy v1**, crea entradas `clk` (CLK) y
 `button` (BTN), y salidas `red` (LEDR) y `green` (LEDG). Usa este cuerpo en un

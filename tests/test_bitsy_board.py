@@ -16,9 +16,35 @@ from fpga_lab.profile import BoardProfile
 from fpga_lab.project_pins import ProjectPinMap
 from fpga_lab.verilog_interface import VerilogInterface
 from fpga_lab.virtual_lab import FPGAVirtualLab
+from fpga_lab.board import BoardDefinition, bundled_board_definition
+from fpga_lab.wiring import VirtualLabProject
+import pytest
 
 _APPLICATION = QApplication.instance() or QApplication([])
 BITSY = "icebreaker_bitsy_v1"
+
+
+def test_bitsy_opens_lab_with_alhambra_pins_without_losing_connections(tmp_path):
+    path = tmp_path / "existing.lab"
+    original = '{"peripherals":[{"id":"display_1","type":"seven_segment","connections":{"a":"D3","common":"GND"}}]}'
+    path.write_text(original, encoding="utf-8")
+    project = VirtualLabProject.load(path)
+    board = BoardCatalog().get(BITSY).definition
+    with pytest.raises(KeyError):
+        project.resolve(board, [])
+    wires, warnings = project.resolve_compatible(board, [])
+    assert [wire.terminal for wire in wires] == ["common"]
+    assert len(warnings) == 1 and "D3" in warnings[0]
+    lab = FPGAVirtualLab(board_id=BITSY, lab_file=path)
+    try:
+        assert lab._board.board_id == board.board_id
+        assert path.read_text(encoding="utf-8") == original
+        restored, warnings = project.resolve_compatible(BoardDefinition.load(bundled_board_definition()), [])
+        assert not warnings
+        assert [wire.board_endpoint for wire in restored] == ["D3", "GND"]
+    finally:
+        lab.close()
+        lab.deleteLater()
 
 
 def test_bitsy_catalog_and_project_mapping_include_shared_led_pin(tmp_path):

@@ -113,6 +113,9 @@ user LEDs and the active-low button at 12 MHz. USB, flash, PSRAM and RGB hard IP
 are not modeled. Confirm artwork redistribution rights before a release.
 The artwork is cropped from the upstream iCEBreaker information card; see
 the board package's `ATTRIBUTION.md` for source and credits.
+When switching boards, connections to unavailable pins remain in the Lab,
+inactive with a compatibility notice. Remap them explicitly for the new board;
+switching back restores their resolution without losing assignments.
 
 To test it in Icestudio, select **iCEBreaker bitsy v1**, create inputs `clk`
 (CLK) and `button` (BTN), and outputs `red` (LEDR) and `green` (LEDG).

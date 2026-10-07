@@ -399,6 +399,7 @@
   "Save board layout": "Guardar layout de la tarjeta",
   "This changes the packaged board layout used by FPGALab. Continue and keep a backup of the previous layout?": "Esto modifica el layout empaquetado que usa FPGALab. ¿Desea continuar y conservar una copia de seguridad del layout anterior?",
   "Rotation": "Rotación",
+  "{identifier}.{terminal}: pin '{endpoint}' is unavailable on {board}; the connection was preserved but is inactive.": "{identifier}.{terminal}: el pin '{endpoint}' no está disponible en {board}; la conexión se conservó, pero está inactiva.",
   "Mirror horizontally": "Reflejar horizontalmente",
   "Mirror vertically": "Reflejar verticalmente",
   "Role": "Función",
