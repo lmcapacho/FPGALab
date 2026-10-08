@@ -100,6 +100,14 @@ from `board.json`, not physical FPGA pin numbers or project-specific HDL nets.
 LEDs list output/inout endpoints; buttons list input/inout endpoints, excluding
 the clock. Special power/reset roles allow internal signal names. Existing
 unavailable values remain marked and preserved; empty signals cannot be saved.
+The editor sidebar separates selected-component properties and actions from
+component creation, whole-board appearance (rotation/mirroring), and editor
+view controls. Save and Close remain at the bottom of the panel.
+Component creation starts with the role. Normal controls select a board signal;
+power indicators and simulation reset buttons use an internal identifier
+(suggested defaults: `PWR` and `RESET`) without requiring an FPGA pin. The role,
+not the identifier's spelling, determines the behavior. Assigning an existing
+role to another element transfers it to that element.
 The `controls.leds` order in `board.json` determines the order of LED samples
 published by the worker. Each endpoint name selects the corresponding visual
 LED in `layout.json`; a board may declare any number of LEDs, including none.

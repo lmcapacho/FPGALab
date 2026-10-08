@@ -11,13 +11,13 @@ from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import (
     QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QInputDialog, QGraphicsItem, QGraphicsRectItem,
-    QCheckBox, QComboBox, QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QMessageBox, QPushButton, QSplitter, QVBoxLayout,
+    QCheckBox, QComboBox, QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QMessageBox, QPushButton, QScrollArea, QSplitter, QVBoxLayout, QWidget,
 )
 
 from .board_layout import BoardLayout, BoardLayoutElement
 from .board import BoardDefinition
 from .i18n import t
-from .theme import color, style_button
+from .theme import Metrics, color, style_button
 
 
 class EditableItem(QGraphicsRectItem):
@@ -93,13 +93,33 @@ class BoardLayoutEditor(QDialog):
         splitter.setObjectName("layoutEditorSplitter")
         splitter.addWidget(self._canvas)
         side_frame = QFrame()
-        side_frame.setMinimumWidth(240)
+        side_frame.setMinimumWidth(300)
         side_frame.setMaximumWidth(420)
         side = QVBoxLayout(side_frame)
-        side.addWidget(QLabel(t("Layout editor")))
-        instructions = QLabel(t("Drag for larger moves. Arrows: 0.25 units. Shift+arrows: 2 units."))
-        instructions.setWordWrap(True)
-        side.addWidget(instructions)
+        contents = QWidget()
+        contents.setObjectName("layoutEditorContents")
+        sections = QVBoxLayout(contents)
+        sections.setContentsMargins(0, 0, Metrics.SPACE_MD, 0)
+        sections.setSpacing(Metrics.SPACE_MD)
+        scroll = QScrollArea()
+        scroll.setObjectName("layoutEditorScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(contents)
+        side.addWidget(scroll)
+
+        def heading(text: str) -> None:
+            label = QLabel(text)
+            font = label.font()
+            font.setBold(True)
+            label.setFont(font)
+            sections.addWidget(label)
+
+        heading(t("Selected component"))
+        self._selection_hint = QLabel(t("Select a component on the board to edit its properties."))
+        self._selection_hint.setObjectName("caption")
+        self._selection_hint.setWordWrap(True)
+        sections.addWidget(self._selection_hint)
         form = QFormLayout()
         self._id = QLabel("—")
         self._kind = QLabel("—")
@@ -110,13 +130,41 @@ class BoardLayoutEditor(QDialog):
         self._position = QLabel("—")
         form.addRow("Id", self._id)
         form.addRow(t("Type"), self._kind)
-        form.addRow(t("Board signal"), self._signal)
+        self._signal_label = QLabel(t("Board signal"))
+        form.addRow(self._signal_label, self._signal)
         form.addRow(t("Position"), self._position)
         self._role = QComboBox()
         self._role.setEnabled(False)
         self._role.currentIndexChanged.connect(self._change_role)
         form.addRow(t("Role"), self._role)
-        side.addLayout(form)
+        sections.addLayout(form)
+        component_actions = QHBoxLayout()
+        self._color_button = QPushButton(t("Change color"))
+        self._color_button.setEnabled(False)
+        self._color_button.clicked.connect(self._change_color)
+        component_actions.addWidget(self._color_button)
+        self._delete_button = QPushButton(t("Delete selected"))
+        self._delete_button.setEnabled(False)
+        style_button(self._delete_button, "danger")
+        self._delete_button.clicked.connect(self._delete_selected)
+        component_actions.addWidget(self._delete_button)
+        sections.addLayout(component_actions)
+        sections.addSpacing(Metrics.SPACE_MD)
+        heading(t("Add components"))
+        add_actions = QHBoxLayout()
+        add_led = QPushButton(t("Add LED"))
+        add_led.clicked.connect(lambda: self._add_component("led"))
+        add_actions.addWidget(add_led)
+        add_switch = QPushButton(t("Add button"))
+        add_switch.clicked.connect(lambda: self._add_component("button"))
+        add_actions.addWidget(add_switch)
+        sections.addLayout(add_actions)
+        sections.addSpacing(Metrics.SPACE_MD)
+        heading(t("Board appearance"))
+        transform_hint = QLabel(t("Rotation and mirroring apply to the whole board in the main window."))
+        transform_hint.setObjectName("caption")
+        transform_hint.setWordWrap(True)
+        sections.addWidget(transform_hint)
         transform_form = QFormLayout()
         self._rotation = QComboBox()
         self._rotation.addItems(("0°", "90°", "180°", "270°"))
@@ -128,35 +176,30 @@ class BoardLayoutEditor(QDialog):
         transform_form.addRow(t("Rotation"), self._rotation)
         transform_form.addRow(self._mirror_x)
         transform_form.addRow(self._mirror_y)
-        side.addLayout(transform_form)
-        add_led = QPushButton("+ LED")
-        add_led.clicked.connect(lambda: self._add_component("led"))
-        side.addWidget(add_led)
-        add_switch = QPushButton("+ Switch")
-        add_switch.clicked.connect(lambda: self._add_component("button"))
-        side.addWidget(add_switch)
-        color_button = QPushButton(t("Change color"))
-        color_button.clicked.connect(self._change_color)
-        side.addWidget(color_button)
-        delete = QPushButton(t("Delete selected"))
-        style_button(delete, "danger")
-        delete.clicked.connect(self._delete_selected)
-        side.addWidget(delete)
+        sections.addLayout(transform_form)
+        sections.addSpacing(Metrics.SPACE_MD)
+        heading(t("Editor view"))
         fit = QPushButton(t("Fit canvas"))
         fit.clicked.connect(self.fit_to_canvas)
-        side.addWidget(fit)
-        save = QPushButton(t("Save JSON"))
+        sections.addWidget(fit)
+        instructions = QLabel(t("Drag for larger moves. Arrows: 0.25 units. Shift+arrows: 2 units."))
+        instructions.setObjectName("caption")
+        instructions.setWordWrap(True)
+        sections.addWidget(instructions)
+        sections.addStretch()
+        footer = QHBoxLayout()
+        save = QPushButton(t("Save layout"))
         style_button(save, "primary")
         save.clicked.connect(self.save)
-        side.addWidget(save)
-        side.addStretch()
+        footer.addWidget(save, 1)
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(self.reject)
-        side.addWidget(close)
+        footer.addWidget(close)
+        side.addLayout(footer)
         splitter.addWidget(side_frame)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
-        splitter.setSizes([900, 280])
+        splitter.setSizes([900, 340])
         root.addWidget(splitter)
         QTimer.singleShot(0, self._prepare_canvas)
 
@@ -186,20 +229,43 @@ class BoardLayoutEditor(QDialog):
         )
 
     def _add_component(self, kind: str) -> None:
+        roles = [(t("No special role"), None),
+                 (t("Power indicator"), "power") if kind == "led" else (t("Reset button"), "reset")]
+        choice, ok = QInputDialog.getItem(self, t("New component"), t("Role"),
+                                        [label for label, _role in roles], editable=False)
+        if not ok:
+            return
+        role = next(role for label, role in roles if label == choice)
         prefix = "LED" if kind == "led" else "SW"
-        element_id, ok = QInputDialog.getText(self, t("New component"), t("Identifier"), text=f"{prefix}{len(self._elements)}")
+        default_signal = "PWR" if role == "power" else "RESET" if role == "reset" else None
+        default_id = default_signal or f"{prefix}{len(self._elements)}"
+        if default_id in self._elements:
+            index = 1
+            while f"{default_id}_{index}" in self._elements:
+                index += 1
+            default_id = f"{default_id}_{index}"
+        element_id, ok = QInputDialog.getText(self, t("New component"), t("Identifier"), text=default_id)
+        element_id = element_id.strip()
         if not ok or not element_id or element_id in self._elements: return
         signals = self._board_signals(kind)
-        if self._board is not None:
+        if role is not None:
+            signal, ok = QInputDialog.getText(self, t("New component"), t("Internal signal"), text=default_signal)
+        elif self._board is not None:
             if not signals:
                 return
             signal, ok = QInputDialog.getItem(self, t("New component"), t("Board signal"), signals, editable=False)
         else:
             signal, ok = QInputDialog.getText(self, t("New component"), t("Board signal"), text=element_id)
+        signal = signal.strip()
         if not ok or not signal: return
         width, height = (4.2, 1.8) if kind == "led" else (14.0, 5.6)
-        element = BoardLayoutElement(element_id, kind, signal, self._layout.view_box[2] / 2 - width / 2, self._layout.view_box[3] / 2 - height / 2, width, height, "#b6ff00")
+        element = BoardLayoutElement(element_id, kind, signal, self._layout.view_box[2] / 2 - width / 2, self._layout.view_box[3] / 2 - height / 2, width, height, "#b6ff00", role)
+        if role is not None:
+            for other_id, other in self._elements.items():
+                if other.role == role:
+                    self._elements[other_id] = replace(other, role=None)
         self._elements[element_id] = element
+        self._scene.clearSelection()
         item = EditableItem(self._map_to_scene(element)); self._items[element_id] = item; self._scene.addItem(item); item.setSelected(True)
 
     def _delete_selected(self) -> None:
@@ -239,6 +305,7 @@ class BoardLayoutEditor(QDialog):
         self._signal.blockSignals(True)
         self._signal.clear()
         internal = element.role is not None or self._board is None
+        self._signal_label.setText(t("Internal signal") if element.role is not None else t("Board signal"))
         self._signal.setEditable(internal)
         for signal in self._board_signals(element.kind):
             self._signal.addItem(signal, signal)
@@ -248,7 +315,8 @@ class BoardLayoutEditor(QDialog):
             self._signal.addItem(label, element.signal)
             index = self._signal.count() - 1
         self._signal.setCurrentIndex(index)
-        self._signal.setToolTip(t("Logical board signal, not a physical FPGA pin number or the project's HDL net name.")
+        self._signal.setToolTip(t("Internal identifier for the selected role; no FPGA pin is required.") if element.role is not None else
+                               t("Logical board signal, not a physical FPGA pin number or the project's HDL net name.")
                                if internal or element.signal in self._board_signals(element.kind)
                                else t("This signal is not available for this control. Its saved value is preserved."))
         self._signal.blockSignals(False)
@@ -262,7 +330,11 @@ class BoardLayoutEditor(QDialog):
 
     def _show_selection(self) -> None:
         selected = self._scene.selectedItems()
+        self._selection_hint.setVisible(not selected)
+        self._color_button.setEnabled(bool(selected) and self._elements[selected[0].element_id].kind == "led")
+        self._delete_button.setEnabled(bool(selected))
         if not selected:
+            self._signal_label.setText(t("Board signal"))
             self._id.setText("—"); self._kind.setText("—"); self._signal.clear(); self._position.setText("—")
             self._signal.setEnabled(False)
             self._role.setEnabled(False)

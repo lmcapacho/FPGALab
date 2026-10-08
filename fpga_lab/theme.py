@@ -163,6 +163,7 @@ def application_stylesheet(mode: str = "dark") -> str:
     spin_down_arrow = (_ICON_DIR / f"chevron-down{spin_suffix}.svg").as_posix()
     return f"""
     QMainWindow, QDialog {{ background: {p.canvas}; }}
+    QScrollArea#layoutEditorScroll, QWidget#layoutEditorContents {{ background: {p.canvas}; border: 0; }}
     QWidget {{ color: {p.text}; font-family: Inter, "Segoe UI", Arial, sans-serif; font-size: {Metrics.FONT_SIZE}px; }}
     QWidget#uartOutputContainer, QWidget#uartInputContainer {{ background: transparent; }}
     QFrame#panel, QFrame#toolbarPanel {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: {Metrics.RADIUS_MD}px; }}

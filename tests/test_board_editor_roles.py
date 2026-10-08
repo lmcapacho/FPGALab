@@ -5,7 +5,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMessageBox, QInputDialog
 from PyQt6.QtTest import QTest
 
 from fpga_lab.board_editor import BoardLayoutEditor
@@ -40,7 +40,10 @@ def test_editor_assigns_and_persists_signals_and_roles(tmp_path, monkeypatch):
     }), encoding="utf-8")
     editor = BoardLayoutEditor(BoardLayout.load(source))
     assert not editor._signal.isEnabled()
+    assert not editor._delete_button.isEnabled()
+    assert not editor._color_button.isEnabled()
     editor._items["status"].setSelected(True)
+    assert editor._color_button.isEnabled() and editor._delete_button.isEnabled()
     assert editor._signal.currentData() == "status_light"
     assert not editor._signal.isEditable()
     assert editor._signal.findData("BTN_A") == -1
@@ -51,6 +54,8 @@ def test_editor_assigns_and_persists_signals_and_roles(tmp_path, monkeypatch):
     editor._role.setCurrentIndex(editor._role.findData("power"))
     editor._items["status"].setSelected(False)
     editor._items["restart"].setSelected(True)
+    assert not editor._color_button.isEnabled()
+    assert editor._delete_button.isEnabled()
     assert editor._signal.currentData() == "restart_signal"
     assert editor._signal.findData("LED_A") == -1
     assert editor._signal.findData("CLK") == -1
@@ -74,4 +79,22 @@ def test_editor_assigns_and_persists_signals_and_roles(tmp_path, monkeypatch):
     assert saved.signal_for_role("power") == "LED_A"
     assert saved.signal_for_role("reset") == "BTN_A"
     assert source.with_suffix(".json.bak").is_file()
+
+    # Special controls are creatable even though neither signal is a board pin.
+    monkeypatch.setattr(QInputDialog, "getItem", lambda _parent, _title, _label, items, **kwargs: (items[1], True))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *args, **kwargs: (kwargs["text"], True))
+    editor._add_component("led")
+    assert editor._elements["PWR"].signal == "PWR"
+    assert editor._elements["PWR"].role == "power"
+    assert editor._elements["status"].role is None
+    assert editor._signal.isEditable()
+    editor._add_component("button")
+    assert editor._elements["RESET"].signal == "RESET"
+    assert editor._elements["RESET"].role == "reset"
+    assert editor._elements["restart"].role is None
+    assert len(editor._scene.selectedItems()) == 1
+    editor.save()
+    saved = BoardLayout.load(source)
+    assert saved.signal_for_role("power") == "PWR"
+    assert saved.signal_for_role("reset") == "RESET"
     editor.deleteLater()

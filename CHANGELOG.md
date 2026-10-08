@@ -19,6 +19,8 @@ All notable changes to FPGALab are documented in this file.
 
 ### Changed
 
+- Organized the board layout editor sidebar into component properties/actions, component creation, whole-board appearance, and editor view, with save/close actions kept at the bottom.
+- Board layout component creation chooses the role first, allowing power indicators and simulation reset buttons with internal identifiers without requiring FPGA pins.
 - Virtual clock defaults to the selected board's frequency, with an optional per-Lab override; older global clock settings migrate to the active Lab. Interface refresh and temporal sampling remain global.
 - Removed remaining runtime assumptions that unnamed profiles and generic simulation workers belong to Alhambra II; board-specific labels and LED endpoints now come from the selected board package.
 - The selected Lab now determines the active board; changing the board selector updates the Lab, and the board title follows the selected definition during simulation.

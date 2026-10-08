@@ -107,6 +107,14 @@ no números físicos de pines FPGA ni redes HDL del proyecto. Los LEDs ofrecen
 señales output/inout y los botones input/inout, excluyendo el reloj. Los roles
 especiales de encendido/reset permiten nombres internos. Los valores antiguos
 no disponibles se indican y conservan; no se permite guardar señales vacías.
+El panel del editor separa las propiedades y acciones del componente
+seleccionado, la creación de componentes, la apariencia de toda la tarjeta
+(rotación/reflejos) y los controles de vista. Guardar y cerrar quedan al pie.
+La creación comienza por la función. Los controles normales seleccionan una
+señal de la tarjeta; los indicadores de encendido y botones de reset de
+simulación usan un identificador interno (`PWR` y `RESET` como sugerencias),
+sin requerir un pin FPGA. El rol determina el comportamiento, no el nombre.
+Asignar a otro elemento un rol existente lo transfiere a ese elemento.
 
 ## Integración de tarjetas: iCEBreaker Bitsy
 
