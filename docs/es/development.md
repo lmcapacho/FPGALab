@@ -102,6 +102,12 @@ LED publicados por el worker. Cada nombre de endpoint selecciona el LED visual
 correspondiente en `layout.json`; una tarjeta puede declarar cualquier número
 de LEDs, incluso ninguno.
 
+El campo Señal de la tarjeta muestra los identificadores lógicos de `board.json`,
+no números físicos de pines FPGA ni redes HDL del proyecto. Los LEDs ofrecen
+señales output/inout y los botones input/inout, excluyendo el reloj. Los roles
+especiales de encendido/reset permiten nombres internos. Los valores antiguos
+no disponibles se indican y conservan; no se permite guardar señales vacías.
+
 ## Integración de tarjetas: iCEBreaker Bitsy
 
 Un pin de `board.json` puede declarar `"active_low": true` (por defecto: false).

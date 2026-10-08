@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Board signal selector in the layout editor, filtered by control direction and excluding the clock. Special roles allow internal signals; unavailable existing values are preserved and empty signals cannot be saved.
 - iCEBreaker Bitsy v1.1c as a second supported board, with a 12 MHz clock, active-low integrated LEDs/button, external GPIO, board artwork, and per-Lab board selection. USB, flash, PSRAM and RGB hard IP are not modeled.
 - PCF and literal XDC `PACKAGE_PIN` support for project pin mapping and board pinout packages.
 - Board selector in the main window, persisted per user and passed to board mapping, compilation setup, and simulation.

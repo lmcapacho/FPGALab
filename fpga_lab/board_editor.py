@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .board_layout import BoardLayout, BoardLayoutElement
+from .board import BoardDefinition
 from .i18n import t
 from .theme import color, style_button
 
@@ -56,6 +57,8 @@ class BoardLayoutEditor(QDialog):
     def __init__(self, layout: BoardLayout, parent=None):
         super().__init__(parent)
         self._layout = layout
+        definition_path = layout.source.parent / "board.json"
+        self._board = BoardDefinition.load(definition_path) if definition_path.is_file() else None
         self.setWindowTitle(t("Edit layout · {board}", board=layout.board_id))
         self.setWindowFlag(Qt.WindowType.Window, True)
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
@@ -100,11 +103,14 @@ class BoardLayoutEditor(QDialog):
         form = QFormLayout()
         self._id = QLabel("—")
         self._kind = QLabel("—")
-        self._signal = QLabel("—")
+        self._signal = QComboBox()
+        self._signal.setEnabled(False)
+        self._signal.setToolTip(t("Logical board signal, not a physical FPGA pin number or the project's HDL net name."))
+        self._signal.currentTextChanged.connect(self._change_signal)
         self._position = QLabel("—")
         form.addRow("Id", self._id)
         form.addRow(t("Type"), self._kind)
-        form.addRow(t("Signal"), self._signal)
+        form.addRow(t("Board signal"), self._signal)
         form.addRow(t("Position"), self._position)
         self._role = QComboBox()
         self._role.setEnabled(False)
@@ -183,7 +189,13 @@ class BoardLayoutEditor(QDialog):
         prefix = "LED" if kind == "led" else "SW"
         element_id, ok = QInputDialog.getText(self, t("New component"), t("Identifier"), text=f"{prefix}{len(self._elements)}")
         if not ok or not element_id or element_id in self._elements: return
-        signal, ok = QInputDialog.getText(self, t("New component"), t("HDL signal"), text=element_id)
+        signals = self._board_signals(kind)
+        if self._board is not None:
+            if not signals:
+                return
+            signal, ok = QInputDialog.getItem(self, t("New component"), t("Board signal"), signals, editable=False)
+        else:
+            signal, ok = QInputDialog.getText(self, t("New component"), t("Board signal"), text=element_id)
         if not ok or not signal: return
         width, height = (4.2, 1.8) if kind == "led" else (14.0, 5.6)
         element = BoardLayoutElement(element_id, kind, signal, self._layout.view_box[2] / 2 - width / 2, self._layout.view_box[3] / 2 - height / 2, width, height, "#b6ff00")
@@ -214,18 +226,54 @@ class BoardLayoutEditor(QDialog):
                 if other_id != element_id and element.role == role:
                     self._elements[other_id] = replace(element, role=None)
         self._elements[element_id] = replace(self._elements[element_id], role=role)
+        self._populate_signals(self._elements[element_id])
+
+    def _board_signals(self, kind: str) -> list[str]:
+        if self._board is None:
+            return []
+        direction = "output" if kind == "led" else "input"
+        return [pin.id for pin in self._board.pins
+                if pin.direction in {direction, "inout"} and pin.id != self._board.clock_endpoint]
+
+    def _populate_signals(self, element: BoardLayoutElement) -> None:
+        self._signal.blockSignals(True)
+        self._signal.clear()
+        internal = element.role is not None or self._board is None
+        self._signal.setEditable(internal)
+        for signal in self._board_signals(element.kind):
+            self._signal.addItem(signal, signal)
+        index = self._signal.findData(element.signal)
+        if index < 0:
+            label = element.signal if internal else t("{signal} (unavailable)", signal=element.signal)
+            self._signal.addItem(label, element.signal)
+            index = self._signal.count() - 1
+        self._signal.setCurrentIndex(index)
+        self._signal.setToolTip(t("Logical board signal, not a physical FPGA pin number or the project's HDL net name.")
+                               if internal or element.signal in self._board_signals(element.kind)
+                               else t("This signal is not available for this control. Its saved value is preserved."))
+        self._signal.blockSignals(False)
+
+    def _change_signal(self, text: str) -> None:
+        selected = self._scene.selectedItems()
+        if selected:
+            element_id = selected[0].element_id
+            signal = text if self._signal.isEditable() else self._signal.currentData()
+            self._elements[element_id] = replace(self._elements[element_id], signal=(signal or "").strip())
 
     def _show_selection(self) -> None:
         selected = self._scene.selectedItems()
         if not selected:
-            self._id.setText("—"); self._kind.setText("—"); self._signal.setText("—"); self._position.setText("—")
+            self._id.setText("—"); self._kind.setText("—"); self._signal.clear(); self._position.setText("—")
+            self._signal.setEnabled(False)
             self._role.setEnabled(False)
             self._role.clear()
             return
         item = selected[0]
         source = self._elements[item.element_id]
         x, y = self._map_to_layout(item)
-        self._id.setText(source.id); self._kind.setText(source.kind); self._signal.setText(source.signal)
+        self._id.setText(source.id); self._kind.setText(source.kind)
+        self._populate_signals(source)
+        self._signal.setEnabled(True)
         self._position.setText(f"x={x}, y={y}")
         self._role.blockSignals(True)
         self._role.clear()
@@ -271,6 +319,9 @@ class BoardLayoutEditor(QDialog):
         self._canvas.fitInView(self._bounds, Qt.AspectRatioMode.KeepAspectRatio)
 
     def save(self) -> None:
+        if any(not element.signal for element in self._elements.values()):
+            QMessageBox.warning(self, t("Save board layout"), t("Each layout component must have a signal."))
+            return
         replace(self._layout, elements=tuple(self._elements.values())).validate()
         prompt = t(
             "This changes the packaged board layout used by FPGALab. "

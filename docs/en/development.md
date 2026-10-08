@@ -95,6 +95,11 @@ may declare `"role": "reset"`. These optional roles control the simulation
 indicator and reset action without depending on the elements' signal names.
 Select the element in Edit layout to assign its role; each role can belong to
 only one element.
+The selected element's Board signal field lists logical endpoint identifiers
+from `board.json`, not physical FPGA pin numbers or project-specific HDL nets.
+LEDs list output/inout endpoints; buttons list input/inout endpoints, excluding
+the clock. Special power/reset roles allow internal signal names. Existing
+unavailable values remain marked and preserved; empty signals cannot be saved.
 The `controls.leds` order in `board.json` determines the order of LED samples
 published by the worker. Each endpoint name selects the corresponding visual
 LED in `layout.json`; a board may declare any number of LEDs, including none.
