@@ -12,9 +12,9 @@
   integrator. The adaptation removes the surrounding information card and
   retains the board image in an SVG container. Hardware licensing is described
   above; the artwork's specific redistribution terms still need confirmation
-  before releasing this experimental package.
-- FPGALab definition, layout, and profile: experimental integration for user
-  testing. No USB, flash, PSRAM, or RGB hard-IP model is supplied.
+  before distributing the artwork in a release.
+- FPGALab definition, layout, and profile: integration for basic board
+  simulation. No USB, flash, PSRAM, or RGB hard-IP model is supplied.
 
 `BTN`, `LEDR`, and `LEDG` are active-low. `LEDR` shares FPGA pin 25 with
 `P13`; `LEDG` shares its signal with PSRAM chip select. CDONE is shown as

@@ -99,7 +99,7 @@ The `controls.leds` order in `board.json` determines the order of LED samples
 published by the worker. Each endpoint name selects the corresponding visual
 LED in `layout.json`; a board may declare any number of LEDs, including none.
 
-## Test the second board
+## Board integration: iCEBreaker Bitsy
 
 A pin in `board.json` may declare `"active_low": true` (default: false).
 Integrated LED measurements are inverted before visual persistence, and an
@@ -107,31 +107,17 @@ active-low button drives 1 when released and 0 when pressed. Button idle levels
 are restored before Run and after a board reset. Physical pin aliases remain
 mapped to the same HDL net; reverse lookup prefers a header endpoint.
 
-The experimental `icebreaker_bitsy_v1/` package uses Icestudio's
-`iCEBreaker-bitsy1` identifier. Its first validation targets are two active-low
-user LEDs and the active-low button at 12 MHz. USB, flash, PSRAM and RGB hard IP
-are not modeled. Confirm artwork redistribution rights before a release.
+The `icebreaker_bitsy_v1/` package integrates a second board through the same
+definition, pinout, profile, layout and artwork structure used by Alhambra II.
+It uses Icestudio's `iCEBreaker-bitsy1` identifier. Validated support covers the
+12 MHz clock, active-low user LEDs, integrated button, external GPIO and
+per-Lab board selection. USB, flash, PSRAM and RGB hard IP are not modeled.
 The artwork is cropped from the upstream iCEBreaker information card; see
 the board package's `ATTRIBUTION.md` for source and credits.
 When switching boards, connections to unavailable pins remain in the Lab,
-inactive with a compatibility notice. Remap them explicitly for the new board;
-switching back restores their resolution without losing assignments.
-
-To test it in Icestudio, select **iCEBreaker bitsy v1**, create inputs `clk`
-(CLK) and `button` (BTN), and outputs `red` (LEDR) and `green` (LEDG).
-Use a code block with this body, generate Verilog, then open the design in
-FPGALab and select the Bitsy board for its Lab:
-
-```verilog
-reg [23:0] counter = 0;
-always @(posedge clk) counter <= counter + 1'b1;
-assign red = button;          // Both button and LED are active-low.
-assign green = ~counter[23];  // Slow blink at a 12 MHz clock.
-```
-
-Check button press/release, blinking, Stop/Run, an external LED on P00, and
-switching back to an Alhambra II Lab. The package is experimental until these
-manual checks have been completed.
+inactive with a compatibility notice. Assignments are not automatically
+translated between boards; switching back restores their resolution without
+losing connections.
 
 ## External peripherals
 

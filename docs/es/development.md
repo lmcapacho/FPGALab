@@ -102,7 +102,7 @@ LED publicados por el worker. Cada nombre de endpoint selecciona el LED visual
 correspondiente en `layout.json`; una tarjeta puede declarar cualquier número
 de LEDs, incluso ninguno.
 
-## Probar la segunda tarjeta
+## Integración de tarjetas: iCEBreaker Bitsy
 
 Un pin de `board.json` puede declarar `"active_low": true` (por defecto: false).
 Las mediciones de LED se invierten antes de aplicar persistencia visual; un
@@ -111,31 +111,18 @@ reposo se restauran antes de ejecutar y después de un reset de tarjeta. Los
 alias de un pin físico conservan la misma red HDL; la búsqueda inversa prefiere
 un endpoint del conector.
 
-El paquete experimental `icebreaker_bitsy_v1/` usa el identificador
-`iCEBreaker-bitsy1` de Icestudio. La primera validación cubre los dos LED de
-usuario y el botón, activos en bajo, a 12 MHz. No se simulan USB, flash, PSRAM
-ni el bloque físico RGB. Falta confirmar los derechos de redistribución de la
-imagen antes de un release.
+El paquete `icebreaker_bitsy_v1/` integra una segunda tarjeta mediante la misma
+estructura de definición, pinout, perfil, layout y recursos usada por Alhambra II.
+Usa el identificador `iCEBreaker-bitsy1` de Icestudio. El soporte validado cubre
+el reloj de 12 MHz, los LEDs de usuario activos en bajo, el botón integrado,
+GPIO externo y la selección de tarjeta por Lab. No se simulan USB, flash,
+PSRAM ni el bloque especializado RGB.
 La imagen es un recorte de la tarjeta informativa original de iCEBreaker;
 consulta `ATTRIBUTION.md` del paquete para conocer la fuente y los créditos.
 Al cambiar de tarjeta, las conexiones a pines inexistentes se conservan en el
-Lab, inactivas y con un aviso. Reasígnalas explícitamente para la nueva tarjeta;
-al volver a la anterior se resuelven nuevamente sin perder asignaciones.
-
-En Icestudio selecciona **iCEBreaker bitsy v1**, crea entradas `clk` (CLK) y
-`button` (BTN), y salidas `red` (LEDR) y `green` (LEDG). Usa este cuerpo en un
-bloque de código, genera Verilog y abre el diseño en FPGALab con Bitsy en su Lab:
-
-```verilog
-reg [23:0] counter = 0;
-always @(posedge clk) counter <= counter + 1'b1;
-assign red = button;          // Both button and LED are active-low.
-assign green = ~counter[23];  // Slow blink at a 12 MHz clock.
-```
-
-Comprueba pulsación/liberación, parpadeo, Stop/Run, un LED externo en P00 y el
-regreso a un Lab de Alhambra II. El paquete sigue siendo experimental hasta
-completar estas pruebas manuales.
+Lab, inactivas y con un aviso. Las asignaciones no se traducen automáticamente
+entre tarjetas; al volver a la anterior se resuelven nuevamente sin perder
+conexiones.
 
 ## Periféricos externos
 

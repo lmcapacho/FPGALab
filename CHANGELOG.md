@@ -6,7 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
-- Experimental iCEBreaker Bitsy v1.1c board package with a 12 MHz clock, active-low user LEDs/button, GPIO pinout, and board artwork for second-board testing.
+- iCEBreaker Bitsy v1.1c as a second supported board, with a 12 MHz clock, active-low integrated LEDs/button, external GPIO, board artwork, and per-Lab board selection. USB, flash, PSRAM and RGB hard IP are not modeled.
 - PCF and literal XDC `PACKAGE_PIN` support for project pin mapping and board pinout packages.
 - Board selector in the main window, persisted per user and passed to board mapping, compilation setup, and simulation.
 - Internal board catalog that discovers and validates bundled board packages and reports incomplete ones.
