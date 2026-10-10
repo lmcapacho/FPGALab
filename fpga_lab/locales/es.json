@@ -179,6 +179,8 @@
   "Four-bit BCD display showing 0–9 and hexadecimal A–F.": "Display BCD de cuatro bits que muestra 0–9 y A–F hexadecimal.",
   "Ready to run. The cache will be reused if the design is unchanged.": "Listo para ejecutar. Se reutilizará la caché si el diseño no cambió.",
   "Recent projects": "Proyectos recientes",
+  "Clear recent projects": "Borrar recientes",
+  "Clear the recent projects list? Project files will not be deleted.": "¿Limpiar la lista de proyectos recientes? Los archivos de los proyectos no se eliminarán.",
   "Run selected project": "Ejecutar proyecto seleccionado",
   "Ready to compile.": "Listo para compilar.",
   "Source: {source}": "Origen: {source}",

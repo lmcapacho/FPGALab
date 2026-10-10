@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QSettings, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QSettings, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QIcon, QPen
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QStyledItemDelegate,
     QMessageBox,
     QPushButton,
     QProgressDialog,
@@ -40,6 +41,7 @@ from .theme import (
     Metrics,
     application_palette,
     application_stylesheet,
+    color,
     icon,
     load_theme_mode,
     save_theme_mode,
@@ -52,6 +54,24 @@ def _style_lab_icon_button(button: QPushButton, icon_name: str) -> None:
     icon_path = Path(__file__).resolve().parent / "assets" / "icons" / "ui" / f"{icon_name}.svg"
     button.setIcon(QIcon(str(icon_path)))
     button.setFixedSize(32, 28)
+
+
+class RecentProjectDelegate(QStyledItemDelegate):
+    """Keep the history action visibly separate under both palettes."""
+
+    def paint(self, painter, option, index):
+        if index.data(Qt.ItemDataRole.AccessibleDescriptionRole) == "separator":
+            painter.save()
+            painter.setPen(QPen(color("text"), 1))
+            painter.drawLine(option.rect.left() + 8, option.rect.center().y(),
+                             option.rect.right() - 8, option.rect.center().y())
+            painter.restore()
+            return
+        super().paint(painter, option, index)
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        return QSize(size.width(), 12) if index.data(Qt.ItemDataRole.AccessibleDescriptionRole) == "separator" else size
 
 
 class LabNameDialog(QDialog):
@@ -386,6 +406,9 @@ class FPGALabMainWindow(QMainWindow):
         self._recent = QComboBox()
         self._recent.setMinimumWidth(155)
         self._recent.currentIndexChanged.connect(self._choose_recent)
+        self._recent.setMaxVisibleItems(RecentProjects.LIMIT + 2)
+        self._recent.view().setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._recent.setItemDelegate(RecentProjectDelegate(self._recent))
         self._refresh_recent()
         self._board = QComboBox()
         self._board.setObjectName("boardSelector")
@@ -598,6 +621,10 @@ class FPGALabMainWindow(QMainWindow):
         self._recent.clear()
         for path in self._recent_projects.paths():
             self._recent.addItem(path.name, path)
+            self._recent.setItemData(self._recent.count() - 1, str(path), Qt.ItemDataRole.ToolTipRole)
+        if self._recent.count():
+            self._recent.insertSeparator(self._recent.count())
+            self._recent.addItem(t("Clear recent projects"), "clear_recent")
         self._recent.setPlaceholderText(t("Recent projects"))
         self._recent.setCurrentIndex(-1)
         self._recent.blockSignals(False)
@@ -620,9 +647,23 @@ class FPGALabMainWindow(QMainWindow):
 
     def _choose_recent(self, index: int) -> None:
         path = self._recent.itemData(index)
+        if path == "clear_recent":
+            self._clear_recent()
+            self._recent.setCurrentIndex(-1)
+            return
         if path:
             self.set_project_path(Path(path))
         self._recent.setCurrentIndex(-1)
+
+    def _clear_recent(self) -> None:
+        self._recent.hidePopup()
+        if QMessageBox.question(self, t("Clear recent projects"),
+                                t("Clear the recent projects list? Project files will not be deleted."),
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return
+        self._recent_projects.clear()
+        self._refresh_recent()
 
     def _request_project(self) -> None:
         path = self.selected_project()

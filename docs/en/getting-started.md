@@ -1,5 +1,10 @@
 # Getting started
 
+Recent projects keeps up to 12 entries, newest first. The dropdown displays
+the full list without a vertical scrollbar. Clear recent projects, below the
+separator, clears the history after confirmation without deleting files or
+closing the current project.
+
 ## Install FPGALab
 
 Download the package for Linux, Windows, or macOS from [GitHub Releases](https://github.com/lmcapacho/FPGALab/releases). Extract portable archives completely before opening the application.

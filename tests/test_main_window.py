@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QSettings, pyqtSignal
+from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox, QWidget
 
 from fpga_lab.lab_workspace import LabWorkspace
@@ -18,6 +18,45 @@ from fpga_lab.profile import BoardProfile
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
+
+
+def test_recent_clear_preserves_files_and_current_project(tmp_path, monkeypatch):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    projects = [tmp_path / "first.ice", tmp_path / "second.ice"]
+    for path in projects:
+        path.write_text("{}", encoding="utf-8")
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings), settings=settings)
+    try:
+        for path in projects:
+            window.set_project_path(path)
+        active_project = window.selected_project()
+        requests = []
+        window.project_requested.connect(requests.append)
+        assert window._recent_projects.paths() == list(reversed(projects))
+        assert window.selected_project() == active_project
+        assert window._recent_projects.last_path() == active_project
+        assert window._recent.maxVisibleItems() >= window._recent.count()
+        assert window._recent.view().verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        confirmations = []
+        def cancel(*args):
+            confirmations.append(args)
+            return QMessageBox.StandardButton.No
+        monkeypatch.setattr(QMessageBox, "question", cancel)
+        clear_index = window._recent.findData("clear_recent")
+        window._choose_recent(clear_index)
+        assert confirmations and window._recent_projects.paths() == list(reversed(projects))
+        monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Yes)
+        window._choose_recent(window._recent.findData("clear_recent"))
+        assert not window._recent_projects.paths()
+        assert window._recent.count() == 0
+        assert window.selected_project() == active_project
+        assert all(path.read_text(encoding="utf-8") == "{}" for path in projects)
+        assert not requests
+        from fpga_lab.recent_projects import RecentProjects
+        assert RecentProjects(settings).paths() == []
+    finally:
+        window.close()
+        window.deleteLater()
 
 
 def test_main_window_stays_open_when_the_active_lab_cannot_close(tmp_path):

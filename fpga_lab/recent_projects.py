@@ -40,3 +40,4 @@ class RecentProjects:
 
     def clear(self) -> None:
         self._settings.remove(self.KEY)
+        self._settings.sync()

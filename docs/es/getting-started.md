@@ -1,5 +1,10 @@
 # Primeros pasos
 
+Proyectos recientes conserva hasta 12 entradas, de más reciente a más antigua.
+El desplegable muestra la lista completa sin barra de desplazamiento vertical.
+Borrar recientes, debajo del separador, limpia el historial tras confirmarlo,
+sin borrar archivos ni cerrar el proyecto actual.
+
 ## Instalar FPGALab
 
 Descarga el paquete para Linux, Windows o macOS desde [GitHub Releases](https://github.com/lmcapacho/FPGALab/releases). Descomprime completamente los paquetes portables antes de abrir la aplicación.
