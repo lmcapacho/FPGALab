@@ -21,6 +21,42 @@ from fpga_lab.workbench.annotation import WorkbenchAnnotationItem
 _APPLICATION = QApplication.instance() or QApplication([])
 
 
+def test_dot_grid_is_visual_only_and_visibility_is_shared_across_labs(tmp_path, monkeypatch):
+    from fpga_lab.workbench import view as view_module
+    settings = QSettings(str(tmp_path / "grid.ini"), QSettings.Format.IniFormat)
+    monkeypatch.setattr(view_module, "QSettings", lambda *_args: settings)
+    paths = [tmp_path / "first.lab", tmp_path / "second.lab"]
+    original = '{"peripherals": []}'
+    for path in paths:
+        path.write_text(original, encoding="utf-8")
+    board = BoardDefinition.load(bundled_board_definition())
+    first = PeripheralsPanel(board, None, paths[0])
+    second = None
+    try:
+        first.resize(800, 500)
+        first.show()
+        _APPLICATION.processEvents()
+        assert not first._grid_button.isChecked()
+        plain = first.workbench.viewport().grab().toImage()
+        first._grid_button.click()
+        _APPLICATION.processEvents()
+        dotted = first.workbench.viewport().grab().toImage()
+        assert plain != dotted
+        assert not first._workbench_scene.items()
+        assert settings.value(view_module.WorkbenchView.GRID_VISIBLE_KEY, type=bool)
+        second = PeripheralsPanel(board, None, paths[1])
+        assert second._grid_button.isChecked()
+        assert all(path.read_text(encoding="utf-8") == original for path in paths)
+        second._grid_button.click()
+        assert not settings.value(view_module.WorkbenchView.GRID_VISIBLE_KEY, type=bool)
+    finally:
+        first.close()
+        first.deleteLater()
+        if second is not None:
+            second.close()
+            second.deleteLater()
+
+
 def test_annotation_menu_updates_when_language_changes(tmp_path, monkeypatch):
     monkeypatch.setattr(language_manager, "_language", "en")
     lab = tmp_path / "annotations.lab"

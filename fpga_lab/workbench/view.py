@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QPointF, Qt, pyqtSignal
+import math
+
+from PyQt6.QtCore import QPointF, QSettings, Qt, pyqtSignal
+from PyQt6.QtGui import QPainter, QPen, QPolygonF
 from PyQt6.QtWidgets import QGraphicsProxyWidget, QGraphicsView
 
 from .item import WorkbenchPeripheralItem
 from .annotation import WorkbenchAnnotationItem
+from ..theme import color
 
 
 class WorkbenchView(QGraphicsView):
@@ -15,6 +19,8 @@ class WorkbenchView(QGraphicsView):
     zoom_changed = pyqtSignal(float)
     camera_changed = pyqtSignal(QPointF)
     _CANVAS_EXTENT = 100_000.0
+    GRID_VISIBLE_KEY = "ui/workbench_grid_visible"
+    GRID_SPACING = 20.0
 
     def __init__(self, scene, delete_selected, duplicate_selected, persist_positions, undo, redo, parent=None):
         super().__init__(scene, parent)
@@ -24,6 +30,8 @@ class WorkbenchView(QGraphicsView):
         self._undo = undo
         self._redo = redo
         self._zoom = 1.0
+        self._settings = QSettings("FPGALab", "FPGALab")
+        self._grid_visible = self._settings.value(self.GRID_VISIBLE_KEY, False, type=bool)
         self._panning = False
         self._pan_paused = False
         self._pan_button = None
@@ -38,6 +46,32 @@ class WorkbenchView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.ensure_scene_fits()
+
+    def set_grid_visible(self, visible: bool) -> None:
+        """Persist a visual preference without modifying Lab data or positions."""
+        self._grid_visible = bool(visible)
+        self._settings.setValue(self.GRID_VISIBLE_KEY, self._grid_visible)
+        self.viewport().update()
+
+    def drawBackground(self, painter, rect) -> None:
+        super().drawBackground(painter, rect)
+        if not self._grid_visible:
+            return
+        visible = rect.intersected(self.mapToScene(self.viewport().rect()).boundingRect())
+        spacing = self.GRID_SPACING
+        while spacing * self._zoom < 12:
+            spacing *= 2
+        left, top = math.ceil(visible.left() / spacing), math.ceil(visible.top() / spacing)
+        right, bottom = math.floor(visible.right() / spacing), math.floor(visible.bottom() / spacing)
+        points = QPolygonF([QPointF(x * spacing, y * spacing)
+                            for x in range(left, right + 1) for y in range(top, bottom + 1)])
+        painter.save()
+        pen = QPen(color("grid"), 2)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.drawPoints(points)
+        painter.restore()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

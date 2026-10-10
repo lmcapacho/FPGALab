@@ -4,6 +4,13 @@ Un **Lab** es una configuración reutilizable de periféricos, independiente del
 
 Al iniciar por primera vez después de este cambio, el reloj virtual global guardado anteriormente se asigna al Lab activo. Los demás Labs usan el reloj de su tarjeta, salvo que se configuren por separado. La opción `--clock-hz` prevalece solo durante la ejecución actual y no modifica el Lab.
 
+## Cuadrícula de puntos
+
+El botón de cuadrícula de puntos en la barra de la mesa permite mostrarla u
+ocultarla. La visibilidad se recuerda por usuario entre Labs, no se guarda en
+el Lab. La cuadrícula no ajusta ni mueve componentes y reduce la cantidad de
+puntos al alejar el zoom.
+
 ## Conexiones
 
 La ventana Conexiones identifica la tarjeta activa y muestra juntos en una

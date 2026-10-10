@@ -4,6 +4,12 @@ A **Lab** is a reusable peripheral arrangement independent from an Icestudio pro
 
 On first launch after this change, a previously saved global virtual clock is assigned to the active Lab. Other Labs continue to use their own board clock unless configured separately. The `--clock-hz` command-line option overrides the clock for the current launch without changing a Lab.
 
+## Dot grid
+
+The workbench toolbar's dot-grid button shows or hides a visual grid. Visibility
+is remembered per user across Labs, not stored in the Lab. The grid does not
+snap or move components and shows fewer dots at distant zoom levels.
+
 ## Connections
 
 The Connections window identifies the active board and shows board endpoints,

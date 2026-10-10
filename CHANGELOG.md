@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Optional workbench dot grid with a toolbar toggle, per-user visibility preference, theme-aware colors and reduced dot density when zoomed out; no position snapping is applied.
 - Clear recent project history with confirmation, without deleting files or changing the open project. The dropdown shows up to 12 projects and a clearly separated clear-history action without a vertical scrollbar.
 - Board signal selector in the layout editor, filtered by control direction and excluding the clock. Special roles allow internal signals; unavailable existing values are preserved and empty signals cannot be saved.
 - iCEBreaker Bitsy v1.1c as a second supported board, with a 12 MHz clock, active-low integrated LEDs/button, external GPIO, board artwork, and per-Lab board selection. USB, flash, PSRAM and RGB hard IP are not modeled.

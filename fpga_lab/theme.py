@@ -36,6 +36,7 @@ class ThemePalette:
     board_title: str
     workbench: str
     segment_off: str
+    grid: str
 
 
 DARK = ThemePalette(
@@ -45,7 +46,7 @@ DARK = ThemePalette(
     success="#22c55e", success_hover="#4ade80", success_surface="#14532d",
     danger="#ef4444", danger_hover="#f87171", danger_surface="#7f1d1d", warning="#fbbf24",
     board_surface="#102820", board_border="#34d67b", board_title="#bbf7d0",
-    workbench="#0d1628", segment_off="#334155",
+    workbench="#0d1628", segment_off="#334155", grid="#344257",
 )
 
 LIGHT = ThemePalette(
@@ -55,7 +56,7 @@ LIGHT = ThemePalette(
     success="#15803d", success_hover="#166534", success_surface="#dcfce7",
     danger="#dc2626", danger_hover="#b91c1c", danger_surface="#fee2e2", warning="#b45309",
     board_surface="#e8f5ee", board_border="#16a34a", board_title="#14532d",
-    workbench="#f4f7fb", segment_off="#cbd5e1",
+    workbench="#f4f7fb", segment_off="#cbd5e1", grid="#b9c7d8",
 )
 
 
@@ -243,6 +244,7 @@ def application_stylesheet(mode: str = "dark") -> str:
     QPushButton[role="selector"]:hover {{ background: {p.accent_surface}; border-color: {p.accent}; }}
     QPushButton[role="icon"] {{ padding: 0; background: transparent; border-color: {p.border}; }}
     QPushButton[role="icon"]:hover {{ background: {p.accent_surface}; border-color: {p.accent}; }}
+    QPushButton[role="icon"]:checked {{ background: {p.accent_surface}; border-color: {p.accent}; }}
     QPushButton[role="icon-danger"] {{ padding: 0; background: transparent; border-color: {p.border}; }}
     QPushButton[role="icon-danger"]:hover {{ background: {p.danger_surface}; border-color: {p.danger}; }}
     QPushButton[role="success"]:disabled, QPushButton[role="danger"]:disabled {{
