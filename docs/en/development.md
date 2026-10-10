@@ -103,6 +103,9 @@ unavailable values remain marked and preserved; empty signals cannot be saved.
 The editor sidebar separates selected-component properties and actions from
 component creation, whole-board appearance (rotation/mirroring), and editor
 view controls. Save and Close remain at the bottom of the panel.
+The window geometry and canvas/properties divider are remembered per user.
+New components use a single form containing role, identifier and signal;
+invalid or duplicate identifiers remain in the form for correction.
 Component creation starts with the role. Normal controls select a board signal;
 power indicators and simulation reset buttons use an internal identifier
 (suggested defaults: `PWR` and `RESET`) without requiring an FPGA pin. The role,

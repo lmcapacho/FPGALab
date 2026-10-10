@@ -4,6 +4,12 @@ A **Lab** is a reusable peripheral arrangement independent from an Icestudio pro
 
 On first launch after this change, a previously saved global virtual clock is assigned to the active Lab. Other Labs continue to use their own board clock unless configured separately. The `--clock-hz` command-line option overrides the clock for the current launch without changing a Lab.
 
+## Connections
+
+The Connections window identifies the active board and shows board endpoints,
+physical FPGA pins, direction, constrained HDL nets and connected peripheral
+terminals together in one table.
+
 ## Manage Labs
 
 Open the Lab manager from the selector in the top bar. You can create, duplicate, rename, delete, import, and export Labs. Exported `.lab` files are portable JSON documents and can be shared with the corresponding `.ice` design.

@@ -19,6 +19,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Changed
 
+- Board layout editor remembers its panel divider and creates components in one form instead of successive prompts. Connections now identifies the active board explicitly.
 - Organized the board layout editor sidebar into component properties/actions, component creation, whole-board appearance, and editor view, with save/close actions kept at the bottom.
 - Board layout component creation chooses the role first, allowing power indicators and simulation reset buttons with internal identifiers without requiring FPGA pins.
 - Virtual clock defaults to the selected board's frequency, with an optional per-Lab override; older global clock settings migrate to the active Lab. Interface refresh and temporal sampling remain global.

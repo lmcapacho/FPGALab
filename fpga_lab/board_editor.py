@@ -10,8 +10,8 @@ from PyQt6.QtCore import QSettings, QTimer, Qt
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import (
-    QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QInputDialog, QGraphicsItem, QGraphicsRectItem,
-    QCheckBox, QComboBox, QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QMessageBox, QPushButton, QScrollArea, QSplitter, QVBoxLayout, QWidget,
+    QColorDialog, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGraphicsItem, QGraphicsRectItem,
+    QCheckBox, QComboBox, QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QSplitter, QVBoxLayout, QWidget,
 )
 
 from .board_layout import BoardLayout, BoardLayoutElement
@@ -49,6 +49,83 @@ class EditorCanvas(QGraphicsView):
     def wheelEvent(self, event) -> None:
         factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
         self.scale(factor, factor)
+
+
+class NewBoardComponentDialog(QDialog):
+    """Collect a control's role, identifier and signal without chained prompts."""
+
+    def __init__(self, kind, signals, existing_ids, allow_custom_signal=False, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("New component"))
+        self.setMinimumWidth(380)
+        self._kind = kind
+        self._signals = signals
+        self._existing_ids = set(existing_ids)
+        self._allow_custom_signal = allow_custom_signal
+        self._automatic_id = ""
+        root = QVBoxLayout(self)
+        form = QFormLayout()
+        self._role = QComboBox()
+        self._role.addItem(t("No special role"), None)
+        self._role.addItem(t("Power indicator") if kind == "led" else t("Reset button"),
+                           "power" if kind == "led" else "reset")
+        self._identifier = QLineEdit()
+        self._signal = QComboBox()
+        self._signal_label = QLabel()
+        form.addRow(t("Role"), self._role)
+        form.addRow(t("Identifier"), self._identifier)
+        form.addRow(self._signal_label, self._signal)
+        root.addLayout(form)
+        self._error = QLabel()
+        self._error.setObjectName("errorText")
+        self._error.setWordWrap(True)
+        root.addWidget(self._error)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        style_button(buttons.button(QDialogButtonBox.StandardButton.Ok), "primary")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        root.addWidget(buttons)
+        self._role.currentIndexChanged.connect(self._update_role)
+        self._update_role()
+
+    def _update_role(self):
+        role = self._role.currentData()
+        default_signal = "PWR" if role == "power" else "RESET" if role == "reset" else None
+        base = default_signal or ("LED" if self._kind == "led" else "SW")
+        identifier = base
+        index = 1
+        while identifier in self._existing_ids:
+            identifier = f"{base}_{index}"
+            index += 1
+        if not self._identifier.text() or self._identifier.text() == self._automatic_id:
+            self._identifier.setText(identifier)
+        self._automatic_id = identifier
+        self._signal.clear()
+        self._signal.setEditable(role is not None or self._allow_custom_signal)
+        self._signal_label.setText(t("Internal signal") if role is not None else t("Board signal"))
+        if default_signal is not None:
+            self._signal.addItem(default_signal)
+            self._signal.setToolTip(t("Internal identifier for the selected role; no FPGA pin is required."))
+        else:
+            self._signal.addItems(self._signals)
+            self._signal.setToolTip(t("Logical board signal, not a physical FPGA pin number or the project's HDL net name."))
+        self._error.clear()
+
+    def values(self):
+        return self._identifier.text().strip(), self._signal.currentText().strip(), self._role.currentData()
+
+    def accept(self):
+        identifier, signal, role = self.values()
+        if not identifier or not signal:
+            self._error.setText(t("Enter an identifier and a signal."))
+            return
+        if identifier in self._existing_ids:
+            self._error.setText(t("A component with this identifier already exists."))
+            return
+        if role is None and not self._allow_custom_signal and signal not in self._signals:
+            self._error.setText(t("Select a signal defined by the board."))
+            return
+        super().accept()
 
 
 class BoardLayoutEditor(QDialog):
@@ -90,6 +167,7 @@ class BoardLayoutEditor(QDialog):
 
         root = QHBoxLayout(self)
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self._splitter = splitter
         splitter.setObjectName("layoutEditorSplitter")
         splitter.addWidget(self._canvas)
         side_frame = QFrame()
@@ -200,13 +278,24 @@ class BoardLayoutEditor(QDialog):
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
         splitter.setSizes([900, 340])
+        splitter_state = settings.value("windows/board_layout_editor/splitter")
+        if splitter_state is not None:
+            splitter.restoreState(splitter_state)
         root.addWidget(splitter)
         QTimer.singleShot(0, self._prepare_canvas)
 
     def closeEvent(self, event) -> None:
+        self._save_window_state()
+        super().closeEvent(event)
+
+    def done(self, result: int) -> None:
+        self._save_window_state()
+        super().done(result)
+
+    def _save_window_state(self) -> None:
         settings = QSettings("FPGALab", "FPGALab")
         settings.setValue("windows/board_layout_editor/geometry", self.saveGeometry())
-        super().closeEvent(event)
+        settings.setValue("windows/board_layout_editor/splitter", self._splitter.saveState())
 
     def _map_to_scene(self, element: BoardLayoutElement) -> BoardLayoutElement:
         origin_x, origin_y, width, height = self._layout.view_box
@@ -229,35 +318,11 @@ class BoardLayoutEditor(QDialog):
         )
 
     def _add_component(self, kind: str) -> None:
-        roles = [(t("No special role"), None),
-                 (t("Power indicator"), "power") if kind == "led" else (t("Reset button"), "reset")]
-        choice, ok = QInputDialog.getItem(self, t("New component"), t("Role"),
-                                        [label for label, _role in roles], editable=False)
-        if not ok:
+        dialog = NewBoardComponentDialog(kind, self._board_signals(kind), self._elements,
+                                         allow_custom_signal=self._board is None, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        role = next(role for label, role in roles if label == choice)
-        prefix = "LED" if kind == "led" else "SW"
-        default_signal = "PWR" if role == "power" else "RESET" if role == "reset" else None
-        default_id = default_signal or f"{prefix}{len(self._elements)}"
-        if default_id in self._elements:
-            index = 1
-            while f"{default_id}_{index}" in self._elements:
-                index += 1
-            default_id = f"{default_id}_{index}"
-        element_id, ok = QInputDialog.getText(self, t("New component"), t("Identifier"), text=default_id)
-        element_id = element_id.strip()
-        if not ok or not element_id or element_id in self._elements: return
-        signals = self._board_signals(kind)
-        if role is not None:
-            signal, ok = QInputDialog.getText(self, t("New component"), t("Internal signal"), text=default_signal)
-        elif self._board is not None:
-            if not signals:
-                return
-            signal, ok = QInputDialog.getItem(self, t("New component"), t("Board signal"), signals, editable=False)
-        else:
-            signal, ok = QInputDialog.getText(self, t("New component"), t("Board signal"), text=element_id)
-        signal = signal.strip()
-        if not ok or not signal: return
+        element_id, signal, role = dialog.values()
         width, height = (4.2, 1.8) if kind == "led" else (14.0, 5.6)
         element = BoardLayoutElement(element_id, kind, signal, self._layout.view_box[2] / 2 - width / 2, self._layout.view_box[3] / 2 - height / 2, width, height, "#b6ff00", role)
         if role is not None:

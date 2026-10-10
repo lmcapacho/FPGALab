@@ -222,6 +222,8 @@ class ConnectionDialog(QDialog):
             self.restoreGeometry(geometry)
         layout = QVBoxLayout(self)
         source = str(pcf_path) if pcf_path else t("— no design constraints —")
+        self._board_label = QLabel(t("Board: {board}", board=board.label))
+        layout.addWidget(self._board_label)
         description = QLabel(t("Board endpoints used by design constraints or an external peripheral. Source: {source} · {count} signals.", source=source, count=len(constraints)))
         description.setWordWrap(True)
         layout.addWidget(description)

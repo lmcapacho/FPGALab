@@ -4,6 +4,12 @@ Un **Lab** es una configuración reutilizable de periféricos, independiente del
 
 Al iniciar por primera vez después de este cambio, el reloj virtual global guardado anteriormente se asigna al Lab activo. Los demás Labs usan el reloj de su tarjeta, salvo que se configuren por separado. La opción `--clock-hz` prevalece solo durante la ejecución actual y no modifica el Lab.
 
+## Conexiones
+
+La ventana Conexiones identifica la tarjeta activa y muestra juntos en una
+tabla los endpoints de la tarjeta, pines físicos de FPGA, dirección, redes HDL
+asignadas y terminales de periféricos conectados.
+
 ## Administrar Labs
 
 Abre el administrador desde el selector de la barra superior. Puedes crear, duplicar, renombrar, eliminar, importar y exportar Labs. Los archivos `.lab` exportados son documentos JSON portables que se pueden compartir junto con el diseño `.ice` correspondiente.

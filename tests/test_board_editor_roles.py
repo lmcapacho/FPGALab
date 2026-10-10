@@ -5,10 +5,12 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication, QMessageBox, QInputDialog
+from PyQt6.QtWidgets import QApplication, QMessageBox, QDialog
+from PyQt6.QtCore import QSettings
 from PyQt6.QtTest import QTest
 
-from fpga_lab.board_editor import BoardLayoutEditor
+from fpga_lab.board_editor import BoardLayoutEditor, NewBoardComponentDialog
+from fpga_lab import board_editor
 from fpga_lab.board_layout import BoardLayout
 
 
@@ -16,6 +18,8 @@ _APPLICATION = QApplication.instance() or QApplication([])
 
 
 def test_editor_assigns_and_persists_signals_and_roles(tmp_path, monkeypatch):
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    monkeypatch.setattr(board_editor, "QSettings", lambda *_args: settings)
     (tmp_path / "board.svg").write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60"/>',
         encoding="utf-8",
@@ -81,8 +85,11 @@ def test_editor_assigns_and_persists_signals_and_roles(tmp_path, monkeypatch):
     assert source.with_suffix(".json.bak").is_file()
 
     # Special controls are creatable even though neither signal is a board pin.
-    monkeypatch.setattr(QInputDialog, "getItem", lambda _parent, _title, _label, items, **kwargs: (items[1], True))
-    monkeypatch.setattr(QInputDialog, "getText", lambda *args, **kwargs: (kwargs["text"], True))
+    def create_special(dialog):
+        dialog._role.setCurrentIndex(1)
+        dialog.accept()
+        return dialog.result()
+    monkeypatch.setattr(NewBoardComponentDialog, "exec", create_special)
     editor._add_component("led")
     assert editor._elements["PWR"].signal == "PWR"
     assert editor._elements["PWR"].role == "power"
@@ -97,4 +104,35 @@ def test_editor_assigns_and_persists_signals_and_roles(tmp_path, monkeypatch):
     saved = BoardLayout.load(source)
     assert saved.signal_for_role("power") == "PWR"
     assert saved.signal_for_role("reset") == "RESET"
+    editor._splitter.setSizes([800, 400])
+    editor.reject()
+    state = settings.value("windows/board_layout_editor/splitter")
+    assert state == editor._splitter.saveState()
+    reopened = BoardLayoutEditor(saved)
+    assert reopened._splitter.saveState() == state
+    reopened.close()
+    reopened.deleteLater()
     editor.deleteLater()
+
+
+def test_component_form_validates_fields_and_allows_special_roles_without_pins():
+    dialog = NewBoardComponentDialog("button", [], {"RESET"})
+    try:
+        dialog.accept()
+        assert dialog.result() != QDialog.DialogCode.Accepted
+        assert dialog._error.text()
+        dialog._role.setCurrentIndex(1)
+        assert dialog.values() == ("RESET_1", "RESET", "reset")
+        dialog._identifier.setText("RESET")
+        dialog.accept()
+        assert dialog.result() != QDialog.DialogCode.Accepted
+        dialog._identifier.setText("custom_reset")
+        dialog._signal.setEditText(" ")
+        dialog.accept()
+        assert dialog.result() != QDialog.DialogCode.Accepted
+        dialog._signal.setEditText("restart")
+        dialog.accept()
+        assert dialog.result() == QDialog.DialogCode.Accepted
+        assert dialog.values() == ("custom_reset", "restart", "reset")
+    finally:
+        dialog.deleteLater()

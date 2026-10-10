@@ -110,6 +110,10 @@ no disponibles se indican y conservan; no se permite guardar señales vacías.
 El panel del editor separa las propiedades y acciones del componente
 seleccionado, la creación de componentes, la apariencia de toda la tarjeta
 (rotación/reflejos) y los controles de vista. Guardar y cerrar quedan al pie.
+La geometría de ventana y el divisor entre lienzo y propiedades se recuerdan
+por usuario. Los nuevos componentes se crean en un único formulario con
+función, identificador y señal; los identificadores inválidos o duplicados
+permanecen en el formulario para corregirlos.
 La creación comienza por la función. Los controles normales seleccionan una
 señal de la tarjeta; los indicadores de encendido y botones de reset de
 simulación usan un identificador interno (`PWR` y `RESET` como sugerencias),
