@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -19,6 +20,83 @@ from fpga_lab.workbench.annotation import WorkbenchAnnotationItem
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
+
+
+def test_clipboard_mixed_selection_across_labs_and_undo(tmp_path):
+    from fpga_lab.workbench.item import WorkbenchPeripheralItem
+    source, target = tmp_path / "source.lab", tmp_path / "target.lab"
+    source.write_text(json.dumps({"peripherals": [{"id": "led_1", "type": "led", "connections": {"signal": "D0"}, "properties": {"position": [180, 47]}}], "annotations": [{"id": "note", "type": "rectangle", "position": [13, 17], "width": 100, "height": 70}]}))
+    target.write_text('{"peripherals": []}')
+    board = BoardDefinition.load(bundled_board_definition())
+    first, second = PeripheralsPanel(board, None, source), PeripheralsPanel(board, None, target)
+    try:
+        for item in first._workbench_scene.items():
+            if isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)):
+                item.setSelected(True)
+        first._copy_selection()
+        second._paste_selection()
+        pasted = json.loads(target.read_text())
+        led, note = pasted["peripherals"][0], pasted["annotations"][0]
+        assert led["connections"] == {}
+        assert [led["properties"]["position"][i] - note["position"][i] for i in range(2)] == pytest.approx([167, 30])
+        assert len(second._workbench_scene.selectedItems()) == 2
+        second._paste_selection()
+        repeated = json.loads(target.read_text())
+        assert repeated["peripherals"][1]["id"] != led["id"]
+        assert repeated["peripherals"][1]["properties"]["position"][0] == pytest.approx(led["properties"]["position"][0] + 24, abs=2)
+        second.undo()
+        assert json.loads(target.read_text()) == pasted
+        second.redo()
+        assert json.loads(target.read_text()) == repeated
+    finally:
+        first.close()
+        second.close()
+
+
+def test_clipboard_rejects_invalid_data_and_disallows_paste_when_locked(tmp_path):
+    from PyQt6.QtCore import QMimeData
+    from fpga_lab.workbench.clipboard import MIME_TYPE
+    lab = tmp_path / "clipboard.lab"
+    lab.write_text('{"peripherals": []}')
+    panel = PeripheralsPanel(BoardDefinition.load(bundled_board_definition()), None, lab)
+    try:
+        original = lab.read_text()
+        for data in (b'not json', b'{"version": 99}', b'{"version": 1, "origin": [0, 0], "peripherals": [], "annotations": []}'):
+            mime = QMimeData()
+            mime.setData(MIME_TYPE, data)
+            _APPLICATION.clipboard().setMimeData(mime)
+            panel._paste_selection()
+            assert lab.read_text() == original
+        panel._editing_enabled = False
+        panel._paste_selection()
+        assert lab.read_text() == original
+    finally:
+        panel.close()
+
+
+def test_workbench_clipboard_shortcuts_leave_embedded_text_input_alone(tmp_path):
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QLineEdit
+    lab = tmp_path / "input.lab"
+    lab.write_text('{"peripherals": []}')
+    panel = PeripheralsPanel(BoardDefinition.load(bundled_board_definition()), None, lab)
+    try:
+        field = QLineEdit("UART text")
+        proxy = panel._workbench_scene.addWidget(field)
+        panel.show()
+        field.setFocus()
+        proxy.setFocus()
+        field.selectAll()
+        _APPLICATION.processEvents()
+        QTest.keyClick(field, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
+        assert _APPLICATION.clipboard().text() == "UART text"
+        _APPLICATION.clipboard().setText("new text")
+        QTest.keyClick(field, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+        assert field.text() == "new text"
+        assert json.loads(lab.read_text()) == {"peripherals": []}
+    finally:
+        panel.close()
 
 
 def test_grid_snap_group_drag_preserves_offsets_and_undo(tmp_path):

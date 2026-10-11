@@ -5,12 +5,14 @@ from __future__ import annotations
 import math
 
 from PyQt6.QtCore import QPointF, QSettings, Qt, pyqtSignal
-from PyQt6.QtGui import QPainter, QPen, QPolygonF
-from PyQt6.QtWidgets import QGraphicsProxyWidget, QGraphicsView
+from PyQt6.QtGui import QKeySequence, QPainter, QPen, QPolygonF
+from PyQt6.QtWidgets import QApplication, QGraphicsProxyWidget, QGraphicsView, QMenu
 
 from .item import WorkbenchPeripheralItem
 from .annotation import WorkbenchAnnotationItem
 from ..theme import color
+from ..i18n import t
+from .clipboard import MIME_TYPE
 
 
 class WorkbenchView(QGraphicsView):
@@ -18,6 +20,8 @@ class WorkbenchView(QGraphicsView):
 
     zoom_changed = pyqtSignal(float)
     camera_changed = pyqtSignal(QPointF)
+    copy_requested = pyqtSignal()
+    paste_requested = pyqtSignal()
     _CANVAS_EXTENT = 100_000.0
     GRID_VISIBLE_KEY = "ui/workbench_grid_visible"
     GRID_SPACING = 20.0
@@ -267,6 +271,17 @@ class WorkbenchView(QGraphicsView):
             )
 
     def keyPressEvent(self, event):
+        if isinstance(self.scene().focusItem(), QGraphicsProxyWidget):
+            super().keyPressEvent(event)
+            return
+        if event.matches(QKeySequence.StandardKey.Copy):
+            self.copy_requested.emit()
+            event.accept()
+            return
+        if self._editing_enabled and event.matches(QKeySequence.StandardKey.Paste):
+            self.paste_requested.emit()
+            event.accept()
+            return
         if event.key() == Qt.Key.Key_0 and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.reset_zoom()
             event.accept()
@@ -296,3 +311,20 @@ class WorkbenchView(QGraphicsView):
                 event.accept()
                 return
         super().keyPressEvent(event)
+
+    def contextMenuEvent(self, event):
+        hovered = self.itemAt(event.pos())
+        if isinstance(hovered, QGraphicsProxyWidget):
+            super().contextMenuEvent(event)
+            return
+        if isinstance(hovered, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)) and not hovered.isSelected():
+            self.scene().clearSelection()
+            hovered.setSelected(True)
+        menu = QMenu(self)
+        copy_action = menu.addAction(t("Copy (Ctrl+C)"), self.copy_requested.emit)
+        copy_action.setEnabled(any(isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)) for item in self.scene().selectedItems()))
+        paste_action = menu.addAction(t("Paste (Ctrl+V)"), self.paste_requested.emit)
+        paste_action.setEnabled(self._editing_enabled and QApplication.clipboard().mimeData().hasFormat(MIME_TYPE))
+        menu.exec(event.globalPos())
+        menu.deleteLater()
+        event.accept()

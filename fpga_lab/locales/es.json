@@ -431,5 +431,10 @@
   "No special role": "Sin función especial",
   "Power indicator": "Indicador de encendido",
   "Reset button": "Botón de reinicio",
-  "Drag an endpoint to change the line. Hold Shift for horizontal or vertical.": "Arrastra un extremo para cambiar la línea. Mantén Shift para fijarla horizontal o vertical."
+  "Drag an endpoint to change the line. Hold Shift for horizontal or vertical.": "Arrastra un extremo para cambiar la línea. Mantén Shift para fijarla horizontal o vertical.",
+  "Copy (Ctrl+C)": "Copiar (Ctrl+C)",
+  "Paste (Ctrl+V)": "Pegar (Ctrl+V)",
+  "Copied {count} items": "Se copiaron {count} elementos",
+  "Pasted {count} items": "Se pegaron {count} elementos",
+  "Cannot paste: invalid workbench clipboard data.": "No se puede pegar: los datos de la mesa en el portapapeles no son válidos."
 }

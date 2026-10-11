@@ -48,6 +48,7 @@ Configura `FPGALAB_WORKSPACE` para elegir otra carpeta raíz.
 - Arrastra sobre un espacio vacío para seleccionar varios componentes.
 - Usa `Shift`+clic para modificar la selección.
 - Usa `Ctrl+D` para duplicar y `Supr` para eliminar.
+- Usa `Ctrl+C` / `Ctrl+V`, o el menú contextual de la mesa, para copiar y pegar periféricos y anotaciones, incluso entre Labs. El pegado conserva propiedades y posiciones relativas, coloca el grupo en la vista actual y deja las conexiones eléctricas sin asignar para evitar conflictos. Cada pegado se puede deshacer como una sola operación.
 - Usa `Ctrl+Z` y `Ctrl+Y` para deshacer y rehacer.
 - Usa la rueda del mouse para controlar el zoom.
 - Usa `Ctrl`+arrastrar o el botón central para desplazar la mesa.

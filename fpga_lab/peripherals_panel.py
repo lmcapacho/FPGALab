@@ -3,10 +3,10 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-from PyQt6.QtCore import QPointF, QSize, QSettings, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QMimeData, QPointF, QSize, QSettings, QTimer, Qt, pyqtSignal
 import re
 from PyQt6.QtGui import QColor, QCursor, QFont, QKeySequence, QPalette
-from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu, QInputDialog
+from PyQt6.QtWidgets import QApplication, QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu, QInputDialog
 from .board import BoardDefinition
 from .constraints import parse_constraints_file
 from .i18n import language_manager, t
@@ -20,6 +20,7 @@ from .wiring import SUPPLY_ENDPOINTS, PeripheralInstance, VirtualLabProject
 from .theme import color, style_button
 from .workbench import WorkbenchPeripheralItem, WorkbenchView
 from .workbench.annotation import WorkbenchAnnotationItem
+from .workbench.clipboard import MIME_TYPE, decode_selection
 
 
 _EXTERNAL_LIGHT_PERSISTENCE_SECONDS = 0.030
@@ -331,6 +332,8 @@ class PeripheralsPanel(QWidget):
         self._restoring_workbench_state = False
         self._history: list[tuple[dict[str, object], dict[str, object], str]] = []
         self._history_index = 0
+        self._last_paste_data = None
+        self._paste_count = 0
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 7, 8, 8)
         layout.setSpacing(5)
@@ -394,6 +397,8 @@ class PeripheralsPanel(QWidget):
         layout.addWidget(self._compatibility_notice)
         self._workbench_scene = QGraphicsScene(self); self.workbench = WorkbenchView(self._workbench_scene, self._delete_many, self._duplicate_many, self._save_positions, self.undo, self.redo)
         self._undo_button.clicked.connect(self.undo)
+        self.workbench.copy_requested.connect(self._copy_selection)
+        self.workbench.paste_requested.connect(self._paste_selection)
         self._grid_button.setChecked(self.workbench._grid_visible)
         self._grid_button.toggled.connect(self.workbench.set_grid_visible)
         self._snap_button.toggled.connect(self._persist_grid_options)
@@ -1092,6 +1097,80 @@ class PeripheralsPanel(QWidget):
     def _duplicate(self, peripheral) -> None:
         """Duplicate a selected visual part without copying electrical connections."""
         self._duplicate_many([peripheral])
+
+    def _copy_selection(self) -> None:
+        selected = [item for item in self._workbench_scene.selectedItems()
+                    if isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem))]
+        if not selected:
+            return
+        document = json.loads(self._lab.read_text(encoding="utf-8"))
+        payload = {"version": 1, "peripherals": [], "annotations": []}
+        bounds = selected[0].sceneBoundingRect()
+        for item in selected:
+            bounds = bounds.united(item.sceneBoundingRect())
+            annotation = isinstance(item, WorkbenchAnnotationItem)
+            identifier = item.data["id"] if annotation else item.peripheral.peripheral_id
+            collection = "annotations" if annotation else "peripherals"
+            source = next(value for value in document.get(collection, []) if value["id"] == identifier)
+            value = copy.deepcopy(source)
+            position = [item.pos().x(), item.pos().y()]
+            if annotation:
+                value["position"] = position
+                value.update(width=item.rect().width(), height=item.rect().height())
+            else:
+                value.setdefault("properties", {})["position"] = position
+                value["connections"] = {}
+            payload[collection].append(value)
+        payload["origin"] = [bounds.center().x(), bounds.center().y()]
+        try:
+            data = json.dumps(payload, allow_nan=False).encode("utf-8")
+            decode_selection(data)
+        except (ValueError, TypeError):
+            return
+        mime = QMimeData()
+        mime.setData(MIME_TYPE, data)
+        QApplication.clipboard().setMimeData(mime)
+        self._show_status(t("Copied {count} items", count=len(selected)))
+
+    def _paste_selection(self) -> None:
+        if not self._editing_enabled:
+            return
+        mime = QApplication.clipboard().mimeData()
+        if not mime.hasFormat(MIME_TYPE):
+            return
+        data = bytes(mime.data(MIME_TYPE))
+        try:
+            payload = decode_selection(data)
+        except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+            self._show_status(t("Cannot paste: invalid workbench clipboard data."))
+            return
+        count = self._paste_count if self._last_paste_data == data else 0
+        target = self.workbench.camera_center() + QPointF(24 * count, 24 * count)
+        offset = target - QPointF(*payload["origin"])
+        raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        used = {value["id"] for collection in ("peripherals", "annotations") for value in raw.get(collection, [])}
+        pasted_ids = set()
+        for collection in ("peripherals", "annotations"):
+            for source in payload[collection]:
+                value = copy.deepcopy(source)
+                base, index = value["type"], 1
+                while f"{base}_{index}" in used:
+                    index += 1
+                value["id"] = f"{base}_{index}"
+                used.add(value["id"])
+                pasted_ids.add(value["id"])
+                holder = value if collection == "annotations" else value["properties"]
+                position = holder["position"]
+                holder["position"] = [round(position[0] + offset.x(), 1), round(position[1] + offset.y(), 1)]
+                if collection == "peripherals":
+                    value["connections"] = {}
+                raw.setdefault(collection, []).append(value)
+        if self._commit(raw, t("Pasted {count} items", count=len(pasted_ids))):
+            self._last_paste_data, self._paste_count = data, count + 1
+            for item in self._workbench_scene.items():
+                identifier = item.data["id"] if isinstance(item, WorkbenchAnnotationItem) else item.peripheral.peripheral_id if isinstance(item, WorkbenchPeripheralItem) else None
+                if identifier in pasted_ids:
+                    item.setSelected(True)
 
     def _duplicate_many(self, peripherals) -> None:
         """Duplicate one selection in a single undoable Lab mutation."""

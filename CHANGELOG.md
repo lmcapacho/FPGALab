@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Workbench copy/paste for mixed peripheral and annotation selections, including between Labs, with camera-centered placement, unique identifiers and undo/redo. Pasted peripherals are disconnected to avoid wiring conflicts.
 - Optional grid snapping and configurable spacing per Lab. Dragging a group snaps its grabbed element and preserves relative positions, with normal undo/redo support; enabling snapping does not reposition existing items.
 - Optional workbench dot grid with a toolbar toggle, per-user visibility preference, theme-aware colors and reduced dot density when zoomed out; no position snapping is applied.
 - Clear recent project history with confirmation, without deleting files or changing the open project. The dropdown shows up to 12 projects and a clearly separated clear-history action without a vertical scrollbar.

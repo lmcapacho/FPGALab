@@ -46,6 +46,7 @@ Set `FPGALAB_WORKSPACE` to choose another workspace root.
 - Drag empty space to select several components.
 - Use `Shift`+click to change the selection.
 - Use `Ctrl+D` to duplicate and `Delete` to remove the selection.
+- Use `Ctrl+C` / `Ctrl+V`, or the workbench context menu, to copy and paste peripherals and annotations, including between Labs. Pasting keeps properties and relative positions, places the group in the current view, and leaves electrical connections unassigned to avoid conflicts. Each paste is one undoable operation.
 - Use `Ctrl+Z` and `Ctrl+Y` to undo and redo.
 - Use the mouse wheel to zoom.
 - Use `Ctrl`+drag or middle-button drag to pan.
