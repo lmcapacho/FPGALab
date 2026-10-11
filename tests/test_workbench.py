@@ -21,6 +21,57 @@ from fpga_lab.workbench.annotation import WorkbenchAnnotationItem
 _APPLICATION = QApplication.instance() or QApplication([])
 
 
+def test_grid_snap_group_drag_preserves_offsets_and_undo(tmp_path):
+    from PyQt6.QtCore import Qt, QEvent
+    from PyQt6.QtGui import QMouseEvent
+    from PyQt6.QtTest import QTest
+    from fpga_lab.workbench.item import WorkbenchPeripheralItem
+    lab = tmp_path / "snap.lab"
+    raw = {
+        "peripherals": [{"id": "led_1", "type": "led", "connections": {}, "properties": {"position": [180, 47]}}],
+        "annotations": [{"id": "note", "type": "rectangle", "position": [13, 17], "width": 100, "height": 70}],
+    }
+    lab.write_text(json.dumps(raw), encoding="utf-8")
+    panel = PeripheralsPanel(BoardDefinition.load(bundled_board_definition()), None, lab)
+    try:
+        panel.resize(1000, 550)
+        panel.show()
+        _APPLICATION.processEvents()
+        original = json.loads(lab.read_text(encoding="utf-8"))
+        panel._snap_button.click()
+        assert [item["properties"]["position"] for item in json.loads(lab.read_text())["peripherals"]] == [[180, 47]]
+        view = panel.workbench
+        items = panel._workbench_scene.items()
+        anchor = next(item for item in items if isinstance(item, WorkbenchAnnotationItem))
+        led = next(item for item in items if isinstance(item, WorkbenchPeripheralItem))
+        anchor.setSelected(True)
+        led.setSelected(True)
+        offset = led.pos() - anchor.pos()
+        start = view.mapFromScene(anchor.pos() + QPointF(50, 30))
+        finish = start + view.mapFromScene(QPointF(14, 18)) - view.mapFromScene(QPointF(0, 0))
+        QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=start)
+        event = QMouseEvent(QEvent.Type.MouseMove, QPointF(finish), QPointF(view.viewport().mapToGlobal(finish)),
+                            Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+        _APPLICATION.sendEvent(view.viewport(), event)
+        QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=finish)
+        assert anchor.pos() == QPointF(20, 40)
+        assert led.pos() - anchor.pos() == offset
+        saved = json.loads(lab.read_text(encoding="utf-8"))
+        assert saved["workbench"]["snap_to_grid"] is True
+        panel.undo()
+        restored = json.loads(lab.read_text())
+        assert restored["annotations"][0]["position"] == original["annotations"][0]["position"]
+        assert restored["peripherals"][0]["properties"]["position"] == [180, 47]
+        panel.redo()
+        assert json.loads(lab.read_text())["annotations"][0]["position"] == [20, 40]
+        panel._grid_spacing.setValue(40)
+        panel._reload()
+        assert panel.workbench._grid_snap and panel.workbench._grid_spacing == 40
+    finally:
+        panel.close()
+        panel.deleteLater()
+
+
 def test_dot_grid_is_visual_only_and_visibility_is_shared_across_labs(tmp_path, monkeypatch):
     from fpga_lab.workbench import view as view_module
     settings = QSettings(str(tmp_path / "grid.ini"), QSettings.Format.IniFormat)
@@ -55,6 +106,26 @@ def test_dot_grid_is_visual_only_and_visibility_is_shared_across_labs(tmp_path, 
         if second is not None:
             second.close()
             second.deleteLater()
+
+
+def test_grid_snap_options_default_safely_for_older_or_invalid_labs(tmp_path):
+    board = BoardDefinition.load(bundled_board_definition())
+    states = [None, "legacy", {"snap_to_grid": "false", "grid_spacing": 0},
+              {"snap_to_grid": True, "grid_spacing": "bad"}]
+    for index, state in enumerate(states):
+        lab = tmp_path / f"grid-{index}.lab"
+        raw = {"peripherals": []}
+        if state is not None:
+            raw["workbench"] = state
+        lab.write_text(json.dumps(raw), encoding="utf-8")
+        panel = PeripheralsPanel(board, None, lab)
+        try:
+            assert panel.workbench._grid_snap == (isinstance(state, dict) and state.get("snap_to_grid") is True)
+            assert panel.workbench._grid_spacing == 20
+            assert json.loads(lab.read_text()) == raw
+        finally:
+            panel.close()
+            panel.deleteLater()
 
 
 def test_annotation_menu_updates_when_language_changes(tmp_path, monkeypatch):

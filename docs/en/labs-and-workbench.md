@@ -7,8 +7,15 @@ On first launch after this change, a previously saved global virtual clock is as
 ## Dot grid
 
 The workbench toolbar's dot-grid button shows or hides a visual grid. Visibility
-is remembered per user across Labs, not stored in the Lab. The grid does not
-snap or move components and shows fewer dots at distant zoom levels.
+is remembered per user across Labs, not stored in the Lab. The grid shows fewer
+dots at distant zoom levels. The separate magnet button enables movement
+snapping; the adjacent field sets spacing from 4 to 200 scene units. These
+editing options are saved per Lab and work even when the grid is hidden.
+Enabling snapping does not move existing items. When dragging peripherals or
+annotations, the grabbed element is aligned to the grid and the group keeps
+its relative positions. A completed drag remains one undoable operation;
+annotation resizing is not snapped. At distant zoom levels, snapping still
+uses the configured spacing, even if only some grid points are displayed.
 
 ## Connections
 

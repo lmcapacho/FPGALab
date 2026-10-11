@@ -122,6 +122,8 @@
   "Fit canvas": "Ajustar al lienzo",
   "Fit all parts": "Ajustar todos los componentes",
   "Show/hide dot grid": "Mostrar/ocultar cuadrícula de puntos",
+  "Snap movement to grid": "Ajustar movimiento a la cuadrícula",
+  "Grid spacing (scene units)": "Espaciado de cuadrícula (unidades de la mesa)",
   "HDL signal": "Señal HDL",
   "GND (fixed)": "GND (fijo)",
   "HDL net (PCF)": "Red HDL (PCF)",

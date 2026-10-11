@@ -8,8 +8,15 @@ Al iniciar por primera vez después de este cambio, el reloj virtual global guar
 
 El botón de cuadrícula de puntos en la barra de la mesa permite mostrarla u
 ocultarla. La visibilidad se recuerda por usuario entre Labs, no se guarda en
-el Lab. La cuadrícula no ajusta ni mueve componentes y reduce la cantidad de
-puntos al alejar el zoom.
+el Lab. La cuadrícula reduce la cantidad de puntos al alejar el zoom. El botón
+independiente de imán activa el ajuste de movimiento; el campo contiguo define
+el espaciado entre 4 y 200 unidades de la mesa. Estas opciones se guardan por
+Lab y funcionan aunque la cuadrícula esté oculta.
+Activar el ajuste no mueve elementos existentes. Al arrastrar periféricos o
+anotaciones, el elemento tomado se alinea a la cuadrícula y el grupo conserva
+sus posiciones relativas. El movimiento completo sigue siendo una operación
+de deshacer/rehacer; no se ajusta el redimensionado de anotaciones. Al alejar
+el zoom, se mantiene el espaciado configurado aunque se vean menos puntos.
 
 ## Conexiones
 

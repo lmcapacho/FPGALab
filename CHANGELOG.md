@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Optional grid snapping and configurable spacing per Lab. Dragging a group snaps its grabbed element and preserves relative positions, with normal undo/redo support; enabling snapping does not reposition existing items.
 - Optional workbench dot grid with a toolbar toggle, per-user visibility preference, theme-aware colors and reduced dot density when zoomed out; no position snapping is applied.
 - Clear recent project history with confirmation, without deleting files or changing the open project. The dropdown shows up to 12 projects and a clearly separated clear-history action without a vertical scrollbar.
 - Board signal selector in the layout editor, filtered by control direction and excluding the clock. Special roles allow internal signals; unavailable existing values are preserved and empty signals cannot be saved.

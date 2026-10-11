@@ -32,6 +32,10 @@ class WorkbenchView(QGraphicsView):
         self._zoom = 1.0
         self._settings = QSettings("FPGALab", "FPGALab")
         self._grid_visible = self._settings.value(self.GRID_VISIBLE_KEY, False, type=bool)
+        self._grid_snap = False
+        self._grid_spacing = self.GRID_SPACING
+        self._drag_anchor = None
+        self._drag_origins = {}
         self._panning = False
         self._pan_paused = False
         self._pan_button = None
@@ -58,7 +62,7 @@ class WorkbenchView(QGraphicsView):
         if not self._grid_visible:
             return
         visible = rect.intersected(self.mapToScene(self.viewport().rect()).boundingRect())
-        spacing = self.GRID_SPACING
+        spacing = self._grid_spacing
         while spacing * self._zoom < 12:
             spacing *= 2
         left, top = math.ceil(visible.left() / spacing), math.ceil(visible.top() / spacing)
@@ -72,6 +76,24 @@ class WorkbenchView(QGraphicsView):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         painter.drawPoints(points)
         painter.restore()
+
+    def set_grid_snap(self, enabled: bool, spacing: float = GRID_SPACING) -> None:
+        """Configure Lab editing without realigning existing elements."""
+        self._grid_snap = bool(enabled)
+        self._grid_spacing = spacing
+        self.viewport().update()
+
+    def _snap_drag(self) -> None:
+        anchor = self._drag_anchor
+        if not self._grid_snap or anchor is None or anchor.pos() == self._drag_origins[anchor]:
+            return
+        position = anchor.pos()
+        spacing = self._grid_spacing
+        target = QPointF(math.floor(position.x() / spacing + 0.5) * spacing,
+                         math.floor(position.y() / spacing + 0.5) * spacing)
+        offset = target - position
+        for item in self._drag_origins:
+            item.setPos(item.pos() + offset)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -94,6 +116,8 @@ class WorkbenchView(QGraphicsView):
         self.centerOn(center)
 
     def mousePressEvent(self, event):
+        self._drag_anchor = None
+        self._drag_origins = {}
         self.setFocus()
         if (
             self._editing_enabled
@@ -124,6 +148,13 @@ class WorkbenchView(QGraphicsView):
             event.accept()
             return
         super().mousePressEvent(event)
+        anchor = self.scene().mouseGrabberItem()
+        if self._editing_enabled and event.button() == Qt.MouseButton.LeftButton and isinstance(anchor, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)):
+            if not isinstance(anchor, WorkbenchAnnotationItem) or anchor._drag_handle is None:
+                self._drag_anchor = anchor
+                self._drag_origins = {item: QPointF(item.pos()) for item in self.scene().selectedItems()
+                                      if isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem))}
+                self._drag_origins.setdefault(anchor, QPointF(anchor.pos()))
 
     def mouseReleaseEvent(self, event):
         if self._panning and event.button() == self._pan_button:
@@ -139,6 +170,9 @@ class WorkbenchView(QGraphicsView):
             event.accept()
             return
         super().mouseReleaseEvent(event)
+        self._snap_drag()
+        self._drag_anchor = None
+        self._drag_origins = {}
         if self._editing_enabled and event.button() == Qt.MouseButton.LeftButton:
             updates = [
                 update
@@ -173,6 +207,7 @@ class WorkbenchView(QGraphicsView):
             event.accept()
             return
         super().mouseMoveEvent(event)
+        self._snap_drag()
 
     def wheelEvent(self, event):
         """Scroll an embedded monitor; otherwise zoom around the cursor."""

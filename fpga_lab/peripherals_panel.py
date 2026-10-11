@@ -6,7 +6,7 @@ from pathlib import Path
 from PyQt6.QtCore import QPointF, QSize, QSettings, QTimer, Qt, pyqtSignal
 import re
 from PyQt6.QtGui import QColor, QCursor, QFont, QKeySequence, QPalette
-from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu, QInputDialog
+from PyQt6.QtWidgets import QComboBox, QColorDialog, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGraphicsScene, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu, QInputDialog
 from .board import BoardDefinition
 from .constraints import parse_constraints_file
 from .i18n import language_manager, t
@@ -348,6 +348,14 @@ class PeripheralsPanel(QWidget):
         self._grid_button = QPushButton()
         self._grid_button.setCheckable(True)
         style_button(self._grid_button, "icon", "grid")
+        self._snap_button = QPushButton()
+        self._snap_button.setCheckable(True)
+        style_button(self._snap_button, "icon", "snap")
+        self._grid_spacing = QSpinBox()
+        self._grid_spacing.setRange(4, 200)
+        self._grid_spacing.setSingleStep(4)
+        self._grid_spacing.setValue(int(WorkbenchView.GRID_SPACING))
+        self._grid_spacing.setFixedWidth(90)
         self._undo_button = QPushButton()
         self._redo_button = QPushButton()
         self._annotation_button = QPushButton()
@@ -372,6 +380,8 @@ class PeripheralsPanel(QWidget):
         workbench_header.addWidget(self._annotation_button)
         workbench_header.addSpacing(4)
         workbench_header.addWidget(self._grid_button)
+        workbench_header.addWidget(self._snap_button)
+        workbench_header.addWidget(self._grid_spacing)
         workbench_header.addWidget(self._zoom_out_button)
         workbench_header.addWidget(self._zoom_reset_button)
         workbench_header.addWidget(self._zoom_in_button)
@@ -386,6 +396,8 @@ class PeripheralsPanel(QWidget):
         self._undo_button.clicked.connect(self.undo)
         self._grid_button.setChecked(self.workbench._grid_visible)
         self._grid_button.toggled.connect(self.workbench.set_grid_visible)
+        self._snap_button.toggled.connect(self._persist_grid_options)
+        self._grid_spacing.valueChanged.connect(self._persist_grid_options)
         self._redo_button.clicked.connect(self.redo)
         self._zoom_out_button.clicked.connect(self.workbench.zoom_out)
         self._zoom_reset_button.clicked.connect(self.workbench.reset_zoom)
@@ -432,6 +444,10 @@ class PeripheralsPanel(QWidget):
         self._zoom_fit_button.setToolTip(t("Fit all parts"))
         self._grid_button.setToolTip(t("Show/hide dot grid"))
         self._grid_button.setAccessibleName(t("Show/hide dot grid"))
+        self._snap_button.setToolTip(t("Snap movement to grid"))
+        self._snap_button.setAccessibleName(t("Snap movement to grid"))
+        self._grid_spacing.setToolTip(t("Grid spacing (scene units)"))
+        self._grid_spacing.setAccessibleName(t("Grid spacing (scene units)"))
         self._update_zoom_label(self.workbench._zoom)
         self._update_connection_status()
         for item in self._workbench_scene.items():
@@ -579,6 +595,7 @@ class PeripheralsPanel(QWidget):
 
     def _restore_workbench_zoom(self) -> None:
         """Load optional presentation state while remaining compatible with older Labs."""
+        raw = {}
         try:
             raw = json.loads(self._lab.read_text(encoding="utf-8"))
             state = raw.get("workbench", {})
@@ -594,10 +611,31 @@ class PeripheralsPanel(QWidget):
             center = None
         self._restoring_workbench_state = True
         try:
+            state = raw.get("workbench", {}) if isinstance(raw, dict) else {}
+            state = state if isinstance(state, dict) else {}
+            enabled = state.get("snap_to_grid", False) is True
+            spacing = state.get("grid_spacing", int(WorkbenchView.GRID_SPACING))
+            if not isinstance(spacing, int) or isinstance(spacing, bool) or not 4 <= spacing <= 200:
+                spacing = int(WorkbenchView.GRID_SPACING)
+            self._snap_button.setChecked(enabled)
+            self._grid_spacing.setValue(spacing)
+            self.workbench.set_grid_snap(enabled, spacing)
             self.workbench.set_zoom(zoom)
             self.workbench.restore_camera(center)
         finally:
             self._restoring_workbench_state = False
+
+    def _persist_grid_options(self) -> None:
+        if self._restoring_workbench_state:
+            return
+        enabled, spacing = self._snap_button.isChecked(), self._grid_spacing.value()
+        self.workbench.set_grid_snap(enabled, spacing)
+        raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        state = raw.setdefault("workbench", {})
+        if not isinstance(state, dict):
+            state = raw["workbench"] = {}
+        state.update(snap_to_grid=enabled, grid_spacing=spacing)
+        self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
 
     def _persist_workbench_zoom(self, zoom: float) -> None:
         """Store visual framing alongside the Lab rather than in global user preferences."""
