@@ -2,7 +2,7 @@
   "api_version": 2,
   "id": "spi_monitor",
   "package": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": {
       "name": "Luis Miguel Capacho",
       "url": "https://github.com/lmcapacho/FPGALab"
@@ -13,19 +13,23 @@
   },
   "label": "SPI monitor",
   "category": "display",
-  "description": "Read bytes sent by an FPGA SPI master over SCK, MOSI, and chip select.",
-  "keywords": ["spi", "serial", "monitor", "mosi", "clock", "chip select"],
+  "description": "Monitor SPI master bytes and optionally return a configurable byte through MISO.",
+  "keywords": ["spi", "serial", "monitor", "mosi", "miso", "slave", "clock", "chip select"],
   "icon": "icon.svg",
   "simulation": {
     "class": "edge_stream",
-    "channels": ["sck", "mosi", "cs"]
+    "channels": ["sck", "mosi", "cs"],
+    "drives": ["miso"],
+    "drive_idle": {"miso": 0}
   },
   "terminals": [
     {"name": "sck", "direction": "output", "width": 1},
     {"name": "mosi", "direction": "output", "width": 1},
-    {"name": "cs", "direction": "output", "width": 1}
+    {"name": "cs", "direction": "output", "width": 1},
+    {"name": "miso", "direction": "input", "width": 1, "required": false}
   ],
   "properties": {
+    "response": {"type": "string", "default": "A5", "label": "MISO response (hex byte)"},
     "mode": {"type": "enum", "default": "0", "values": ["0", "1", "2", "3"], "label": "SPI mode"},
     "bit_order": {"type": "enum", "default": "msb", "values": ["msb", "lsb"], "label": "Bit order"},
     "cs_polarity": {"type": "enum", "default": "low", "values": ["low", "high"], "label": "Chip select active"}
@@ -37,6 +41,8 @@
     "clock_channel": "sck",
     "mosi_channel": "mosi",
     "select_channel": "cs",
+    "miso_drive": "miso",
+    "response_property": "response",
     "mode_property": "mode",
     "bit_order_property": "bit_order",
     "cs_polarity_property": "cs_polarity"

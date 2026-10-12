@@ -54,7 +54,8 @@ def test_spi_discards_partial_transfer_when_chip_select_releases():
     assert decoder.feed(_spi_transitions(), 46)[0].mosi == 0x96
 
 
-def test_spi_manifest_and_workbench_route_ordered_multichannel_edges(tmp_path, monkeypatch):
+@pytest.mark.parametrize("connect_miso", [False, True])
+def test_spi_manifest_and_workbench_route_ordered_multichannel_edges(tmp_path, monkeypatch, connect_miso):
     from fpga_lab.board import BoardDefinition, bundled_board_definition
     from fpga_lab.peripherals.catalog import load_catalog
     from fpga_lab.peripherals_panel import PeripheralsPanel
@@ -64,6 +65,7 @@ def test_spi_manifest_and_workbench_route_ordered_multichannel_edges(tmp_path, m
     source = Path(__file__).parents[1] / "examples/peripherals/spi_monitor"
     manifest = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
     assert parse_manifest(manifest, resource_root=source).edge_channels == ("sck", "mosi", "cs")
+    assert parse_manifest(manifest, resource_root=source).drive_channels == ("miso",)
     manifest["visual"]["clock_channel"] = "not_a_channel"
     with pytest.raises(ValueError, match="spi_monitor"):
         parse_manifest(manifest, resource_root=source)
@@ -76,14 +78,16 @@ def test_spi_manifest_and_workbench_route_ordered_multichannel_edges(tmp_path, m
         lab = tmp_path / "lab.json"
         lab.write_text(json.dumps({"peripherals": [{
             "id": "spi_1", "type": "spi_monitor",
-            "connections": {"sck": "D0", "mosi": "D1", "cs": "D2"},
+            "connections": {"sck": "D0", "mosi": "D1", "cs": "D2", **({"miso": "D3"} if connect_miso else {})},
             "properties": {"mode": "0", "bit_order": "msb", "cs_polarity": "low"},
         }]}), encoding="utf-8")
         pcf = tmp_path / "design.pcf"
-        pcf.write_text("set_io sck 2\nset_io mosi 1\nset_io cs 4\n", encoding="utf-8")
+        pcf.write_text("set_io sck 2\nset_io mosi 1\nset_io cs 4\nset_io response 3\n", encoding="utf-8")
         board = BoardDefinition.load(bundled_board_definition())
-        panel = PeripheralsPanel(board, pcf, lab, output_widths={"sck": 1, "mosi": 1, "cs": 1})
+        panel = PeripheralsPanel(board, pcf, lab, output_widths={"sck": 1, "mosi": 1, "cs": 1}, input_widths={"response": 1})
         assert panel.edge_channels() == [(0, 0), (1, 0), (2, 0)]
+        assert panel.drive_channels() == ([("response", 0, False)] if connect_miso else [])
+        assert panel.spi_slaves() == ([(0, 0, 2, 0, 0, 0, False, True, 0xA5)] if connect_miso else [])
         panel.set_powered(True)
         item = next(item for item in panel._workbench_scene.items() if isinstance(item, WorkbenchPeripheralItem))
         indexes = {"sck": 0, "mosi": 1, "cs": 2}
@@ -96,6 +100,7 @@ def test_spi_manifest_and_workbench_route_ordered_multichannel_edges(tmp_path, m
                 edge_stream=EdgeFrame(last, 1_000_000, chunk, 0),
             ))
         assert "MOSI 96" in item._rx_output.toPlainText()
+        assert ("MISO TX A5" in item._rx_output.toPlainText()) is connect_miso
         assert item._rx_caption.text() == "SPI"
         panel.update_frame(SimulationFrame(
             led_brightness=(0.0,) * 8, outputs={},

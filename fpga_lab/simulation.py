@@ -119,6 +119,7 @@ class VerilatorSimulation:
         self._lib = ctypes.CDLL(str(library_path))
         self._configure_api()
         self._drive_channel_count = 0
+        self._spi_drive_channels: set[int] = set()
         self._lib.init_sim()
 
     def _function(self, name: str, restype, argtypes=()):
@@ -178,6 +179,11 @@ class VerilatorSimulation:
         }
         self._read_output = self._function("sim_read_output", ctypes.c_uint64, (ctypes.c_uint32,))
         self._drive_channel_limit = self._function("sim_drive_channel_limit", ctypes.c_uint32)
+        self._spi_clear = self._function("sim_spi_clear", None)
+        self._spi_bind = self._function("sim_spi_bind", ctypes.c_int, (
+            ctypes.c_uint32, ctypes.c_uint8, ctypes.c_uint32, ctypes.c_uint8,
+            ctypes.c_uint32, ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint8,
+        ))
         self._drive_available = self._function("sim_drive_available", ctypes.c_uint32)
         self._drive_cycle = self._function("sim_drive_cycle", ctypes.c_uint64)
         self._drive_configure = self._function("sim_drive_configure", None, (ctypes.c_uint32,))
@@ -330,6 +336,7 @@ class VerilatorSimulation:
                 raise ValueError(t("Invalid timed input source: {name}[{bit}].", name=name, bit=bit))
             seen.add((name, bit))
         self._drive_configure(len(channels))
+        self._spi_drive_channels.clear()
         for channel, (name, bit, idle) in enumerate(channels):
             if self._drive_bind(channel, indexes[name], bit, int(idle)) != 0:
                 self._drive_configure(0)
@@ -340,6 +347,26 @@ class VerilatorSimulation:
 
     def drive_cycle(self) -> int:
         return int(self._drive_cycle())
+
+    def configure_spi_slaves(self, bindings) -> None:
+        """Bind reactive byte sources to output clock/select and reserved inputs."""
+        outputs = tuple(self.profile.outputs.items())
+        seen = set()
+        for clock, clock_bit, select, select_bit, drive, mode, lsb, active_low, response in bindings:
+            for output, bit in ((clock, clock_bit), (select, select_bit)):
+                if not 0 <= output < len(outputs) or not 0 <= bit < outputs[output][1]:
+                    raise ValueError(t("Invalid SPI response configuration."))
+            if not 0 <= drive < self._drive_channel_count or drive in seen or mode not in range(4) or not 0 <= response <= 255:
+                raise ValueError(t("Invalid SPI response configuration."))
+            seen.add(drive)
+        self._spi_clear()
+        self._spi_drive_channels.clear()
+        for binding in bindings:
+            if self._spi_bind(*binding) != 0:
+                self._spi_clear()
+                raise ValueError(t("Invalid SPI response configuration."))
+        self._spi_drive_channels = seen
+        self._eval()
 
     def drive_available(self) -> int:
         return int(self._drive_available())
@@ -353,6 +380,8 @@ class VerilatorSimulation:
             raise ValueError(t("Timed input events must be scheduled in future virtual cycles."))
         if any(channel < 0 or channel >= self._drive_channel_count for channel, _, _ in events):
             raise ValueError(t("Invalid timed input channel."))
+        if any(channel in self._spi_drive_channels for channel, _, _ in events):
+            raise ValueError(t("The input channel is reserved by an SPI responder."))
         for channel, cycle, level in events:
             if self._drive_enqueue(channel, cycle, int(level)) != 0:
                 raise RuntimeError(t("A timed input event could not be queued."))

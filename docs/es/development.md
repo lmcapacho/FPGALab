@@ -46,6 +46,9 @@ incremental usa una caché administrada del usuario, fuera de `ice-build`.
 Las entradas GPIO, salidas muestreadas, observaciones temporales para LED y
 displays, captura VGA por ciclo y flancos/entradas temporizadas de la API
 UART/SPI en desarrollo son rutas distintas dentro de ese flujo.
+La respuesta MISO básica de SPI es una fuente reactiva de byte nativa,
+configurada mediante el worker: observa SCK/CS cada ciclo virtual sin trabajo
+Python por ciclo. Su estado es independiente de la cola acotada del monitor.
 
 Las restricciones del proyecto relacionan los nombres HDL generados con los
 endpoints físicos de la tarjeta; así funcionan LEDs y controles aunque la red

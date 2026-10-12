@@ -79,7 +79,7 @@ Todos requieren `renderer` y `size: [ancho, alto]` con enteros positivos. `chrom
 | `led_array` | Brillo de varias salidas | `terminals`, `orientation`, `indicator_shape`, `show_labels`, `color_property` |
 | `measured_svg` | Ciclo útil o ancho de pulso | `terminal`, `measurement`, rangos, transformación y dos SVG |
 | `uart_terminal` | Flujo de flancos y entrada temporizada de API v2 | `channel`, `baud_property`, `tx_channel` opcional; recibe y envía texto UART 8N1 |
-| `spi_monitor` | Flancos sincronizados de API v2 | Canales de reloj, selección de chip y MOSI; muestra los bytes enviados por el maestro |
+| `spi_monitor` | Flancos sincronizados y entrada reactiva de API v2 | Canales de reloj, selección de chip y MOSI; respuesta MISO opcional |
 
 `state_svg` asocia nombres de estado con archivos SVG mediante `states`, por ejemplo `{"off": "off.svg", "on": "on.svg"}`. `default_state` elige el estado inicial. Cada elemento de `state_rules` tiene `state` y `when: {"terminal": "signal", "equals": 1}`; las reglas se evalúan en orden. Para controles, cada `interaction` especifica `terminal`, `region: [x, y, ancho, alto]` y uno de los pares `event`/`action`: `click`/`toggle` o `press_release`/`momentary`. La región debe quedar dentro del dibujo.
 
@@ -112,7 +112,11 @@ El terminal recibe texto ASCII y puede enviar hasta 512 bytes UTF-8 por envío. 
 
 El [ejemplo de monitor SPI](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/spi_monitor) de la versión en desarrollo captura SCK, MOSI y selección de chip desde **salidas del FPGA**. Sus propiedades permiten elegir los modos 0–3, el orden MSB/LSB y la polaridad de selección de chip. Muestra los bytes completos en hexadecimal, agrupados por transacción. Los flancos de todos los canales se entregan en orden de ciclos virtuales, incluso entre actualizaciones de la interfaz. Si los datos cambian en el mismo ciclo muestreado, se toma el nivel nuevo; el HDL debe respetar el tiempo de establecimiento normal de SPI. Se descartan los bytes incompletos al liberar la selección de chip o al desbordarse la cola de captura.
 
-Este primer ejemplo solo lee señales y **no** muestra MISO cuando es una entrada del FPGA: API v2 captura únicamente salidas del HDL. Un canal MISO opcional solo puede usarse si el HDL expone un reflejo en otra salida. Quedan pendientes el monitoreo dúplex completo y el envío hacia entradas SPI. El renderizador SPI solo está en la versión en desarrollo, no en los artefactos de RC4.
+El ejemplo también puede actuar como esclavo SPI básico: conecta `miso` a una **entrada del FPGA** y configura **Respuesta MISO (byte hexadecimal)** (`A5` por defecto). El controlador nativo repite ese byte mientras CS esté activo, respetando el modo y el orden de bits seleccionados. Al liberar CS se descarta la respuesta parcial y la siguiente transacción empieza por el primer bit; Reset y Stop/Run también reinician el controlador. MISO permanece en cero al deseleccionar, no en alta impedancia. Sin conectar MISO se conserva el monitor de MOSI anterior. Los Labs existentes no requieren una nueva conexión.
+
+Declara `simulation.drives: ["miso"]`, un terminal de entrada de un bit con `required: false` y `visual.miso_drive: "miso"`. `visual.response_property` identifica una propiedad de texto con exactamente dos dígitos hexadecimales (se admite el prefijo `0x`). El paquete de ejemplo pasa a la versión `1.1.0`; reinstálalo para actualizar una copia instalada.
+
+La respuesta reacciona dentro del bucle nativo de ciclos, sin esperar a los cuadros de la interfaz. Establece CS antes del primer flanco SCK y deja al menos dos ciclos virtuales del FPGA por semiperíodo SCK para establecimiento y muestreo. Es una fuente de byte fijo, no un dispositivo que interpreta comandos ni un programa arbitrario de esclavo. El monitor identifica su respuesta configurada como `MISO TX`; no captura por separado una entrada del FPGA. `visual.miso_channel` aún permite capturar un reflejo en una salida HDL, pero no puede combinarse con `miso_drive`. Un desbordamiento puede perder transferencias mostradas, pero no detiene la respuesta nativa. El renderizador SPI solo está en desarrollo, no en los artefactos de RC4.
 
 ## Validar, instalar y compartir
 

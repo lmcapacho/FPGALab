@@ -34,6 +34,9 @@ def test_closing_a_running_worker_stops_its_thread_and_native_simulation(tmp_pat
         def set_temporal_probes(self, _probes):
             pass
 
+        def configure_spi_slaves(self, _bindings):
+            pass
+
         def close(self):
             self.closed = True
 

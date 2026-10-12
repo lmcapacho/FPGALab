@@ -315,6 +315,10 @@ class WorkbenchPeripheralItem(QGraphicsRectItem):
             self._send_button.setEnabled(powered and self._pending_text is None)
         self.update()
 
+    def set_spi_response_enabled(self, enabled: bool) -> None:
+        if hasattr(self._renderer, "response_enabled"):
+            self._renderer.response_enabled = enabled
+
     def set_button_pressed(self, source: str, pressed: bool) -> None:
         """Merge mouse and keyboard press states for a momentary button."""
         if self._peripheral.kind != "button":

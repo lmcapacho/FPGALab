@@ -5,6 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import groupby
 from typing import Iterable
+import re
+
+from .i18n import t
+
+
+def spi_response_byte(value) -> int:
+    """Accept a single hexadecimal byte, with an optional 0x prefix."""
+    if not isinstance(value, str) or not re.fullmatch(r"(?:0[xX])?[0-9a-fA-F]{2}", value.strip()):
+        raise ValueError(t("SPI response must be one hexadecimal byte, for example A5."))
+    return int(value.strip(), 16)
 
 
 @dataclass(frozen=True)

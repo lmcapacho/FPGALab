@@ -46,6 +46,7 @@ class FPGAVirtualLab(QWidget):
     set_temporal_probes_requested = pyqtSignal(object)
     configure_edge_channels_requested = pyqtSignal(object)
     configure_drive_channels_requested = pyqtSignal(object)
+    configure_spi_slaves_requested = pyqtSignal(object)
     send_uart_requested = pyqtSignal(int, int, str)
     status_changed = pyqtSignal(str)
     clock_performance_changed = pyqtSignal(float, float)
@@ -112,6 +113,7 @@ class FPGAVirtualLab(QWidget):
             self.set_temporal_probes_requested.connect(self._worker.set_temporal_probes)
             self.configure_edge_channels_requested.connect(self._worker.configure_edge_channels)
             self.configure_drive_channels_requested.connect(self._worker.configure_drive_channels)
+            self.configure_spi_slaves_requested.connect(self._worker.configure_spi_slaves)
             self.send_uart_requested.connect(self._worker.send_uart)
             self._worker.state_changed.connect(self._paint_state)
             self._worker.failure.connect(self._show_failure)
@@ -121,10 +123,12 @@ class FPGAVirtualLab(QWidget):
             self._peripherals.temporal_probes_changed.connect(self.set_temporal_probes_requested)
             self._peripherals.edge_channels_changed.connect(self.configure_edge_channels_requested)
             self._peripherals.drive_channels_changed.connect(self.configure_drive_channels_requested)
+            self._peripherals.spi_slaves_changed.connect(self.configure_spi_slaves_requested)
             self._peripherals.serial_text_requested.connect(self.send_uart_requested)
             self.set_temporal_probes_requested.emit(self._peripherals.temporal_probes())
             self.configure_edge_channels_requested.emit(self._peripherals.edge_channels())
             self.configure_drive_channels_requested.emit(self._peripherals.drive_channels())
+            self.configure_spi_slaves_requested.emit(self._peripherals.spi_slaves())
             self._thread.start()
 
     def _build_ui(self) -> None:

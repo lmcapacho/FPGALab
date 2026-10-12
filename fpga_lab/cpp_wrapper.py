@@ -55,6 +55,7 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
         )
         step_body = (
             f"drive_before_posedge(); g_top->{clock} = 1; g_top->eval();\n"
+            "    if (g_spi_count) update_spi_slaves();\n"
             "    if (g_sink_enabled) sim_streaming_on_posedge();\n"
             "    if (g_edge_channel_count) sample_edges();\n"
             f"    g_top->{clock} = 0; g_top->eval();"
@@ -65,6 +66,7 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
             "        const bool observe = remaining == 0;\n"
             "        drive_before_posedge();\n"
             f"        g_top->{clock} = 1; g_top->eval();\n"
+            "        if (g_spi_count) update_spi_slaves();\n"
             "        if (observe) { sample_temporal(); sample_observed(cycle == 0); }\n"
             "        if (g_sink_enabled) sim_streaming_on_posedge();\n"
             "        if (g_edge_channel_count) sample_edges();\n"
@@ -80,6 +82,7 @@ def render_cpp_wrapper(profile: BoardProfile, model_class: str = "Vtop") -> str:
 #include "verilated.h"
 #include "sim_streaming.h"
 #include "temporal_pulse.h"
+#include "spi_slave.h"
 #include <algorithm>
 #include <cstdint>
 #include <vector>
@@ -104,6 +107,9 @@ static uint32_t g_drive_port[kDriveChannelLimit] = {{0}};
 static uint8_t g_drive_bit[kDriveChannelLimit] = {{0}};
 static uint8_t g_drive_initial[kDriveChannelLimit] = {{0}};
 static uint32_t g_drive_channel_count = 0;
+struct SpiBinding {{ SpiSlave slave; uint32_t clock_output, select_output, drive; uint8_t clock_bit, select_bit; bool active_low; }};
+static SpiBinding g_spi[kDriveChannelLimit] = {{}};
+static uint32_t g_spi_count = 0;
 static uint64_t g_sim_cycle = 0;
 static std::vector<SimDriveEvent> g_drive_events;
 
@@ -171,10 +177,22 @@ static void drive_before_posedge() {{
     }}
 }}
 
+static void update_spi_slaves() {{
+    for (uint32_t i = 0; i < g_spi_count; ++i) {{
+        auto& binding = g_spi[i];
+        const bool clock = output_bit(binding.clock_output, binding.clock_bit);
+        const bool selected = bool(output_bit(binding.select_output, binding.select_bit)) != binding.active_low;
+        const uint8_t level = binding.slave.update(clock, selected);
+        write_drive_bit(g_drive_port[binding.drive], g_drive_bit[binding.drive], level);
+    }}
+}}
+
 static void reset_drives(bool clear_bindings, bool reset_clock = true) {{
     if (reset_clock) g_sim_cycle = 0;
     g_drive_events.clear();
+    for (uint32_t i = 0; i < g_spi_count; ++i) g_spi[i].slave.reset();
     if (clear_bindings) {{
+        g_spi_count = 0;
         g_drive_channel_count = 0;
         for (uint32_t port = 0; port < kDrivePortCount; ++port) g_drive_reserved[port] = 0;
     }}
@@ -365,6 +383,26 @@ uint8_t sim_temporal_probe_pulse_valid(uint32_t probe) {{ return probe < g_tempo
 
 uint32_t sim_output_count() {{ return {len(profile.outputs)}; }}
 uint32_t sim_drive_channel_limit() {{ return kDriveChannelLimit; }}
+void sim_spi_clear() {{
+    for (uint32_t i = 0; i < g_spi_count; ++i) {{
+        const uint32_t channel = g_spi[i].drive;
+        write_drive_bit(g_drive_port[channel], g_drive_bit[channel], g_drive_initial[channel]);
+    }}
+    g_spi_count = 0;
+}}
+int sim_spi_bind(uint32_t clock_output, uint8_t clock_bit, uint32_t select_output, uint8_t select_bit,
+                 uint32_t drive, uint8_t mode, uint8_t lsb, uint8_t active_low, uint8_t response) {{
+    if (g_spi_count >= kDriveChannelLimit || drive >= g_drive_channel_count || mode > 3) return -1;
+    for (uint32_t i = 0; i < g_spi_count; ++i) if (g_spi[i].drive == drive) return -2;
+    auto& binding = g_spi[g_spi_count++];
+    binding.clock_output = clock_output; binding.clock_bit = clock_bit;
+    binding.select_output = select_output; binding.select_bit = select_bit;
+    binding.drive = drive; binding.active_low = bool(active_low);
+    binding.slave.mode = mode; binding.slave.lsb = bool(lsb); binding.slave.response = response;
+    binding.slave.reset();
+    write_drive_bit(g_drive_port[drive], g_drive_bit[drive], 0);
+    return 0;
+}}
 uint32_t sim_drive_available() {{ return kDriveQueueLimit - static_cast<uint32_t>(g_drive_events.size()); }}
 uint64_t sim_drive_cycle() {{ return g_sim_cycle; }}
 void sim_drive_configure(uint32_t count) {{
@@ -387,6 +425,7 @@ int sim_drive_bind(uint32_t channel, uint32_t port, uint8_t bit, uint8_t initial
 }}
 int sim_drive_enqueue(uint32_t channel, uint64_t cycle, uint8_t level) {{
     if (channel >= g_drive_channel_count || cycle <= g_sim_cycle) return -1;
+    for (uint32_t i = 0; i < g_spi_count; ++i) if (g_spi[i].drive == channel) return -3;
     if (g_drive_events.size() >= kDriveQueueLimit) return -2;
     g_drive_events.push_back(SimDriveEvent{{cycle, channel, static_cast<uint8_t>(level ? 1 : 0)}});
     std::push_heap(g_drive_events.begin(), g_drive_events.end(), drive_later);

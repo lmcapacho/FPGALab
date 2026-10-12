@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Optional native SPI MISO byte responder, configurable in the external SPI monitor package, supporting modes 0–3, both bit orders and CS polarities without per-cycle Python work. Existing MOSI-only Labs remain supported.
 - Workbench copy/paste for mixed peripheral and annotation selections, including between Labs, with camera-centered placement, unique identifiers and undo/redo. Pasted peripherals are disconnected to avoid wiring conflicts.
 - Optional grid snapping and configurable spacing per Lab. Dragging a group snaps its grabbed element and preserves relative positions, with normal undo/redo support; enabling snapping does not reposition existing items.
 - Optional workbench dot grid with a toolbar toggle, per-user visibility preference, theme-aware colors and reduced dot density when zoomed out; no position snapping is applied.

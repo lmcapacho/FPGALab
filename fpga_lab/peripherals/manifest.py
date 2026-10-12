@@ -249,8 +249,17 @@ def _validate_spi_visual(visual, channels, drives, properties, source, identifie
     names = [visual.get(field) for field in signal_fields]
     if visual.get("miso_channel") is not None:
         names.append(visual["miso_channel"])
-    if any(name not in channels for name in names) or len(set(names)) != len(names) or drives:
-        raise ValueError(f"{source}: {identifier} spi_monitor needs unique captured clock, select, and data channels and no drives")
+    miso_drive = visual.get("miso_drive")
+    if any(name not in channels for name in names) or len(set(names)) != len(names) or (drives and drives != (miso_drive,)):
+        raise ValueError(f"{source}: {identifier} spi_monitor needs unique captured clock, select, and data channels; only MISO may be driven")
+    if miso_drive is not None:
+        if miso_drive not in drives or visual.get("miso_channel") is not None:
+            raise ValueError(f"{source}: {identifier} SPI MISO must be either captured or driven")
+        schema = properties.get(visual.get("response_property"), {})
+        if schema.get("type") != "string":
+            raise ValueError(f"{source}: {identifier} SPI response needs a string property")
+        from ..spi_edges import spi_response_byte
+        spi_response_byte(schema.get("default", ""))
     for field, allowed in (
         ("mode_property", {"0", "1", "2", "3"}),
         ("bit_order_property", {"msb", "lsb"}),

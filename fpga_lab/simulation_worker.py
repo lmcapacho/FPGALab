@@ -190,6 +190,17 @@ class SimulationWorker(QObject):
             self._drive_scheduler.reset()
             self.notice.emit(str(exc))
 
+    @pyqtSlot(object)
+    def configure_spi_slaves(self, bindings) -> None:
+        try:
+            self._simulation.configure_spi_slaves(bindings or [])
+        except Exception as exc:
+            try:
+                self._simulation.configure_spi_slaves([])
+            except Exception:
+                pass
+            self.notice.emit(str(exc))
+
     @pyqtSlot(int, int, str)
     def send_uart(self, channel: int, baud: int, text: str) -> None:
         """Schedule a complete UTF-8 string in virtual time, not with Qt timers."""

@@ -46,6 +46,9 @@ Incremental builds are kept in a managed user cache, outside Icestudio's
 GPIO inputs, sampled outputs, temporal observations for LEDs and displays,
 cycle-accurate VGA streaming, and edge streams/timed input for the development
 UART/SPI API are distinct paths within that runtime flow.
+The basic SPI MISO responder is a native reactive byte source configured through
+the worker; it observes SCK/CS every virtual cycle without per-cycle Python work.
+Its protocol state is separate from the bounded edge queue used by the monitor.
 
 Project constraints map generated HDL names to physical board endpoints, so
 LEDs and controls work even when the HDL net is not named after its visual

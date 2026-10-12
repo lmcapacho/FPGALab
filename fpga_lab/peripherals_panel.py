@@ -302,6 +302,7 @@ class PeripheralsPanel(QWidget):
     temporal_probes_changed = pyqtSignal(object)
     edge_channels_changed = pyqtSignal(object)
     drive_channels_changed = pyqtSignal(object)
+    spi_slaves_changed = pyqtSignal(object)
     serial_text_requested = pyqtSignal(int, int, str)
 
     def __init__(
@@ -781,9 +782,40 @@ class PeripheralsPanel(QWidget):
                 ))
         self._drive_bindings = bindings
         self.drive_channels_changed.emit(self.drive_channels())
+        self.spi_slaves_changed.emit(self.spi_slaves())
 
     def drive_channels(self) -> list[tuple[str, int, bool]]:
         return [(port, bit, idle) for _, _, port, bit, idle in self._drive_bindings]
+
+    def spi_slaves(self) -> list[tuple]:
+        from .spi_edges import spi_response_byte
+        bindings = []
+        for channel, (item, terminal, _, _, _) in enumerate(self._drive_bindings):
+            spec = spec_for(item.peripheral.kind)
+            visual = spec.visual
+            if visual.get("miso_drive") != terminal:
+                continue
+            item.set_spi_response_enabled(False)
+            sources = []
+            for field in ("clock_channel", "select_channel"):
+                match = next(((output, bit) for bound_item, name, output, bit in self._edge_bindings
+                              if bound_item is item and name == visual[field]), None)
+                if match is None:
+                    break
+                sources.extend(match)
+            if len(sources) != 4:
+                continue
+            def value(field):
+                name = visual[field]
+                return item.peripheral.properties.get(name, spec.properties[name]["default"])
+            try:
+                bindings.append((*sources, channel, int(value("mode_property")),
+                                 value("bit_order_property") == "lsb", value("cs_polarity_property") == "low",
+                                 spi_response_byte(value("response_property"))))
+                item.set_spi_response_enabled(True)
+            except (ValueError, TypeError) as exc:
+                self.changed.emit(str(exc))
+        return bindings
 
     def _queue_serial_text(self, peripheral_id: str, terminal: str, text: str) -> bool:
         if not self._powered or not text:
@@ -1046,6 +1078,15 @@ class PeripheralsPanel(QWidget):
 
     def _validation_error(self, raw) -> str | None:
         try:
+            from .spi_edges import spi_response_byte
+            for peripheral in raw.get("peripherals", []):
+                try:
+                    spec = spec_for(peripheral["type"])
+                except ValueError:
+                    continue
+                name = spec.visual.get("response_property")
+                if spec.visual.get("miso_drive") and name:
+                    spi_response_byte(peripheral.get("properties", {}).get(name, spec.properties[name]["default"]))
             VirtualLabProject.from_raw(raw).resolve_compatible(self._board, self._constraints())
         except Exception as exc:
             return str(exc)

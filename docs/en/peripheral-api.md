@@ -79,7 +79,7 @@ All renderers require `renderer` and `size: [width, height]` with positive integ
 | `led_array` | Brightness of several outputs | `terminals`, `orientation`, `indicator_shape`, `show_labels`, `color_property` |
 | `measured_svg` | Duty cycle or pulse width | `terminal`, `measurement`, ranges, transform, and two SVGs |
 | `uart_terminal` | API v2 edge stream and timed input | `channel`, `baud_property`, optional `tx_channel`; receives and sends UART 8N1 text |
-| `spi_monitor` | API v2 synchronized edge stream | Clock, chip-select, and MOSI channels; displays decoded master-output bytes |
+| `spi_monitor` | API v2 synchronized edge stream and reactive input | Clock, chip-select, and MOSI channels; optional MISO byte response |
 
 `state_svg` maps state names to SVG files in `states`, for example `{"off": "off.svg", "on": "on.svg"}`. `default_state` selects the initial state. Each `state_rules` entry has `state` and `when: {"terminal": "signal", "equals": 1}`; rules run in order. For controls, each `interaction` declares `terminal`, `region: [x, y, width, height]`, and one `event`/`action` pair: `click`/`toggle` or `press_release`/`momentary`. The region must fit within the artwork.
 
@@ -112,7 +112,11 @@ The terminal receives ASCII text and can send up to 512 UTF-8 bytes per submissi
 
 The development-version [SPI monitor example](https://github.com/lmcapacho/FPGALab/tree/main/examples/peripherals/spi_monitor) captures SCK, MOSI, and chip select from **FPGA outputs**. Select modes 0–3, MSB/LSB first, and active-low/high chip select in its properties. It shows completed bytes in hexadecimal, grouped by chip-select transaction. Edges from all channels are delivered in virtual-cycle order, including across interface updates. Transitions sampled in the same FPGA cycle use the new data level; HDL should still provide normal SPI setup time. A partial byte is discarded when chip select releases or the capture queue overflows.
 
-This first example is read-only and does **not** monitor MISO when MISO is an FPGA input: API v2 currently captures HDL outputs only. An optional MISO channel can be used only if the HDL exposes a separate output mirror. Full-duplex monitoring and SPI input driving remain future work. The SPI renderer is available only in the development version, not in the RC4 artifacts.
+The example optionally acts as a basic SPI slave: connect `miso` to an **FPGA input** and set **MISO response (hex byte)** (default `A5`). The native responder repeats that byte while chip select is active, in the selected mode and bit order. Releasing chip select discards a partial response and restarts at the first bit on the next transaction; Reset and Stop/Run reset the responder too. MISO is driven low when deselected, not tri-stated. Leave MISO unconnected to use the original MOSI-only monitor. Existing Labs need no new connection.
+
+Declare `simulation.drives: ["miso"]`, a one-bit input terminal with `required: false`, and `visual.miso_drive: "miso"`. `visual.response_property` names a string property containing exactly two hexadecimal digits (an optional `0x` prefix is accepted). The example package version is `1.1.0`; reinstall it to update a previously installed copy.
+
+Responses react inside the native cycle loop, not after GUI frames arrive. Establish CS before the first SCK edge, and allow at least two virtual FPGA cycles per SCK half-period for setup and sampling. This is a fixed-byte source, not a command-aware device or arbitrary slave program. The monitor labels its configured response `MISO TX`; it does not independently capture an FPGA input. An optional `visual.miso_channel` still captures an HDL output mirror instead and cannot be combined with `miso_drive`. Queue overflow may lose displayed transfers but does not stop the native responder. The SPI renderer is available only in the development version, not in RC4 artifacts.
 
 ## Validate, install, and share
 

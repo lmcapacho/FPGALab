@@ -28,6 +28,8 @@ class SpiMonitorRenderer(NullInputMixin):
         self._mode_property = str(visual["mode_property"])
         self._bit_order_property = str(visual["bit_order_property"])
         self._cs_polarity_property = str(visual["cs_polarity_property"])
+        self._response_property = visual.get("response_property")
+        self.response_enabled = False
         self.reset_stream()
 
     def size(self, peripheral) -> tuple[int, int]:
@@ -88,6 +90,10 @@ class SpiMonitorRenderer(NullInputMixin):
             line = f"{prefix}MOSI {byte.mosi:02X}"
             if byte.miso is not None:
                 line += f"  MISO {byte.miso:02X}"
+            elif self.response_enabled and self._response_property:
+                from ...spi_edges import spi_response_byte
+                response = spi_response_byte(peripheral.properties.get(self._response_property, "A5"))
+                line += f"  MISO TX {response:02X}"
             chunks.append(line + "\n")
         self._last_cycle = cycle
         chunk = "".join(chunks)
