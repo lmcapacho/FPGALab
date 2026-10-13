@@ -56,6 +56,19 @@ Configura `FPGALAB_WORKSPACE` para elegir otra carpeta raíz.
 
 Los terminales pueden quedar sin conexión mientras se organiza el Lab. Al iniciar la simulación se informan las conexiones obligatorias faltantes.
 
+## Editor de anotaciones
+
+Haz clic derecho en la mesa y elige **Agregar anotación** para insertar texto
+Markdown, una línea, un rectángulo o una elipse en el punto del clic. Las figuras
+aparecen directamente y seleccionadas para moverlas o redimensionarlas; el texto
+abre primero su editor multilínea. Arrastra el control de tamaño de la figura
+seleccionada o un extremo de la línea para ajustar su geometría. Mantén Shift
+para una línea horizontal/vertical o una elipse circular. El doble clic sobre
+texto edita su Markdown; no hay campos numéricos de tamaño.
+La mesa vacía muestra una pista de clic derecho y la barra ya no tiene el botón
+Anotar. Cancelar no modifica el Lab; crear y editar admite deshacer/rehacer.
+Se conservan las anotaciones antiguas y sus propiedades adicionales.
+
 ## Catálogo de periféricos
 
 Abre el catálogo flotante para buscar por categoría o nombre y agregar un

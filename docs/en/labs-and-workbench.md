@@ -54,6 +54,18 @@ Set `FPGALAB_WORKSPACE` to choose another workspace root.
 
 Peripheral terminals may remain unconnected while arranging a Lab. Required missing connections are reported when the simulation starts.
 
+## Annotation editor
+
+Right-click the workbench and choose **Add annotation** to insert Markdown
+text, a line, rectangle or ellipse at the clicked position. Shapes appear
+directly, selected for moving or resizing; text opens a multiline editor first.
+Drag the selected shape's resize handle or a line endpoint to adjust geometry;
+hold Shift on a line for horizontal/vertical orientation, or on an ellipse for
+a circle. Double-click text to edit Markdown. There are no numeric size fields.
+The empty workbench shows a right-click hint; the toolbar has no annotation
+button. Cancel leaves the Lab unchanged; creation and editing support undo/redo.
+Older annotations and their additional saved properties remain preserved.
+
 ## Peripheral catalog
 
 Open the floating catalog to search by category or name and add a peripheral.

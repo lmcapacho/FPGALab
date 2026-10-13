@@ -20,6 +20,7 @@ from .wiring import SUPPLY_ENDPOINTS, PeripheralInstance, VirtualLabProject
 from .theme import color, style_button
 from .workbench import WorkbenchPeripheralItem, WorkbenchView
 from .workbench.annotation import WorkbenchAnnotationItem
+from .workbench.annotation_editor import AnnotationEditor
 from .workbench.clipboard import MIME_TYPE, decode_selection
 
 
@@ -362,15 +363,6 @@ class PeripheralsPanel(QWidget):
         self._grid_spacing.setFixedWidth(90)
         self._undo_button = QPushButton()
         self._redo_button = QPushButton()
-        self._annotation_button = QPushButton()
-        self._annotation_menu = QMenu(self)
-        self._annotation_actions = {}
-        for kind, label in (("text", "Text"), ("rectangle", "Rectangle"), ("ellipse", "Ellipse"), ("line", "Line")):
-            self._annotation_actions[label] = self._annotation_menu.addAction(
-                t(label), lambda checked=False, kind=kind: self._add_annotation(kind)
-            )
-        self._annotation_button.setMenu(self._annotation_menu)
-        style_button(self._annotation_button, "secondary")
         style_button(self._undo_button, "icon", "undo")
         style_button(self._redo_button, "icon", "redo")
         style_button(self._zoom_out_button, "icon", "zoom-out")
@@ -381,7 +373,6 @@ class PeripheralsPanel(QWidget):
         self._zoom_reset_button.setFixedWidth(60)
         workbench_header.addWidget(self._undo_button)
         workbench_header.addWidget(self._redo_button)
-        workbench_header.addWidget(self._annotation_button)
         workbench_header.addSpacing(4)
         workbench_header.addWidget(self._grid_button)
         workbench_header.addWidget(self._snap_button)
@@ -399,6 +390,7 @@ class PeripheralsPanel(QWidget):
         self._workbench_scene = QGraphicsScene(self); self.workbench = WorkbenchView(self._workbench_scene, self._delete_many, self._duplicate_many, self._save_positions, self.undo, self.redo)
         self._undo_button.clicked.connect(self.undo)
         self.workbench.copy_requested.connect(self._copy_selection)
+        self.workbench.annotation_requested.connect(self._add_annotation)
         self.workbench.paste_requested.connect(self._paste_selection)
         self._grid_button.setChecked(self.workbench._grid_visible)
         self._grid_button.toggled.connect(self.workbench.set_grid_visible)
@@ -437,10 +429,7 @@ class PeripheralsPanel(QWidget):
         self._catalog_button.setAccessibleName(t("Open peripheral catalog"))
         self._catalog_panel.retranslate_ui()
         self._workbench_hint.setText(t("Virtual workbench"))
-        self._annotation_button.setText(t("Annotate"))
-        self._annotation_button.setToolTip(t("Add text or shapes to the Lab"))
-        for label, action in self._annotation_actions.items():
-            action.setText(t(label))
+        self.workbench.viewport().update()
         self._workbench_hint.setToolTip(t("Drag empty space to select multiple parts. Shift+click changes the selection. Drag a selected part to move the group. Use the wheel to zoom. Ctrl+drag or middle-drag pans."))
         self._undo_button.setToolTip(t("Undo (Ctrl+Z)"))
         self._redo_button.setToolTip(t("Redo (Ctrl+Y or Ctrl+Shift+Z)"))
@@ -865,7 +854,6 @@ class PeripheralsPanel(QWidget):
     def set_editable(self, enabled):
         self._editing_enabled = enabled
         self._catalog_button.setEnabled(enabled)
-        self._annotation_button.setEnabled(enabled)
         if not enabled:
             self._catalog_panel.close_drawer()
         self.workbench.set_editable(enabled)
@@ -1177,7 +1165,7 @@ class PeripheralsPanel(QWidget):
         if not self._editing_enabled:
             return
         mime = QApplication.clipboard().mimeData()
-        if not mime.hasFormat(MIME_TYPE):
+        if mime is None or not mime.hasFormat(MIME_TYPE):
             return
         data = bytes(mime.data(MIME_TYPE))
         try:
@@ -1260,34 +1248,45 @@ class PeripheralsPanel(QWidget):
                 if isinstance(item, WorkbenchAnnotationItem) and item.data["id"] in duplicate_ids:
                     item.setSelected(True)
 
-    def _add_annotation(self, kind: str) -> None:
+    def _add_annotation(self, kind: str, position: QPointF | None = None) -> None:
         if not self._editing_enabled:
             return
-        value = ""
-        if kind == "text":
-            value, accepted = QInputDialog.getMultiLineText(self, t("Add text"), t("Markdown text"))
-            if not accepted or not value.strip():
-                return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         existing = {item.get("id") for item in raw.get("annotations", [])}
         index = 1
         while f"{kind}_{index}" in existing:
             index += 1
-        center = self.workbench.camera_center()
-        raw.setdefault("annotations", []).append({"id": f"{kind}_{index}", "type": kind, "text": value, "position": [round(center.x(), 1), round(center.y(), 1)], "width": 180 if kind == "text" else 120, "height": 68 if kind == "text" else (12 if kind == "line" else 80), **({"orientation": "horizontal"} if kind == "line" else {})})
-        self._commit(raw, t("Annotation added"))
+        center = position if position is not None else self.workbench.camera_center()
+        draft = {"id": f"{kind}_{index}", "type": kind, "text": "", "position": [round(center.x(), 1), round(center.y(), 1)], "width": 180 if kind == "text" else 120, "height": 68 if kind == "text" else (12 if kind == "line" else 80), **({"orientation": "horizontal"} if kind == "line" else {})}
+        if kind == "text":
+            dialog = AnnotationEditor(draft, self, creating=True)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                dialog.deleteLater()
+                return
+            draft = dialog.value()
+            dialog.deleteLater()
+        raw.setdefault("annotations", []).append(draft)
+        if self._commit(raw, t("Annotation added")):
+            for item in self._workbench_scene.items():
+                if isinstance(item, WorkbenchAnnotationItem) and item.data["id"] == draft["id"]:
+                    item.setSelected(True)
 
     def _edit_annotation(self, annotation: dict) -> None:
-        if annotation.get("type") != "text":
+        if not self._editing_enabled or annotation.get("type") != "text":
             return
-        value, accepted = QInputDialog.getMultiLineText(self, t("Edit text"), t("Markdown text"), annotation.get("text", ""))
-        if not accepted:
+        dialog = AnnotationEditor(annotation, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
-        for item in raw.get("annotations", []):
+        for index, item in enumerate(raw.get("annotations", [])):
             if item.get("id") == annotation["id"]:
-                item["text"] = value
+                value = dialog.value()
+                if value == item:
+                    return
+                raw["annotations"][index] = value
                 break
+        else:
+            return
         self._commit(raw, t("Annotation updated"))
 
     def update_outputs(self, outputs: dict[str, int]) -> None:

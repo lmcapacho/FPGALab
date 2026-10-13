@@ -211,21 +211,21 @@ def test_annotation_menu_updates_when_language_changes(tmp_path, monkeypatch):
     lab = tmp_path / "annotations.lab"
     lab.write_text('{"peripherals": []}', encoding="utf-8")
     panel = PeripheralsPanel(BoardDefinition.load(bundled_board_definition()), None, lab)
-    assert [action.text() for action in panel._annotation_menu.actions()] == [
-        "Text", "Rectangle", "Ellipse", "Line",
-    ]
+    _APPLICATION.clipboard().clear()
+    def labels():
+        menu = panel.workbench._create_context_menu(QPointF(50, 60))
+        submenu = menu.actions()[0].menu()
+        result = menu.actions()[0].text(), [action.text() for action in submenu.actions()]
+        menu.deleteLater()
+        return result
+    assert labels() == ("Add annotation", ["Text", "Line", "Rectangle", "Ellipse"])
 
     monkeypatch.setattr(language_manager, "_language", "es")
     language_manager.language_changed.emit("es")
-    assert panel._annotation_button.text() == "Anotar"
-    assert [action.text() for action in panel._annotation_menu.actions()] == [
-        "Texto", "Rectángulo", "Elipse", "Línea",
-    ]
+    assert labels() == ("Agregar anotación", ["Texto", "Línea", "Rectángulo", "Elipse"])
     monkeypatch.setattr(language_manager, "_language", "en")
     language_manager.language_changed.emit("en")
-    assert [action.text() for action in panel._annotation_menu.actions()] == [
-        "Text", "Rectangle", "Ellipse", "Line",
-    ]
+    assert labels() == ("Add annotation", ["Text", "Line", "Rectangle", "Ellipse"])
     panel.close()
     panel.deleteLater()
 
@@ -624,3 +624,75 @@ def test_annotations_preserve_markdown_and_undo_size_changes(tmp_path):
     panel.redo()
     assert json.loads(lab.read_text(encoding="utf-8"))["annotations"][0]["text"] == "**Heading**\nA note"
     panel.deleteLater()
+
+
+def test_annotation_editor_updates_text_and_preserves_legacy_data(tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QDialog
+    from fpga_lab.workbench.annotation_editor import AnnotationEditor
+    lab = tmp_path / "edit.lab"
+    annotation = {"id": "note", "type": "text", "text": "**Old**\nline", "position": [40, 60],
+                  "width": 120, "height": 60, "future_property": {"keep": True}}
+    raw = {"peripherals": [], "annotations": [annotation]}
+    lab.write_text(json.dumps(raw))
+    panel = PeripheralsPanel(BoardDefinition.load(bundled_board_definition()), None, lab)
+    try:
+        def save(dialog):
+            dialog.text_field.setPlainText("**New**\nsecond line")
+            return QDialog.DialogCode.Accepted
+        monkeypatch.setattr(AnnotationEditor, "exec", save)
+        panel._edit_annotation(annotation)
+        saved = json.loads(lab.read_text())["annotations"][0]
+        assert saved["id"] == "note" and saved["position"] == [40, 60]
+        assert saved["future_property"] == {"keep": True}
+        assert saved["height"] == 60 and saved["width"] == 120
+        assert saved["text"] == "**New**\nsecond line"
+        panel.undo()
+        assert json.loads(lab.read_text()) == raw
+        panel.redo()
+        assert json.loads(lab.read_text())["annotations"][0] == saved
+        monkeypatch.setattr(AnnotationEditor, "exec", lambda dialog: QDialog.DialogCode.Rejected)
+        panel._edit_annotation(saved)
+        assert json.loads(lab.read_text())["annotations"] == [saved]
+        panel._add_annotation("text")
+        assert json.loads(lab.read_text())["annotations"] == [saved]
+    finally:
+        panel.close()
+
+
+def test_annotation_editor_validates_text_and_creates_shapes(tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QDialog
+    from fpga_lab.workbench.annotation_editor import AnnotationEditor
+    dialog = AnnotationEditor({"id": "text_1", "type": "text", "text": ""})
+    dialog._save()
+    assert dialog.result() != QDialog.DialogCode.Accepted
+    assert dialog.error_label.text()
+    dialog.text_field.setPlainText("# Heading\n\nText")
+    dialog._save()
+    assert dialog.result() == QDialog.DialogCode.Accepted
+    dialog.close()
+    lab = tmp_path / "create.lab"
+    lab.write_text('{"peripherals": []}')
+    panel = PeripheralsPanel(BoardDefinition.load(bundled_board_definition()), None, lab)
+    try:
+        def unexpected_dialog(dialog):
+            raise AssertionError("Shapes must be inserted without opening an editor")
+        monkeypatch.setattr(AnnotationEditor, "exec", unexpected_dialog)
+        position = QPointF(-1450, 630)
+        menu = panel.workbench._create_context_menu(position)
+        menu.actions()[0].menu().actions()[1].trigger()
+        menu.deleteLater()
+        saved = json.loads(lab.read_text())["annotations"][0]
+        assert saved["orientation"] == "horizontal" and saved["height"] == 12
+        assert saved["position"] == [-1450, 630]
+        assert len(panel._workbench_scene.selectedItems()) == 1
+        panel.undo()
+        assert not json.loads(lab.read_text()).get("annotations")
+        for kind in ("rectangle", "ellipse"):
+            panel._add_annotation(kind, position)
+            assert json.loads(lab.read_text())["annotations"][-1]["type"] == kind
+        panel.set_editable(False)
+        menu = panel.workbench._create_context_menu(position)
+        assert not menu.actions()[0].isEnabled()
+        menu.deleteLater()
+    finally:
+        panel.close()

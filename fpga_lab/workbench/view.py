@@ -22,6 +22,7 @@ class WorkbenchView(QGraphicsView):
     camera_changed = pyqtSignal(QPointF)
     copy_requested = pyqtSignal()
     paste_requested = pyqtSignal()
+    annotation_requested = pyqtSignal(str, QPointF)
     _CANVAS_EXTENT = 100_000.0
     GRID_VISIBLE_KEY = "ui/workbench_grid_visible"
     GRID_SPACING = 20.0
@@ -312,6 +313,29 @@ class WorkbenchView(QGraphicsView):
                 return
         super().keyPressEvent(event)
 
+    def drawForeground(self, painter, rect):
+        super().drawForeground(painter, rect)
+        if self._editing_enabled and not any(isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)) for item in self.scene().items()):
+            painter.save()
+            painter.resetTransform()
+            painter.setPen(color("text_muted"))
+            painter.drawText(self.viewport().rect(), Qt.AlignmentFlag.AlignCenter, t("Right-click to add annotations."))
+            painter.restore()
+
+    def _create_context_menu(self, position: QPointF) -> QMenu:
+        menu = QMenu(self)
+        annotations = menu.addMenu(t("Add annotation"))
+        annotations.setEnabled(self._editing_enabled)
+        for kind, label in (("text", "Text"), ("line", "Line"), ("rectangle", "Rectangle"), ("ellipse", "Ellipse")):
+            annotations.addAction(t(label), lambda checked=False, kind=kind: self.annotation_requested.emit(kind, QPointF(position)))
+        menu.addSeparator()
+        copy_action = menu.addAction(t("Copy (Ctrl+C)"), self.copy_requested.emit)
+        copy_action.setEnabled(any(isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)) for item in self.scene().selectedItems()))
+        paste_action = menu.addAction(t("Paste (Ctrl+V)"), self.paste_requested.emit)
+        mime = QApplication.clipboard().mimeData()
+        paste_action.setEnabled(self._editing_enabled and mime is not None and mime.hasFormat(MIME_TYPE))
+        return menu
+
     def contextMenuEvent(self, event):
         hovered = self.itemAt(event.pos())
         if isinstance(hovered, QGraphicsProxyWidget):
@@ -320,11 +344,7 @@ class WorkbenchView(QGraphicsView):
         if isinstance(hovered, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)) and not hovered.isSelected():
             self.scene().clearSelection()
             hovered.setSelected(True)
-        menu = QMenu(self)
-        copy_action = menu.addAction(t("Copy (Ctrl+C)"), self.copy_requested.emit)
-        copy_action.setEnabled(any(isinstance(item, (WorkbenchPeripheralItem, WorkbenchAnnotationItem)) for item in self.scene().selectedItems()))
-        paste_action = menu.addAction(t("Paste (Ctrl+V)"), self.paste_requested.emit)
-        paste_action.setEnabled(self._editing_enabled and QApplication.clipboard().mimeData().hasFormat(MIME_TYPE))
+        menu = self._create_context_menu(self.mapToScene(event.pos()))
         menu.exec(event.globalPos())
         menu.deleteLater()
         event.accept()
