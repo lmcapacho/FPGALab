@@ -69,6 +69,16 @@ La mesa vacía muestra una pista de clic derecho y la barra ya no tiene el botó
 Anotar. Cancelar no modifica el Lab; crear y editar admite deshacer/rehacer.
 Se conservan las anotaciones antiguas y sus propiedades adicionales.
 
+El doble clic sobre una línea, rectángulo o elipse abre su apariencia: color,
+grosor (0,5–8 unidades de la mesa) y trazo continuo, discontinuo o punteado.
+Los rectángulos y elipses también permiten relleno opcional con color propio.
+El selector de color admite transparencia. **Restaurar apariencia** recupera
+los valores del tema sin cambiar la geometría. La selección usa un contorno
+independiente y controles, dejando visible el color del trazo. Los cambios se
+guardan en el Lab, se conservan al copiar/duplicar y admiten deshacer/rehacer.
+La apariencia del texto queda para otro paso; su editor sigue modificando el
+contenido Markdown.
+
 ## Catálogo de periféricos
 
 Abre el catálogo flotante para buscar por categoría o nombre y agregar un

@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Annotation appearance controls for lines and shapes: custom stroke color, width and solid/dashed/dotted styles, optional shape fill and restoring theme defaults. Selection uses a separate outline without replacing the chosen stroke color.
 - Workbench annotations move from the toolbar to an Add annotation context submenu, inserted at the clicked scene position and selected immediately. Geometry is edited graphically; Markdown text has a dedicated editor. An empty-canvas hint, undo/redo and existing annotation properties are preserved.
 - Optional native SPI MISO byte responder, configurable in the external SPI monitor package, supporting modes 0–3, both bit orders and CS polarities without per-cycle Python work. Existing MOSI-only Labs remain supported.
 - Workbench copy/paste for mixed peripheral and annotation selections, including between Labs, with camera-centered placement, unique identifiers and undo/redo. Pasted peripherals are disconnected to avoid wiring conflicts.
@@ -37,6 +38,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Fixed
 
+- Editing annotation appearance or Markdown preserves the latest canvas size, position and line geometry instead of restoring the item's original dimensions.
 - Switching boards preserves connections to unavailable pins as inactive wiring with a compatibility notice instead of preventing the Lab from opening.
 - Board controls now support declared active-low polarity; shared physical pin aliases resolve to the same project net for both integrated controls and headers.
 - Reset fires once per board-button press and keeps UART/SPI monitors usable when virtual-cycle timestamps restart, without discarding their visible history.

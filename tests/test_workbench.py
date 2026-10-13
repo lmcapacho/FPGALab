@@ -696,3 +696,77 @@ def test_annotation_editor_validates_text_and_creates_shapes(tmp_path, monkeypat
         menu.deleteLater()
     finally:
         panel.close()
+
+
+@pytest.mark.parametrize("kind", ["line", "rectangle", "ellipse"])
+def test_annotation_appearance_persists_renders_and_resets_without_geometry_changes(tmp_path, monkeypatch, kind):
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtGui import QColor, QImage, QPainter
+    from PyQt6.QtWidgets import QColorDialog, QDialog
+    from fpga_lab.workbench.annotation_editor import AnnotationEditor
+    from fpga_lab.workbench.annotation_style import annotation_pen
+    annotation = {"id": "note", "type": kind, "position": [10, 20], "width": 100,
+                  "height": 12 if kind == "line" else 60, "orientation": "horizontal",
+                  "future_property": {"keep": True}}
+    lab = tmp_path / "appearance.lab"
+    raw = {"peripherals": [], "annotations": [annotation]}
+    lab.write_text(json.dumps(raw))
+    panel = PeripheralsPanel(BoardDefinition.load(bundled_board_definition()), None, lab)
+    try:
+        # A canvas resize does not rebuild the item: edit with its stale data.
+        panel._save_positions([("note", 70, 90, 100, annotation["height"], False, "horizontal")])
+        panel._save_positions([("note", 70, 90, 200, annotation["height"], False, "horizontal")])
+        current = json.loads(lab.read_text())["annotations"][0]
+        resized_raw = json.loads(lab.read_text())
+        def save(dialog):
+            monkeypatch.setattr(QColorDialog, "getColor", lambda *args: QColor("#ff0000"))
+            dialog._choose_color("stroke_color", "border_strong")
+            dialog.stroke_width.setValue(4)
+            dialog.stroke_style.setCurrentIndex(dialog.stroke_style.findData("dashed"))
+            if dialog.fill_enabled is not None:
+                dialog.fill_enabled.setChecked(True)
+                monkeypatch.setattr(QColorDialog, "getColor", lambda *args: QColor("#00ff00"))
+                dialog._choose_color("fill_color", "accent_surface")
+            return QDialog.DialogCode.Accepted
+        monkeypatch.setattr(AnnotationEditor, "exec", save)
+        panel._edit_annotation(annotation)
+        saved = json.loads(lab.read_text())["annotations"][0]
+        for field in ("position", "width", "height", "future_property"):
+            assert saved[field] == current[field]
+        assert saved["stroke_color"] == "#ff0000"
+        assert saved["stroke_style"] == "dashed"
+        assert annotation_pen(saved).widthF() == 4
+        assert annotation_pen(saved).style() == Qt.PenStyle.DashLine
+        if kind == "line":
+            dotted = annotation_pen({**saved, "stroke_style": "dotted"})
+            assert dotted.capStyle() == Qt.PenCapStyle.RoundCap
+            assert dotted.dashPattern() == [0.01, 2.5]
+        panel.undo()
+        assert json.loads(lab.read_text()) == resized_raw
+        panel.redo()
+        item = next(item for item in panel._workbench_scene.items() if isinstance(item, WorkbenchAnnotationItem))
+        # A separate selection outline must not replace the configured paint.
+        selected_colors = []
+        for selected in (False, True):
+            item.setSelected(selected)
+            image = QImage(130, 90, QImage.Format.Format_ARGB32)
+            image.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(image)
+            painter.translate(10, 10)
+            item.paint(painter, None)
+            painter.end()
+            selected_colors.append(image.pixelColor(20, 16) if kind == "line" else image.pixelColor(60, 40))
+        assert selected_colors == [QColor("#ff0000") if kind == "line" else QColor("#00ff00")] * 2
+        panel._copy_selection()
+        panel._paste_selection()
+        pasted = json.loads(lab.read_text())["annotations"][1]
+        assert pasted["stroke_color"] == saved["stroke_color"]
+        panel.undo()
+        def reset(dialog):
+            dialog._reset_appearance()
+            return QDialog.DialogCode.Accepted
+        monkeypatch.setattr(AnnotationEditor, "exec", reset)
+        panel._edit_annotation(saved)
+        assert json.loads(lab.read_text())["annotations"][0] == current
+    finally:
+        panel.close()

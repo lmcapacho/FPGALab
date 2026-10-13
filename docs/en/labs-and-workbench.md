@@ -66,6 +66,15 @@ The empty workbench shows a right-click hint; the toolbar has no annotation
 button. Cancel leaves the Lab unchanged; creation and editing support undo/redo.
 Older annotations and their additional saved properties remain preserved.
 
+Double-click a line, rectangle or ellipse to edit its appearance: stroke color,
+width (0.5–8 workbench units), and solid, dashed or dotted style. Rectangles and
+ellipses also offer optional fill with its own color. The color picker supports
+transparency. **Reset appearance** returns to theme-aware defaults without
+changing geometry. Selection is shown with a separate outline and handles,
+leaving the configured stroke visible. These changes are saved in the Lab,
+included when copying/duplicating, and support undo/redo. Text appearance
+controls are not part of this step; its editor still changes Markdown content.
+
 ## Peripheral catalog
 
 Open the floating catalog to search by category or name and add a peripheral.

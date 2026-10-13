@@ -1272,15 +1272,31 @@ class PeripheralsPanel(QWidget):
                     item.setSelected(True)
 
     def _edit_annotation(self, annotation: dict) -> None:
-        if not self._editing_enabled or annotation.get("type") != "text":
+        if not self._editing_enabled:
             return
-        dialog = AnnotationEditor(annotation, self)
+        # Canvas moves/resizes are saved without rebuilding the graphics item;
+        # its original data can therefore contain stale geometry.
+        raw = json.loads(self._lab.read_text(encoding="utf-8"))
+        current = next((item for item in raw.get("annotations", []) if item.get("id") == annotation["id"]), None)
+        if current is None:
+            return
+        dialog = AnnotationEditor(current, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
+            dialog.deleteLater()
             return
+        edited = dialog.value()
+        dialog.deleteLater()
         raw = json.loads(self._lab.read_text(encoding="utf-8"))
         for index, item in enumerate(raw.get("annotations", [])):
             if item.get("id") == annotation["id"]:
-                value = dialog.value()
+                from .workbench.annotation_style import STYLE_KEYS
+                value = copy.deepcopy(item)
+                fields = ("text",) if current["type"] == "text" else STYLE_KEYS
+                for field in fields:
+                    if field in edited:
+                        value[field] = edited[field]
+                    else:
+                        value.pop(field, None)
                 if value == item:
                     return
                 raw["annotations"][index] = value

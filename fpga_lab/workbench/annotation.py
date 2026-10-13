@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem
 
 from ..i18n import t
 from ..theme import color
+from .annotation_style import annotation_color, annotation_pen
 
 
 class WorkbenchAnnotationItem(QGraphicsRectItem):
@@ -120,7 +121,7 @@ class WorkbenchAnnotationItem(QGraphicsRectItem):
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event):
-        if self._editable and self.data.get("type") == "text":
+        if self._editable:
             self._edit(self.data)
             event.accept()
         else:
@@ -129,9 +130,11 @@ class WorkbenchAnnotationItem(QGraphicsRectItem):
     def paint(self, painter: QPainter, option, widget=None):
         del option, widget
         kind = self.data.get("type", "text")
-        pen = QPen(color("accent") if self.isSelected() else color("border_strong"), 2)
+        pen = annotation_pen(self.data)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
+        if kind in {"rectangle", "ellipse"} and self.data.get("fill_enabled") is True:
+            painter.setBrush(annotation_color(self.data, "fill_color", "accent_surface"))
         rect = self.rect().adjusted(2, 2, -2, -2)
         if kind == "rectangle":
             painter.drawRoundedRect(rect, 5, 5)
@@ -154,10 +157,12 @@ class WorkbenchAnnotationItem(QGraphicsRectItem):
             context.palette.setColor(QPalette.ColorRole.Text, color("text"))
             document.documentLayout().draw(painter, context)
             painter.restore()
-            if self.isSelected():
-                painter.setPen(pen)
-                painter.drawRect(rect)
+        if self.isSelected():
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(color("accent"), 1, Qt.PenStyle.DashLine))
+            painter.drawRect(self.rect().adjusted(-3, -3, 3, 3))
         if self.isSelected() and self._editable:
+            painter.setPen(QPen(color("accent"), 1))
             painter.setBrush(color("accent"))
             for handle in (self._endpoints() if kind == "line" else (self.rect().bottomRight(),)):
                 painter.drawEllipse(handle, 4, 4)
