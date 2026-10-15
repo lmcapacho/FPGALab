@@ -26,6 +26,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Changed
 
+- GitHub Actions caches pip downloads and wheels for CI, documentation and release builds, separated by runtime environment and dependency/workflow hashes. Package installation and independent job checkouts remain unchanged.
 - Board layout editor remembers its panel divider and creates components in one form instead of successive prompts. Connections now identifies the active board explicitly.
 - Organized the board layout editor sidebar into component properties/actions, component creation, whole-board appearance, and editor view, with save/close actions kept at the bottom.
 - Board layout component creation chooses the role first, allowing power indicators and simulation reset buttons with internal identifiers without requiring FPGA pins.

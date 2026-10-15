@@ -22,6 +22,10 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            .github/workflows/release.yml
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel pyinstaller
@@ -47,6 +51,10 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            .github/workflows/release.yml
       - name: Install build dependencies
         shell: powershell
         run: |
@@ -90,6 +98,10 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            .github/workflows/release.yml
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel pyinstaller
