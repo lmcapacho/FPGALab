@@ -118,6 +118,12 @@ Declare `simulation.drives: ["miso"]`, a one-bit input terminal with `required: 
 
 Responses react inside the native cycle loop, not after GUI frames arrive. Establish CS before the first SCK edge, and allow at least two virtual FPGA cycles per SCK half-period for setup and sampling. This is a fixed-byte source, not a command-aware device or arbitrary slave program. The monitor labels its configured response `MISO TX`; it does not independently capture an FPGA input. An optional `visual.miso_channel` still captures an HDL output mirror instead and cannot be combined with `miso_drive`. Queue overflow may lose displayed transfers but does not stop the native responder. The SPI renderer is available only in the development version, not in RC4 artifacts.
 
+SPI overflow handling discards the entire damaged frame and the partially
+decoded byte, preserves earlier receive history, and resumes decoding once a
+new chip-select assertion and sufficient signal levels establish byte alignment.
+Synthetic tests cover this recovery across GUI frames and verify that the
+native MISO responder continues independently of capture queue overflow.
+
 ## Validate, install, and share
 
 From the repository root, validate one or more folders:

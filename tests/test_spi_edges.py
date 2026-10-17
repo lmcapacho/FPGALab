@@ -54,6 +54,50 @@ def test_spi_discards_partial_transfer_when_chip_select_releases():
     assert decoder.feed(_spi_transitions(), 46)[0].mosi == 0x96
 
 
+def test_spi_overflow_discards_unsafe_frames_and_recovers_on_next_transaction():
+    from fpga_lab.peripherals.renderers.spi_monitor import SpiMonitorRenderer
+    from fpga_lab.wiring import PeripheralInstance
+    source = Path(__file__).parents[1] / "examples/peripherals/spi_monitor"
+    manifest = json.loads((source / "manifest.json").read_text())
+    # A separate package can reuse the renderer with different terminal names.
+    aliases = {"sck": "clock_in", "mosi": "data_in", "cs": "select_in"}
+    manifest["id"] = "another_spi_device"
+    manifest["simulation"]["channels"] = list(aliases.values())
+    for terminal in manifest["terminals"]:
+        terminal["name"] = aliases.get(terminal["name"], terminal["name"])
+    for field, terminal in (("clock_channel", "sck"), ("mosi_channel", "mosi"), ("select_channel", "cs")):
+        manifest["visual"][field] = aliases[terminal]
+    spec = parse_manifest(manifest, resource_root=source)
+    peripheral = PeripheralInstance("another_instance", spec.id, {}, {"mode": "0", "bit_order": "msb", "cs_polarity": "low"})
+
+    def feed(renderer, events, cycle, dropped=0):
+        return renderer.feed_edge_frame(peripheral, tuple(
+            (aliases[terminal], EdgeEvent(timestamp, 0, level)) for timestamp, terminal, level in events
+        ), cycle, 12_000_000, dropped)
+
+    def transfer(value, offset):
+        return [(cycle + offset, terminal, level) for cycle, terminal, level in _spi_transitions(value)]
+
+    # Normally the worker already drops the damaged frame. The renderer must
+    # also be safe if a caller supplies the retained, incomplete queue contents.
+    for retain_events in (False, True):
+        renderer = SpiMonitorRenderer(spec.visual)
+        assert "MOSI 96" in feed(renderer, transfer(0x96, 0), 46)
+        assert feed(renderer, [edge for edge in transfer(0xA7, 60) if edge[0] <= 87], 87) == ""
+        unsafe = transfer(0xFF, 90) if retain_events else []
+        warning = feed(renderer, unsafe, 140, dropped=17)
+        assert "[" in warning and "MOSI" not in warning
+        # An ongoing transfer without a new CS assertion cannot establish byte
+        # alignment, even if eight clocks remain after the data loss.
+        tail = [edge for edge in transfer(0x55, 140) if edge[0] >= 151]
+        assert feed(renderer, tail, 186) == ""
+        valid = transfer(0x3C, 200)
+        assert feed(renderer, [edge for edge in valid if edge[0] <= 227], 227) == ""
+        assert "MOSI 3C" in feed(renderer, [edge for edge in valid if edge[0] > 227], 246)
+        assert renderer._text.count("MOSI") == 2
+        assert renderer._dropped == 17
+
+
 @pytest.mark.parametrize("connect_miso", [False, True])
 def test_spi_manifest_and_workbench_route_ordered_multichannel_edges(tmp_path, monkeypatch, connect_miso):
     from fpga_lab.board import BoardDefinition, bundled_board_definition

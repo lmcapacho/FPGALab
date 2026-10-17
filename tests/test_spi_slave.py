@@ -80,6 +80,31 @@ def test_native_spi_response_modes_polarity_order_and_reset(spi_library):
         simulation.ticks(1)
         assert simulation.get_output("echo") & 1 == 1
 
+        # Saturate the observation queue without involving GUI refresh. The
+        # reactive slave must continue stepping independently of lost events.
+        simulation.configure_drive_channels([("input_bus", 0, False), ("controls", 0, False)])
+        simulation.configure_spi_slaves([(0, 0, 1, 0, 0, 0, False, True, 0xA5)])
+        simulation.configure_edge_channels([(0, 0)] * 16)
+        simulation.set_input("controls", 0)
+        simulation.ticks(1)
+        start = simulation.drive_cycle()
+        simulation.enqueue_drive_events([(1, start + i, bool(i & 1)) for i in range(1, 1101)])
+        simulation.ticks(1100)
+        _, _, dropped = simulation.edge_window()
+        assert dropped > 0
+        assert simulation.get_output("echo") & 1 == (0xA5 >> (7 - (550 % 8))) & 1
+        simulation.set_input("controls", 2)
+        simulation.ticks(2)
+        simulation.set_input("controls", 0)
+        simulation.ticks(2)
+        received = []
+        for _ in range(8):
+            received.append(simulation.get_output("echo") & 1)
+            start = simulation.drive_cycle()
+            simulation.enqueue_drive_events([(1, start + 1, True), (1, start + 3, False)])
+            simulation.ticks(4)
+        assert received == [1, 0, 1, 0, 0, 1, 0, 1]
+
 
 def test_spi_response_requires_one_hex_byte():
     assert spi_response_byte("0xa5") == 165

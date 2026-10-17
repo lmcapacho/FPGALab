@@ -80,6 +80,9 @@ class SpiMonitorRenderer(NullInputMixin):
             self._decoder.reset()
             self._shown_transaction = None
             chunks.append("\n[" + t("Signal overflow") + "]\n")
+            # A retained queue prefix cannot establish complete transactions.
+            # Keep this contract even when frames bypass the standard worker.
+            events = ()
         transitions = (
             (event.cycle, self._channels[terminal], event.level)
             for terminal, event in events if terminal in self._channels

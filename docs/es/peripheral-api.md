@@ -118,6 +118,13 @@ Declara `simulation.drives: ["miso"]`, un terminal de entrada de un bit con `req
 
 La respuesta reacciona dentro del bucle nativo de ciclos, sin esperar a los cuadros de la interfaz. Establece CS antes del primer flanco SCK y deja al menos dos ciclos virtuales del FPGA por semiperíodo SCK para establecimiento y muestreo. Es una fuente de byte fijo, no un dispositivo que interpreta comandos ni un programa arbitrario de esclavo. El monitor identifica su respuesta configurada como `MISO TX`; no captura por separado una entrada del FPGA. `visual.miso_channel` aún permite capturar un reflejo en una salida HDL, pero no puede combinarse con `miso_drive`. Un desbordamiento puede perder transferencias mostradas, pero no detiene la respuesta nativa. El renderizador SPI solo está en desarrollo, no en los artefactos de RC4.
 
+Si hay desbordamiento SPI se descarta el cuadro afectado y el byte parcial,
+se conserva el historial anterior y se retoma la decodificación cuando una
+nueva activación de CS y los niveles de señal permiten establecer la alineación
+de bits. Las pruebas sintéticas cubren la recuperación entre cuadros y verifican
+que la respuesta MISO nativa continúa independientemente del desbordamiento de
+la cola de captura.
+
 ## Validar, instalar y compartir
 
 Desde la raíz del repositorio, valida una o varias carpetas:

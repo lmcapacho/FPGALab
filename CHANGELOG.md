@@ -39,6 +39,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Fixed
 
+- SPI monitors discard all events in an overflow-marked frame, even when called outside the standard worker. Synthetic regressions cover recovery at the next transaction, remapped manifest channels and native MISO response during capture overflow.
 - Editing annotation appearance or Markdown preserves the latest canvas size, position and line geometry instead of restoring the item's original dimensions.
 - Switching boards preserves connections to unavailable pins as inactive wiring with a compatibility notice instead of preventing the Lab from opening.
 - Board controls now support declared active-low polarity; shared physical pin aliases resolve to the same project net for both integrated controls and headers.
