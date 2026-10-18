@@ -34,4 +34,12 @@ Read the relevant [architecture guide](docs/en/development.md) and [peripheral A
 
 ## Change hygiene
 
+### Changelog policy
+
+- Treat `Unreleased` as a curated, editable summary, not a commit log. Consolidate related work and revise or remove entries when unreleased behavior changes or is withdrawn.
+- Record meaningful user or contributor outcomes: features, fixes, compatibility and requirements. Omit routine tests, cosmetic iterations and internal refactors unless they have a notable impact.
+- Prefer one entry per functional change across multiple commits. Describe the final behavior rather than implementation steps or test inventories; use Added, Changed and Fixed consistently.
+- Label experimental tools explicitly and distinguish maintainer prototypes from capabilities available in distributed packages.
+- Before each RC or release, reconcile entries with the delivered scope, remove duplication and assign a version and date. Preserve published sections as historical records, except for factual documentation corrections.
+
 Inspect `git status` before editing. Preserve unrelated work and stage only files belonging to the task. Do not create commits, tags, releases, or pushes unless the user asks for them. Keep source identifiers and developer comments in English.

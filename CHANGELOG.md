@@ -8,40 +8,33 @@ All notable changes to FPGALab are documented in this file.
 
 - Experimental Linux x86-64 SDK builder with private compiler/sysroot, Verilator, Make, Perl and Python, package-version metadata and optional archive/checksum. A maintainer-only isolated probe compiles FPGALab's native ABI without host build tools; automatic installation and cross-distribution support are not enabled yet.
 - Annotation appearance controls for lines and shapes: custom stroke color, width and solid/dashed/dotted styles, optional shape fill and restoring theme defaults. Selection uses a separate outline without replacing the chosen stroke color.
-- Workbench annotations move from the toolbar to an Add annotation context submenu, inserted at the clicked scene position and selected immediately. Geometry is edited graphically; Markdown text has a dedicated editor. An empty-canvas hint, undo/redo and existing annotation properties are preserved.
 - Optional native SPI MISO byte responder, configurable in the external SPI monitor package, supporting modes 0–3, both bit orders and CS polarities without per-cycle Python work. Existing MOSI-only Labs remain supported.
 - Workbench copy/paste for mixed peripheral and annotation selections, including between Labs, with camera-centered placement, unique identifiers and undo/redo. Pasted peripherals are disconnected to avoid wiring conflicts.
-- Optional grid snapping and configurable spacing per Lab. Dragging a group snaps its grabbed element and preserves relative positions, with normal undo/redo support; enabling snapping does not reposition existing items.
-- Optional workbench dot grid with a toolbar toggle, per-user visibility preference, theme-aware colors and reduced dot density when zoomed out; no position snapping is applied.
+- Optional workbench dot grid with per-user visibility and independently configurable snapping and spacing per Lab. Group movement preserves relative positions; enabling snapping does not reposition existing items.
 - Clear recent project history with confirmation, without deleting files or changing the open project. The dropdown shows up to 12 projects and a clearly separated clear-history action without a vertical scrollbar.
 - Board signal selector in the layout editor, filtered by control direction and excluding the clock. Special roles allow internal signals; unavailable existing values are preserved and empty signals cannot be saved.
 - iCEBreaker Bitsy v1.1c as a second supported board, with a 12 MHz clock, active-low integrated LEDs/button, external GPIO, board artwork, and per-Lab board selection. USB, flash, PSRAM and RGB hard IP are not modeled.
 - PCF and literal XDC `PACKAGE_PIN` support for project pin mapping and board pinout packages.
 - Board selector in the main window, persisted per user and passed to board mapping, compilation setup, and simulation.
-- Internal board catalog that discovers and validates bundled board packages and reports incomplete ones.
-- Peripheral API v2 edge streams: bounded, virtual-cycle-accurate capture of digital output transitions, with an installable UART 8N1 terminal example.
-- Cycle-scheduled digital input driving and a UART terminal TX field, allowing the external terminal to send text into a clocked FPGA design.
-- Scrollable UART receive history with copy and clear controls; the output remains visible after Stop until the next run replaces the model.
-- UART text entry now takes precedence over workbench button shortcuts while its input is focused.
-- A read-only SPI master-output monitor example, decoding SCK/MOSI/chip-select across virtual-cycle frames in modes 0–3.
+- Board package discovery and validation, with diagnostics for incomplete packages.
+- Peripheral API v2 with bounded, virtual-cycle-accurate digital edge capture and protocol-neutral, cycle-scheduled input driving.
+- Installable UART 8N1 terminal example with transmit text entry and scrollable receive history, copy and clear controls. Received output remains visible after Stop until the next run.
+- SPI monitor example decoding SCK/MOSI/chip-select across virtual-cycle frames in modes 0–3.
 
 ### Changed
 
 - Reordered first-run guides around application installation, required simulation tools and a first design; moved recent-project/update details to the usage guide and separated board architecture contracts into focused sections in both languages.
-- GitHub Actions caches pip downloads and wheels for CI, documentation and release builds, separated by runtime environment and dependency/workflow hashes. Package installation and independent job checkouts remain unchanged.
-- Board layout editor remembers its panel divider and creates components in one form instead of successive prompts. Connections now identifies the active board explicitly.
-- Organized the board layout editor sidebar into component properties/actions, component creation, whole-board appearance, and editor view, with save/close actions kept at the bottom.
-- Board layout component creation chooses the role first, allowing power indicators and simulation reset buttons with internal identifiers without requiring FPGA pins.
+- Workbench annotations are created from the context menu at the clicked position; geometry is edited on the canvas and Markdown text in a dedicated editor.
+- GitHub Actions caches Python dependencies for CI, documentation and release builds.
+- Board layout editor has grouped component and board settings, remembers its panel divider, and creates controls in a single role-aware form. Power indicators and simulation reset buttons do not require FPGA pins. Connections identifies the active board explicitly.
 - Virtual clock defaults to the selected board's frequency, with an optional per-Lab override; older global clock settings migrate to the active Lab. Interface refresh and temporal sampling remain global.
-- Removed remaining runtime assumptions that unnamed profiles and generic simulation workers belong to Alhambra II; board-specific labels and LED endpoints now come from the selected board package.
 - The selected Lab now determines the active board; changing the board selector updates the Lab, and the board title follows the selected definition during simulation.
-- Board LED sampling and display now follow the configured endpoints and count instead of assuming eight LEDs named `LED0`–`LED7`.
-- Board reset buttons and power indicators now use optional layout roles instead of fixed signal names.
-- Separated virtual-cycle input scheduling from UART encoding, with protocol-neutral multi-channel sequencing and transport tests for future serial peripherals.
+- Board labels, profiles, LED endpoints/count and reset/power roles now follow the selected board package instead of Alhambra II-specific assumptions.
 
 ### Fixed
 
-- SPI monitors discard all events in an overflow-marked frame, even when called outside the standard worker. Synthetic regressions cover recovery at the next transaction, remapped manifest channels and native MISO response during capture overflow.
+- SPI monitors discard incomplete capture data after overflow and recover at the next transaction without interrupting native MISO responses.
+- UART text entry takes precedence over workbench button shortcuts while its input is focused.
 - Editing annotation appearance or Markdown preserves the latest canvas size, position and line geometry instead of restoring the item's original dimensions.
 - Switching boards preserves connections to unavailable pins as inactive wiring with a compatibility notice instead of preventing the Lab from opening.
 - Board controls now support declared active-low polarity; shared physical pin aliases resolve to the same project net for both integrated controls and headers.
