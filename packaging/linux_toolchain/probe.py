@@ -33,8 +33,13 @@ endmodule
 
 def run(workspace, sandboxed=False):
     if sandboxed:
-        for forbidden in ("/usr/bin/g++", "/usr/bin/make", "/usr/bin/verilator", "/usr/include"):
+        for forbidden in ("/usr/bin/g++", "/usr/bin/make", "/usr/bin/verilator"):
             assert not Path(forbidden).exists(), f"Host build files are visible: {forbidden}"
+        headers = Path("/usr/include")
+        # Minimal Ubuntu retains empty include directories, not development files.
+        assert not headers.is_symlink() and not any(
+            path.is_file() or path.is_symlink() for path in headers.rglob("*")
+        ), "Host development headers are visible"
     state = json.loads((workspace / "probe.json").read_text())
     sdk, target = Path(state["sdk"]), Path(state["target"])
     environment = os.environ.copy()

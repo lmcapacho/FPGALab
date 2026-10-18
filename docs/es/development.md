@@ -181,6 +181,54 @@ herramientas de FPGALab. Registra versiones exactas, sistema y glibc en
 `toolchain.json`. Esta etapa admite Linux x86-64; la primera base local es
 Ubuntu 24.04/glibc 2.39. No es un binario universal para cualquier Linux.
 
+### Construcción controlada sobre Ubuntu
+
+La ruta experimental preferida usa `container_build.py`. Docker se necesita
+**solo en el equipo del mantenedor o CI**, con acceso a su servicio; el usuario
+final no necesita Docker. El script no instala paquetes ni cambia permisos de
+Docker en el equipo anfitrión.
+
+```bash
+python3 packaging/linux_toolchain/container_build.py --output /tmp/fpgalab-controlled-sdk
+```
+
+`packaging/linux_toolchain/recipe.json` fija la imagen oficial Ubuntu 24.04 amd64
+por digest y la fecha de un [snapshot de paquetes Ubuntu](https://snapshot.ubuntu.com/).
+La imagen se actualiza y las herramientas se instalan desde ese repositorio
+firmado y congelado, no desde los paquetes del desarrollador ni el mirror actual.
+Actualizar la base o las herramientas requiere revisar y cambiar la receta;
+las versiones exactas de los paquetes binarios y fuente quedan en la salida.
+Esto controla los insumos, pero no garantiza archivos comprimidos idénticos bit a bit.
+La confianza HTTPS se prepara con `ca-certificates=20240203` desde el repositorio
+original firmado de Noble por HTTP, antes de activar el snapshot HTTPS. Se
+mantienen las verificaciones TLS y las firmas de APT; cualquier fallo al descargar
+un repositorio detiene la construcción. El contexto de Docker solo incluye la
+aplicación y los scripts del SDK, no el entorno virtual, historial Git ni archivos
+locales de configuración del checkout.
+
+El script reubica el SDK, prepara la prueba sintética de la ABI nativa de FPGALab
+y la ejecuta en el Ubuntu limpio fijado, sin red, cabeceras ni compiladores del
+anfitrión. Los contenedores son de solo lectura salvo la carpeta nueva de salida
+y el almacenamiento temporal. Solo genera el comprimido y checksum si pasa la
+prueba. La salida incluye `toolchain.json`, `source-packages.json`, copyrights,
+`REDISTRIBUTION.txt` y un comprobante separado `validation.json`. Si falla conserva
+la salida parcial para diagnóstico; se reintenta con otra carpeta nueva.
+
+El workflow manual **Experimental Linux SDK** de GitHub Actions ejecuta el mismo
+proceso y conserva los artefactos experimentales exitosos durante siete días.
+No crea un release ni modifica el empaquetado habitual. La receta controlada de
+Ubuntu pasó la prueba nativa con SDK reubicado y sin red. La prueba se repite al
+cambiar la receta; las pruebas unitarias solas no validan una nueva toolchain.
+
+Esta prueba valida el SDK/modelo nativo, no la aplicación PyQt completa en un
+escritorio limpio. El empaquetado gráfico, otras distribuciones y las obligaciones
+de entrega del código fuente correspondiente siguen pendientes antes de publicar.
+
+### Snapshot local y prueba aislada
+
+El constructor local anterior sigue disponible para diagnóstico, pero no es la
+ruta controlada de distribución:
+
 ```bash
 python3 packaging/linux_toolchain/build.py \
   --output /tmp/fpgalab-sdk \

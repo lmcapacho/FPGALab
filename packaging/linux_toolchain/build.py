@@ -58,13 +58,14 @@ def dependency_closure(records, roots):
 
 def package_records():
     output = subprocess.check_output([
-        "dpkg-query", "-W", "-f=${Package}\t${Status}\t${Version}\t${Depends},${Pre-Depends}\t${Provides}\n",
+        "dpkg-query", "-W", "-f=${Package}\t${Status}\t${Version}\t${Depends},${Pre-Depends}\t${Provides}\t${source:Package}\t${source:Version}\n",
     ], text=True)
     records = {}
     for line in output.splitlines():
-        name, status, version, dependencies, provides = line.split("\t", 4)
+        name, status, version, dependencies, provides, source, source_version = line.split("\t", 6)
         if status == "install ok installed":
-            records[name] = {"version": version, "dependencies": dependencies,
+            records[name] = {"version": version, "source": source, "source_version": source_version,
+                             "dependencies": dependencies,
                              "provides": [part.strip().split(" ")[0] for part in provides.split(",") if part.strip()]}
     return records
 
@@ -206,6 +207,18 @@ def build(destination):
         "redistribution": "Not release-approved: retain copyrights and audit source/license obligations before publishing",
     }
     (destination / "toolchain.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    sources = {name: {"source": records[name]["source"], "version": records[name]["source_version"],
+                      "copyright": f"rootfs/usr/share/doc/{name}/copyright"}
+               for name in packages}
+    (destination / "source-packages.json").write_text(json.dumps(sources, indent=2) + "\n", encoding="utf-8")
+    (destination / "REDISTRIBUTION.txt").write_text(
+        "Experimental FPGALab Linux SDK; not approved for public distribution.\n"
+        "Package notices and licenses: rootfs/usr/share/doc/*/copyright.\n"
+        "Binary-to-source package versions: source-packages.json.\n"
+        "The controlled build repository and timestamp are in toolchain.json.\n"
+        "This inventory is not the corresponding source or a source offer.\n"
+        "Audit each license and provide required corresponding sources before release.\n",
+        encoding="utf-8")
     print(f"Created experimental SDK: {destination} ({len(packages)} packages)")
 
 

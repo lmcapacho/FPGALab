@@ -178,6 +178,52 @@ The package list and exact versions, build OS and glibc are recorded in
 `toolchain.json`. Only Linux x86-64 is supported at this stage; the first local
 baseline is Ubuntu 24.04/glibc 2.39. This is not a universal Linux binary.
 
+### Controlled Ubuntu build
+
+The preferred experimental build uses `container_build.py`. Docker is required
+**only on the maintainer/CI machine**, with access to its service; end users do
+not need Docker. No host packages or Docker permissions are changed by the script.
+
+```bash
+python3 packaging/linux_toolchain/container_build.py --output /tmp/fpgalab-controlled-sdk
+```
+
+`packaging/linux_toolchain/recipe.json` pins the official Ubuntu 24.04 amd64
+image by digest and an [Ubuntu package snapshot](https://snapshot.ubuntu.com/)
+timestamp. The image is upgraded and tools installed from that signed, frozen
+repository, not from the developer's installed packages or the current mirror.
+Changing the base or tool versions requires reviewing and updating the recipe;
+exact resolved binary/source package versions are recorded in the output.
+This controls build inputs, but does not claim bit-identical archives.
+HTTPS trust is bootstrapped with `ca-certificates=20240203` from Noble's original
+signed release pocket over HTTP, before enabling the HTTPS snapshot. TLS and
+APT signature checks remain enabled; any repository download failure aborts the
+build. Only the application and SDK scripts are sent as the Docker build context,
+not the checkout's virtual environment, Git history or local configuration files.
+
+The script relocates the SDK, prepares FPGALab's synthetic native ABI probe, and
+runs it in the pinned clean Ubuntu image without network, host headers or build
+tools. Containers run read-only except for the new output directory and temporary
+storage. An archive/checksum is generated only after the probe passes. Output
+includes `toolchain.json`, `source-packages.json`, package copyright notices,
+`REDISTRIBUTION.txt` and a separate `validation.json` receipt. Partial output is
+retained on failure for diagnosis; retry with a new directory.
+
+The manual **Experimental Linux SDK** GitHub Actions workflow runs this same
+process and retains successful experimental artifacts for seven days. It does
+not create a release or modify normal application packaging. The controlled
+Ubuntu recipe has passed the relocated, offline native ABI probe. Re-run that
+probe after recipe changes; unit tests alone do not qualify a new toolchain.
+
+This probe qualifies the SDK/native model, not the complete PyQt application in
+a clean desktop. GUI packaging, other distributions and corresponding-source
+redistribution obligations remain separate gates before public distribution.
+
+### Local snapshot and isolated probe
+
+The earlier local snapshot builder remains useful for diagnosis, but is not the
+controlled distribution route:
+
 ```bash
 python3 packaging/linux_toolchain/build.py \
   --output /tmp/fpgalab-sdk \

@@ -6,7 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
-- Experimental Linux x86-64 SDK builder with private compiler/sysroot, Verilator, Make, Perl and Python, package-version metadata and optional archive/checksum. A maintainer-only isolated probe compiles FPGALab's native ABI without host build tools; automatic installation and cross-distribution support are not enabled yet.
+- Experimental Linux x86-64 SDK tooling with private build tools/sysroot, version and source-package inventories, and archive/checksum output. A frozen Ubuntu container recipe and manual CI workflow build and probe the native ABI in a clean offline runtime. Automatic installation, public redistribution approval and cross-distribution qualification remain pending.
 - Annotation appearance controls for lines and shapes: custom stroke color, width and solid/dashed/dotted styles, optional shape fill and restoring theme defaults. Selection uses a separate outline without replacing the chosen stroke color.
 - Optional native SPI MISO byte responder, configurable in the external SPI monitor package, supporting modes 0–3, both bit orders and CS polarities without per-cycle Python work. Existing MOSI-only Labs remain supported.
 - Workbench copy/paste for mixed peripheral and annotation selections, including between Labs, with camera-centered placement, unique identifiers and undo/redo. Pasted peripherals are disconnected to avoid wiring conflicts.

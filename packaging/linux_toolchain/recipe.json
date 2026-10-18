@@ -1,0 +1,6 @@
+{
+  "format": 1,
+  "id": "ubuntu24.04-x86_64-sdk1",
+  "image": "ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc",
+  "snapshot": "20261001T000000Z"
+}

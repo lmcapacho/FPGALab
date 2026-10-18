@@ -77,3 +77,41 @@ def test_sdk_does_not_wrap_shared_plugins_and_archives_without_overwriting(build
     assert archive.is_file() and archive.with_name("sdk.tar.gz.sha256").is_file()
     with pytest.raises(ValueError):
         builder.archive_bundle(source, archive)
+
+
+def test_controlled_sdk_pins_inputs_and_tests_offline_before_archiving(tmp_path, monkeypatch):
+    source = Path(__file__).parents[1] / "packaging/linux_toolchain/container_build.py"
+    spec = importlib.util.spec_from_file_location("controlled_sdk", source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    recipe = module.load_recipe()
+    # Docker orchestration is Linux-only; recipe validation is portable.
+    if sys.platform == "linux":
+        build, export, probe, archive = module.commands(tmp_path / "sdk", recipe)
+        assert f"UBUNTU_IMAGE={recipe['image']}" in build
+        assert f"UBUNTU_SNAPSHOT={recipe['snapshot']}" in build
+        assert "--export" in export and "--archive" in archive
+        assert recipe["image"] in probe and "--sandboxed" in probe
+        assert "/out/relocated-sdk/bin/python3" in probe
+        for command in (export, probe, archive):
+            assert command[command.index("--network") + 1] == "none"
+            assert "--read-only" in command
+        # A failing clean-runtime probe must not produce an archive or success receipt.
+        output = tmp_path / "failed-build"
+        calls = []
+
+        def fail_probe(command, **kwargs):
+            calls.append(command)
+            if "--sandboxed" in command:
+                raise subprocess.CalledProcessError(1, command)
+
+        monkeypatch.setattr(module.subprocess, "run", fail_probe)
+        monkeypatch.setattr(sys, "argv", [str(source), "--output", str(output)])
+        with pytest.raises(subprocess.CalledProcessError):
+            module.main()
+        assert not any("--archive" in command for command in calls)
+        assert not (output / "validation.json").exists()
+    invalid = tmp_path / "recipe.json"
+    invalid.write_text('{"format": 1, "image": "ubuntu:latest"}')
+    with pytest.raises(ValueError, match="recipe"):
+        module.load_recipe(invalid)
