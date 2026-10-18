@@ -27,6 +27,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Changed
 
+- Reordered first-run guides around application installation, required simulation tools and a first design; moved recent-project/update details to the usage guide and separated board architecture contracts into focused sections in both languages.
 - GitHub Actions caches pip downloads and wheels for CI, documentation and release builds, separated by runtime environment and dependency/workflow hashes. Package installation and independent job checkouts remain unchanged.
 - Board layout editor remembers its panel divider and creates components in one form instead of successive prompts. Connections now identifies the active board explicitly.
 - Organized the board layout editor sidebar into component properties/actions, component creation, whole-board appearance, and editor view, with save/close actions kept at the bottom.

@@ -65,6 +65,8 @@ HDL does not use that board pin.
 - `workbench/view.py` and `workbench/item.py`: canvas interaction and rendered instances.
 - `wiring.py`: Lab terminal-to-board-to-HDL resolution.
 
+## Board packages
+
 Board assets live together in `fpga_lab/assets/boards/<board-id>/`. Each board
 directory keeps its definition, pin constraints, profile, layout, and SVG in
 one place. The Alhambra II directory is the reference layout for future boards.
@@ -77,46 +79,73 @@ one place. The Alhambra II directory is the reference layout for future boards.
 | `layout.json` | Interactive controls, placement, and SVG reference. |
 | `board.svg` | Scalable artwork. |
 
-FPGALab consumes the project-specific `main.pcf` or `main.xdc` in the Icestudio
-project's `ice-build` directory; a board package provides exactly one
-`pinout.pcf` or `pinout.xdc` as its pinout reference. For XDC, FPGALab reads
-literal `set_property PACKAGE_PIN <pin> [get_ports {<port>}]` assignments,
-including bus bits and the `-dict` form. Other XDC commands are not evaluated.
-Unsupported `PACKAGE_PIN` expressions produce an error rather than an empty map.
-`BoardCatalog` discovers these directories and validates their required files,
-definition, layout, profile, and pin constraints. Invalid packages are skipped with a
-diagnostic. Its `board_id` is the directory name (for example, `alhambra_ii`);
-the `id` in `board.json` remains the board's public identifier.
-Labs store the public identifier in `metadata.board_id`. The GUI resolves it to
-the package directory ID when opening a Lab; changing the board selector updates
-that Lab metadata. Labs without this field use the default Alhambra II board.
-An optional positive `metadata.virtual_clock_hz` overrides the board's `clock_hz`
-for that Lab. Changing the board clears the override. Interface refresh and
-temporal sampling are user-wide settings; `--clock-hz` is a session override.
-In `layout.json`, a board LED may declare `"role": "power"` and a board button
-may declare `"role": "reset"`. These optional roles control the simulation
-indicator and reset action without depending on the elements' signal names.
-Select the element in Edit layout to assign its role; each role can belong to
-only one element.
-The selected element's Board signal field lists logical endpoint identifiers
-from `board.json`, not physical FPGA pin numbers or project-specific HDL nets.
-LEDs list output/inout endpoints; buttons list input/inout endpoints, excluding
-the clock. Special power/reset roles allow internal signal names. Existing
-unavailable values remain marked and preserved; empty signals cannot be saved.
-The editor sidebar separates selected-component properties and actions from
-component creation, whole-board appearance (rotation/mirroring), and editor
-view controls. Save and Close remain at the bottom of the panel.
-The window geometry and canvas/properties divider are remembered per user.
-New components use a single form containing role, identifier and signal;
-invalid or duplicate identifiers remain in the form for correction.
-Component creation starts with the role. Normal controls select a board signal;
-power indicators and simulation reset buttons use an internal identifier
-(suggested defaults: `PWR` and `RESET`) without requiring an FPGA pin. The role,
-not the identifier's spelling, determines the behavior. Assigning an existing
-role to another element transfers it to that element.
-The `controls.leds` order in `board.json` determines the order of LED samples
-published by the worker. Each endpoint name selects the corresponding visual
-LED in `layout.json`; a board may declare any number of LEDs, including none.
+### Project constraints versus reference pinout
+
+These files have different roles:
+
+- **Project `main.pcf` or `main.xdc`:** read from the Icestudio project's
+  `ice-build/<design>/` directory. Maps that design's HDL nets to FPGA pins.
+- **Board `pinout.pcf` or `pinout.xdc`:** included in the board package as its
+  reference pinout. Include exactly one; it does not replace the project's file.
+
+For XDC, FPGALab reads literal `set_property PACKAGE_PIN <pin>
+[get_ports {<port>}]` assignments, including bus bits and the `-dict` form.
+Other Tcl commands are not evaluated. Unsupported `PACKAGE_PIN` expressions
+produce an error rather than an empty map.
+
+### Discovery and identifiers
+
+`BoardCatalog` discovers board directories and validates the required files,
+definition, layout, profile and pin constraints. Invalid packages are skipped
+with a diagnostic.
+
+| Identifier | Where it is used |
+| --- | --- |
+| Directory name, such as `alhambra_ii` | Internal package `board_id` used to locate resources. |
+| `id` in `board.json`, such as `alhambra-ii` | Public board identifier. |
+| `metadata.board_id` in a Lab | Stores the public identifier of the selected board. |
+
+Opening a Lab resolves its public identifier to the package directory. Changing
+the board selector updates the Lab metadata; Labs without `metadata.board_id`
+use Alhambra II by default.
+
+### Clock and sampling settings
+
+- A board's `clock_hz` supplies its default virtual clock.
+- A positive `metadata.virtual_clock_hz` overrides it for one Lab. Changing the
+  board clears that override; `--clock-hz` overrides only the current session.
+- Interface refresh and temporal sampling are user-wide settings.
+
+### Integrated controls
+
+Optional roles in `layout.json` distinguish simulation controls from FPGA I/O:
+
+| Element | Role | Behavior |
+| --- | --- | --- |
+| Board LED | `power` | Simulation power indicator, without requiring an FPGA pin. |
+| Board button | `reset` | Resets the simulation, without requiring an FPGA pin. |
+
+Assign roles in **Edit layout**. Each role belongs to at most one element;
+assigning it to another transfers it. Suggested internal identifiers are `PWR`
+and `RESET`, but the role, not the name, determines the behavior.
+
+For ordinary LEDs, `controls.leds` in `board.json` determines the order of
+samples published by the worker. Endpoint names select the corresponding
+visual LEDs in `layout.json`; any number of LEDs is allowed, including none.
+
+### Layout editor
+
+- **Board signal** selects logical endpoints from `board.json`, not FPGA pin
+  numbers or project HDL nets. LEDs list output/inout endpoints; buttons list
+  input/inout endpoints, excluding the clock. Power/reset roles allow internal
+  names. Unavailable existing signals are preserved; empty signals cannot be saved.
+- **Component creation** uses one form, starting with the role, followed by
+  identifier and signal. Invalid or duplicate identifiers stay available for
+  correction rather than closing the form.
+- **Sidebar sections** separate component properties/actions, creation,
+  whole-board rotation/mirroring and view controls. Save and Close stay at the bottom.
+- **Persistence** remembers window geometry and the canvas/properties divider
+  per user.
 
 ## Board integration: iCEBreaker Bitsy
 

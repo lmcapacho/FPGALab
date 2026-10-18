@@ -2,6 +2,17 @@
 
 FPGALab necesita Verilator 5 o posterior, herramientas compatibles con GNU Make y un compilador C++17. Python 3.10 o posterior y PyQt6 también son necesarios al ejecutar desde el código fuente; los paquetes de aplicación incluyen su propio entorno Python. Usa el icono de terminal con verificación en la barra de estado para consultar las rutas exactas encontradas.
 
+## Obtener Verilator
+
+Si Icestudio/Apio ya proporciona Verilator, puedes reutilizarlo. En caso
+contrario, descarga [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build/releases)
+para tu sistema operativo y arquitectura y extrae todo el archivo. Usa
+`FPGALAB_OSS_CAD_SUITE` si está fuera de las rutas detectadas que se explican
+más abajo. La suite proporciona Verilator, **no todo el entorno de compilación**:
+completa también las instrucciones de Make y compilador para tu sistema.
+En Linux y macOS puedes instalar Verilator con los gestores indicados en sus
+respectivas secciones como alternativa a descargar la suite.
+
 ## Orden de búsqueda
 
 FPGALab busca:
@@ -27,7 +38,10 @@ C++17. En Windows, FPGALab detecta la instalación habitual `C:\msys64`; usa
 
 ## Linux
 
-Instala Verilator, Make y un compilador C++ mediante el administrador de paquetes de la distribución, o utiliza OSS CAD Suite instalado por Apio. En sistemas basados en Debian o Ubuntu, una instalación típica es:
+Instala Make y un compilador C++ con el gestor de paquetes de tu distribución.
+Para Verilator puedes usar un paquete del sistema de versión 5+ o la suite de
+Apio. Usar Verilator de Apio no sustituye Make ni el compilador. En Debian o
+Ubuntu, una instalación típica de las tres herramientas es:
 
 ```bash
 sudo apt install verilator make g++
@@ -35,7 +49,9 @@ sudo apt install verilator make g++
 
 ## Windows
 
-Icestudio puede proporcionar Verilator sin incluir todo el entorno de compilación nativa. Instala MSYS2 y ejecuta en su terminal UCRT64:
+Primero [obtén Verilator](#obtener-verilator) si Icestudio/Apio no lo proporciona.
+Verilator solo no es todo el entorno de compilación nativa. Instala MSYS2 y
+ejecuta en su terminal UCRT64:
 
 ```bash
 pacman -S --needed make python mingw-w64-ucrt-x86_64-gcc

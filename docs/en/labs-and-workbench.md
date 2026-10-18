@@ -39,6 +39,12 @@ Default locations:
 
 Set `FPGALAB_WORKSPACE` to choose another workspace root.
 
+## Recent projects
+
+The recent-project selector keeps up to 12 entries, newest first. **Clear recent
+projects**, at the bottom of the list, clears the history after confirmation.
+It does not delete project files or close the current project.
+
 ## Workbench controls
 
 - Open the floating catalog button to add a peripheral.
@@ -101,3 +107,10 @@ VGA 640×480 designs typically need a virtual clock near 25 MHz. FPGALab warns
 when a VGA monitor is used with the 12 MHz Alhambra II default; it does not
 change the clock automatically. The catalog includes 1-bit, 6-bit, and 12-bit
 VGA monitors.
+
+## Updates
+
+FPGALab checks GitHub Releases after startup and from the update button in the
+status bar. Stable builds check stable releases; release-candidate builds also
+consider release candidates. Updates open the release page for download rather
+than replacing the running application automatically.

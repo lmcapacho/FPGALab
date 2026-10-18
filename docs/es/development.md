@@ -65,6 +65,8 @@ físicamente en el Lab aunque el HDL actual no utilice ese pin.
 - `workbench/view.py` y `workbench/item.py`: interacción con el lienzo e instancias visuales.
 - `wiring.py`: resolución terminal del Lab → tarjeta → HDL.
 
+## Paquetes de tarjetas
+
 Los recursos de cada tarjeta se agrupan en `fpga_lab/assets/boards/<board-id>/`.
 Cada carpeta contiene la definición, el pinout, el perfil, el layout y el SVG
 de la tarjeta. `alhambra_ii/` es la estructura de referencia para futuras
@@ -78,50 +80,73 @@ tarjetas.
 | `layout.json` | Controles interactivos, posiciones y referencia al SVG. |
 | `board.svg` | Imagen vectorial de la tarjeta. |
 
-FPGALab usa el `main.pcf` o `main.xdc` específico del proyecto en
-`ice-build`; cada paquete de tarjeta incluye exactamente un `pinout.pcf` o
-`pinout.xdc` como referencia. En XDC se leen asignaciones literales
-`set_property PACKAGE_PIN <pin> [get_ports {<puerto>}]`, incluidos bits de bus
-y la forma `-dict`. No se evalúan otros comandos XDC. Una expresión
-`PACKAGE_PIN` no admitida produce un error en vez de un mapa vacío.
-`BoardCatalog` descubre estas carpetas y valida sus archivos, definición,
-layout, perfil y restricciones de pines. Omite los paquetes inválidos y conserva un diagnóstico.
-Su `board_id` es el nombre de la carpeta (por ejemplo, `alhambra_ii`); el campo
-`id` de `board.json` sigue siendo el identificador público de la tarjeta.
-Los Labs guardan el identificador público en `metadata.board_id`. Al abrir un
-Lab, la interfaz lo resuelve al nombre de la carpeta del paquete; cambiar el
-selector actualiza esos metadatos. Un Lab sin este campo usa Alhambra II.
-El campo positivo opcional `metadata.virtual_clock_hz` reemplaza el `clock_hz`
-de la tarjeta para ese Lab. Cambiar la tarjeta elimina ese ajuste. El refresco
-de interfaz y el muestreo temporal son globales por usuario; `--clock-hz` solo
-se aplica a la ejecución actual.
-En `layout.json`, un LED de la tarjeta puede declarar `"role": "power"` y un
-botón puede declarar `"role": "reset"`. Estos roles opcionales controlan el
-indicador de ejecución y el reinicio sin depender del nombre de la señal.
-Selecciona el elemento en Editar layout para asignar su función; cada función
-puede pertenecer a un solo elemento.
-El orden de `controls.leds` en `board.json` determina el orden de los valores
-LED publicados por el worker. Cada nombre de endpoint selecciona el LED visual
-correspondiente en `layout.json`; una tarjeta puede declarar cualquier número
-de LEDs, incluso ninguno.
+### Restricciones del proyecto y pinout de referencia
 
-El campo Señal de la tarjeta muestra los identificadores lógicos de `board.json`,
-no números físicos de pines FPGA ni redes HDL del proyecto. Los LEDs ofrecen
-señales output/inout y los botones input/inout, excluyendo el reloj. Los roles
-especiales de encendido/reset permiten nombres internos. Los valores antiguos
-no disponibles se indican y conservan; no se permite guardar señales vacías.
-El panel del editor separa las propiedades y acciones del componente
-seleccionado, la creación de componentes, la apariencia de toda la tarjeta
-(rotación/reflejos) y los controles de vista. Guardar y cerrar quedan al pie.
-La geometría de ventana y el divisor entre lienzo y propiedades se recuerdan
-por usuario. Los nuevos componentes se crean en un único formulario con
-función, identificador y señal; los identificadores inválidos o duplicados
-permanecen en el formulario para corregirlos.
-La creación comienza por la función. Los controles normales seleccionan una
-señal de la tarjeta; los indicadores de encendido y botones de reset de
-simulación usan un identificador interno (`PWR` y `RESET` como sugerencias),
-sin requerir un pin FPGA. El rol determina el comportamiento, no el nombre.
-Asignar a otro elemento un rol existente lo transfiere a ese elemento.
+Estos archivos cumplen funciones diferentes:
+
+- **`main.pcf` o `main.xdc` del proyecto:** se lee desde `ice-build/<design>/`
+  del proyecto de Icestudio. Relaciona las redes HDL de ese diseño con pines FPGA.
+- **`pinout.pcf` o `pinout.xdc` de la tarjeta:** pertenece al paquete de tarjeta
+  y es su referencia de pines. Incluye solo uno; no sustituye al del proyecto.
+
+En XDC se leen asignaciones literales `set_property PACKAGE_PIN <pin>
+[get_ports {<puerto>}]`, incluidos bits de bus y la forma `-dict`. No se evalúan
+otros comandos Tcl. Una expresión `PACKAGE_PIN` no admitida produce un error
+en vez de un mapa vacío.
+
+### Descubrimiento e identificadores
+
+`BoardCatalog` descubre las carpetas y valida archivos requeridos, definición,
+layout, perfil y restricciones. Los paquetes inválidos se omiten con un diagnóstico.
+
+| Identificador | Dónde se usa |
+| --- | --- |
+| Nombre de carpeta, como `alhambra_ii` | `board_id` interno del paquete para localizar sus recursos. |
+| `id` de `board.json`, como `alhambra-ii` | Identificador público de la tarjeta. |
+| `metadata.board_id` de un Lab | Guarda el identificador público de la tarjeta seleccionada. |
+
+Al abrir un Lab, su identificador público se resuelve a la carpeta del paquete.
+Cambiar el selector actualiza los metadatos; un Lab sin `metadata.board_id`
+usa Alhambra II por defecto.
+
+### Reloj y muestreo
+
+- `clock_hz` de la tarjeta establece su reloj virtual predeterminado.
+- Un `metadata.virtual_clock_hz` positivo lo reemplaza para ese Lab. Cambiar
+  la tarjeta elimina el ajuste; `--clock-hz` prevalece solo en la sesión actual.
+- El refresco de interfaz y el muestreo temporal son ajustes globales por usuario.
+
+### Controles integrados
+
+Los roles opcionales de `layout.json` distinguen controles de simulación y E/S FPGA:
+
+| Elemento | Rol | Comportamiento |
+| --- | --- | --- |
+| LED de tarjeta | `power` | Indicador de ejecución sin requerir un pin FPGA. |
+| Botón de tarjeta | `reset` | Reinicia la simulación sin requerir un pin FPGA. |
+
+Asigna los roles en **Editar layout**. Cada rol pertenece a un solo elemento;
+asignarlo a otro lo transfiere. `PWR` y `RESET` son identificadores internos
+sugeridos: el comportamiento depende del rol, no del nombre.
+
+Para LEDs normales, `controls.leds` de `board.json` define el orden de las
+muestras publicadas por el worker. Los endpoints identifican los LEDs visuales
+de `layout.json`; se admite cualquier número de LEDs, incluso ninguno.
+
+### Editor de layout
+
+- **Señal de la tarjeta:** selecciona endpoints lógicos de `board.json`, no
+  pines físicos ni redes HDL del proyecto. Los LEDs ofrecen output/inout y los
+  botones input/inout, excluyendo el reloj. Los roles power/reset permiten
+  nombres internos. Las señales antiguas no disponibles se conservan; no se
+  permite guardar señales vacías.
+- **Creación de componentes:** un único formulario comienza por el rol y sigue
+  con identificador y señal. Los identificadores inválidos o duplicados quedan
+  en el formulario para corregirlos, sin cerrarlo.
+- **Secciones del panel:** separan propiedades/acciones, creación, rotación o
+  reflejo de toda la tarjeta y controles de vista. Guardar y cerrar quedan al pie.
+- **Persistencia:** la geometría de ventana y el divisor entre lienzo y
+  propiedades se recuerdan por usuario.
 
 ## Integración de tarjetas: iCEBreaker Bitsy
 

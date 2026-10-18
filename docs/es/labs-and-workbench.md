@@ -41,6 +41,12 @@ Ubicaciones predeterminadas:
 
 Configura `FPGALAB_WORKSPACE` para elegir otra carpeta raíz.
 
+## Proyectos recientes
+
+El selector conserva hasta 12 proyectos, de más reciente a más antiguo.
+**Borrar recientes**, al final de la lista, limpia el historial tras confirmarlo.
+No borra archivos ni cierra el proyecto actual.
+
 ## Controles de la mesa
 
 - Abre el catálogo con el botón flotante para agregar un periférico.
@@ -106,3 +112,10 @@ Los diseños VGA de 640×480 suelen necesitar un reloj virtual cercano a 25 MHz.
 FPGALab advierte si se usa un monitor VGA con los 12 MHz predeterminados de
 Alhambra II, pero no cambia automáticamente el reloj. El catálogo incluye
 monitores VGA de 1, 6 y 12 bits.
+
+## Actualizaciones
+
+FPGALab consulta GitHub Releases al iniciar y desde el botón de actualización
+de la barra de estado. Las versiones estables consultan versiones estables;
+las candidatas también consideran otras candidatas. La actualización abre la
+página de descarga, sin reemplazar automáticamente la aplicación en uso.

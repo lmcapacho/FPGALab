@@ -1,11 +1,10 @@
 # Getting started
 
-Recent projects keeps up to 12 entries, newest first. The dropdown displays
-the full list without a vertical scrollbar. Clear recent projects, below the
-separator, clears the history after confirmation without deleting files or
-closing the current project.
+To run your first design, you need **FPGALab**, an **Icestudio design with
+generated Verilog**, and a **simulation toolchain**. No physical FPGA board
+is required. Follow the three steps below in order.
 
-## Install FPGALab
+## 1. Install FPGALab
 
 Download the package for Linux, Windows, or macOS from [GitHub Releases](https://github.com/lmcapacho/FPGALab/releases). Extract portable archives completely before opening the application.
 
@@ -16,30 +15,44 @@ Download the package for Linux, Windows, or macOS from [GitHub Releases](https:/
 
 The macOS application is ad-hoc signed but not Apple-notarized. On first launch, macOS may require **Control-click → Open** on `FPGALab.app`.
 
-To run from source:
+The application packages include Python and PyQt, **not the complete simulation
+toolchain**. This also applies to the standalone Windows `.exe`: continue with
+step 2 before attempting to run a design.
 
-```bash
-git clone https://github.com/lmcapacho/FPGALab.git
-cd FPGALab
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-fpga-lab
-```
+## 2. Prepare and check the simulation tools
 
-The activation command above applies to Linux and macOS. On Windows PowerShell, use `.venv\Scripts\Activate.ps1`.
+FPGALab compiles each design using **Verilator 5+, GNU Make and a C++17
+compiler**. Install these separately if they are not already available;
+the current releases do not download or configure them automatically.
 
-## Run a design
+| System | What to prepare | Installation instructions |
+| --- | --- | --- |
+| Linux | Verilator, Make and G++; Verilator may also come from Icestudio/Apio. | [Linux toolchain](troubleshooting.md#linux) |
+| Windows | Verilator from Icestudio/Apio or OSS CAD Suite, plus MSYS2 with Make, Python and a MinGW-w64 C++ compiler. | [Windows toolchain](troubleshooting.md#windows) |
+| macOS | Verilator and Xcode Command Line Tools for Make and the C++ compiler. | [macOS toolchain](troubleshooting.md#macos) |
+
+Having Icestudio installed does not necessarily provide every build tool.
+After installation, open FPGALab and use the **terminal-with-check icon in the
+status bar** to check the toolchain. Confirm that Verilator, Make and the
+compiler have resolved paths before continuing. If a tool is missing, follow
+the corresponding guide above; non-standard locations are explained under
+[Resolution order](troubleshooting.md#resolution-order).
+
+## 3. Run your first design
 
 1. Open the design in Icestudio.
 2. Generate its Verilog output. The project must contain `ice-build/<design>/main.v` and a PCF or XDC pin-constraint file.
 3. Open the `.ice` file from the **Browse** button in FPGALab.
-4. Select or create a Lab. Its saved board appears in the top-bar selector and determines which packaged board definition is used for pin mapping and simulation. Changing the selector updates the current Lab. Available boards are Alhambra II and iCEBreaker Bitsy v1.1c, with support for integrated LEDs/buttons and external GPIO. See the [development guide](development.md#board-integration-icebreaker-bitsy) for Bitsy support scope and limitations.
+4. Select or create a **Lab**, which stores the virtual board and peripheral arrangement. Check that the board in the top-bar selector matches your Icestudio design.
 5. Press **Run**. The first run may compile the native model; later runs reuse the incremental cache when possible.
 6. Interact with board controls and external peripherals.
 7. Press **Stop** before changing the project, board, Lab, or simulation settings.
 
 FPGALab stores generated native models in the user cache, not in the Icestudio project.
+
+For adding peripherals, pin assignments and sharing Labs, continue with
+[Labs and workbench](labs-and-workbench.md). Board integration details and
+Bitsy limitations are in the [development guide](development.md#board-integration-icebreaker-bitsy).
 
 ## How pin mapping works
 
@@ -63,7 +76,18 @@ Start the desktop application with `fpga-lab`, or open a design directly with
 build cache, and `--clock-hz`, `--ui-refresh-hz`, and `--observation-hz` for
 session-only simulation overrides. Run `fpga-lab --help` for the complete list.
 
-FPGALab checks GitHub Releases after startup and from the update button in the
-status bar. Stable builds check stable releases; release-candidate builds also
-consider release candidates. Updates open the release page for download rather
-than replacing the running application automatically.
+## Optional: run from source
+
+This alternative requires Python 3.10+ in addition to the toolchain from step 2:
+
+```bash
+git clone https://github.com/lmcapacho/FPGALab.git
+cd FPGALab
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+fpga-lab
+```
+
+The activation command applies to Linux and macOS. On Windows PowerShell,
+use `.venv\Scripts\Activate.ps1` instead.

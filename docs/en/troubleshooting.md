@@ -2,6 +2,17 @@
 
 FPGALab needs Verilator 5 or newer, GNU Make-compatible build tools, and a C++17 compiler. Python 3.10 or newer and PyQt6 are also needed when running from source; packaged applications include their Python runtime. Use the terminal-with-check icon in the status bar to see the exact resolved paths.
 
+## Obtain Verilator
+
+If Icestudio/Apio already provides Verilator, you can reuse it. Otherwise,
+download [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build/releases)
+for your operating system and architecture and extract the archive completely.
+Use `FPGALAB_OSS_CAD_SUITE` if it is outside the automatically detected locations
+described below. A standalone suite provides Verilator, **not the complete
+build environment**: also follow the Make/compiler instructions for your
+system. Linux and macOS can alternatively install Verilator through the
+package managers described in their sections.
+
 ## Resolution order
 
 FPGALab searches for:
@@ -27,7 +38,10 @@ installation; set `MSYS2_ROOT` when MSYS2 lives elsewhere.
 
 ## Linux
 
-Install Verilator, Make, and a C++ compiler through the distribution package manager, or use the OSS CAD Suite bundled by Apio. For Debian- or Ubuntu-based systems, a typical system installation is:
+Install Make and a C++ compiler through the distribution package manager.
+For Verilator, use a version 5+ system package or the suite supplied by Apio.
+Using Apio's Verilator does not replace Make and the compiler. On Debian or
+Ubuntu, a typical installation of all three is:
 
 ```bash
 sudo apt install verilator make g++
@@ -35,7 +49,9 @@ sudo apt install verilator make g++
 
 ## Windows
 
-Icestudio may provide Verilator but not the complete native build environment. Install MSYS2 and run this command in its UCRT64 terminal:
+First [obtain Verilator](#obtain-verilator) if Icestudio/Apio does not provide it.
+Verilator alone is not the complete native build environment. Install MSYS2
+and run this command in its UCRT64 terminal:
 
 ```bash
 pacman -S --needed make python mingw-w64-ucrt-x86_64-gcc
