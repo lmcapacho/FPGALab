@@ -138,6 +138,51 @@ inactive with a compatibility notice. Assignments are not automatically
 translated between boards; switching back restores their resolution without
 losing connections.
 
+## Experimental self-contained Linux toolchain
+
+`packaging/linux_toolchain/build.py` is a **maintainer prototype**, not the
+first-run downloader or a new installation requirement. It snapshots installed
+Debian/Ubuntu packages into a private SDK: Verilator, GNU Make, GCC/G++, binutils,
+Perl, Python and build utilities, including headers, libraries and copyrights.
+It installs no host packages and leaves existing FPGALab discovery unchanged.
+The package list and exact versions, build OS and glibc are recorded in
+`toolchain.json`. Only Linux x86-64 is supported at this stage; the first local
+baseline is Ubuntu 24.04/glibc 2.39. This is not a universal Linux binary.
+
+```bash
+python3 packaging/linux_toolchain/build.py \
+  --output /tmp/fpgalab-sdk \
+  --archive /tmp/fpgalab-sdk.tar.gz
+.venv/bin/python packaging/linux_toolchain/probe.py \
+  --sdk /tmp/fpgalab-sdk --work-dir /tmp/fpgalab-sdk-probe --isolated
+```
+
+Use new, nonexistent output/work directories without whitespace. The optional
+archive contains the SDK plus a SHA-256 sidecar; a checksum alone is not proof
+of trusted provenance. The builder refuses to overwrite existing outputs.
+Generate release candidates on a controlled build machine, not from arbitrary
+developer installations. Binary redistribution and corresponding-source/license
+obligations still require review before publishing; included copyrights do not
+complete that review. Do not commit SDK binaries to the repository.
+
+The isolated probe requires **bubblewrap on the maintainer machine only**.
+It mounts the SDK and a temporary work directory, with only the host shell,
+`env`, loader and libc as OS plumbing; host compilers, headers, Apio and network
+are unavailable. It uses FPGALab's generated C ABI, compiles synthetic Verilog,
+loads the shared library and verifies combinational logic, clock cycles and
+Reset. Make is run again to check the completed build. Move the SDK to another
+directory and run a fresh probe to verify relocation; do not reuse generated
+Makefiles referring to its old path. Without `--isolated`, only PATH isolation
+is checked, which is not evidence of independence from host headers/libraries.
+
+Tools use their packaged loader/libraries and a private PATH. GCC uses the
+packaged sysroot; Python and Perl use their private standard libraries. This
+prototype still relies on the Linux kernel and basic shell plumbing. Generated
+models are loaded into the application's process and must match its host ABI;
+older glibc, other distributions/architectures, whitespace paths and GUI runtime
+compatibility need separate qualification. First-run download, automatic SDK
+selection, signing and installers are later steps, not provided by these scripts.
+
 ## External peripherals
 
 The [external peripheral API v1](peripheral-api.md) documents the manifest fields, reusable renderers, package metadata, examples, validation, and installation. Use it when creating a shareable package. FPGALab does not load Python code from user peripheral folders.

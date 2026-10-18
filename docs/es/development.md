@@ -145,6 +145,52 @@ Lab, inactivas y con un aviso. Las asignaciones no se traducen automáticamente
 entre tarjetas; al volver a la anterior se resuelven nuevamente sin perder
 conexiones.
 
+## Toolchain Linux autocontenido experimental
+
+`packaging/linux_toolchain/build.py` es un **prototipo para mantenedores**, no
+el descargador del primer inicio ni un nuevo requisito de instalación. Copia
+paquetes Debian/Ubuntu ya instalados a un SDK privado: Verilator, GNU Make,
+GCC/G++, binutils, Perl, Python y utilidades, con cabeceras, bibliotecas y
+archivos de copyright. No instala paquetes ni cambia la búsqueda actual de
+herramientas de FPGALab. Registra versiones exactas, sistema y glibc en
+`toolchain.json`. Esta etapa admite Linux x86-64; la primera base local es
+Ubuntu 24.04/glibc 2.39. No es un binario universal para cualquier Linux.
+
+```bash
+python3 packaging/linux_toolchain/build.py \
+  --output /tmp/fpgalab-sdk \
+  --archive /tmp/fpgalab-sdk.tar.gz
+.venv/bin/python packaging/linux_toolchain/probe.py \
+  --sdk /tmp/fpgalab-sdk --work-dir /tmp/fpgalab-sdk-probe --isolated
+```
+
+Usa carpetas nuevas, inexistentes y sin espacios. El archivo comprimido opcional
+incluye una suma SHA-256 aparte; esa suma no demuestra por sí sola procedencia
+confiable. No se sobrescriben salidas existentes. Los candidatos distribuibles
+deben generarse en un entorno controlado, no desde instalaciones arbitrarias.
+Antes de publicar falta revisar las obligaciones de redistribución, licencias y
+código fuente correspondiente; incluir copyrights no completa esa revisión.
+Los binarios del SDK no deben agregarse al repositorio.
+
+La prueba aislada requiere **bubblewrap solo en el equipo del mantenedor**.
+Monta el SDK y una carpeta temporal, con el shell, `env`, cargador y libc del
+anfitrión como base del sistema; no ve compiladores, cabeceras, Apio ni red del
+anfitrión. Usa el C ABI generado por FPGALab para compilar Verilog sintético,
+cargar la biblioteca y comprobar lógica combinacional, reloj y Reset. Ejecuta
+Make otra vez para verificar la compilación ya terminada. Mueve el SDK a otra
+ruta y repite la prueba en una carpeta nueva para verificar su reubicación;
+no reutilices Makefiles que apuntan a la ruta anterior. Sin `--isolated` solo se
+limita PATH: eso no prueba independencia de cabeceras o bibliotecas del sistema.
+
+Las herramientas usan su cargador/bibliotecas y PATH propios. GCC usa las
+cabeceras y bibliotecas del sysroot empaquetado; Python y Perl usan sus
+bibliotecas estándar privadas. El prototipo depende del kernel Linux y del
+shell básico. Los modelos se cargan en el proceso de la aplicación y deben
+ser compatibles con su ABI; faltan validaciones con glibc anterior, otras
+distribuciones/arquitecturas, rutas con espacios y el runtime gráfico. La
+descarga inicial, selección automática, firma e instaladores quedan para pasos
+posteriores: estos scripts no los implementan.
+
 ## Periféricos externos
 
 La [API de periféricos externos v1](peripheral-api.md) documenta los campos del manifiesto, renderizadores reutilizables, metadatos del paquete, ejemplos, validación e instalación. Consúltala para crear un paquete compartible. FPGALab no carga código Python de las carpetas de periféricos del usuario.
