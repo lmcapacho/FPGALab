@@ -38,6 +38,24 @@ installation; set `MSYS2_ROOT` when MSYS2 lives elsewhere.
 
 ## Linux
 
+### The application runs but no window appears
+
+If this happens under Wayland, close the previous process and launch the
+portable executable from a terminal. For diagnosis only, try
+`QT_QPA_PLATFORM=xcb ./FPGALab`. If it opens, report the Ubuntu/GNOME and Qt
+versions and terminal output; this isolates the graphical backend, not the
+simulation toolchain. Development builds defer maximization until Wayland has
+exposed the initial window. Default startup was validated on a clean Ubuntu
+24.04 desktop without forcing X11; other compositor configurations need their own checks.
+
+For an `xcb` plugin error, use `QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORM=xcb ./FPGALab`
+and retain the full output. The cursor-library message alone does not identify
+every missing dependency. New builds require the XCB utility libraries during
+packaging; extract the complete application directory rather than copying only
+the executable. Older packages may lack those libraries.
+
+### Simulation tools
+
 Install Make and a C++ compiler through the distribution package manager.
 For Verilator, use a version 5+ system package or the suite supplied by Apio.
 Using Apio's Verilator does not replace Make and the compiler. On Debian or

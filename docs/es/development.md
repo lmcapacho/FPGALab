@@ -170,6 +170,23 @@ Lab, inactivas y con un aviso. Las asignaciones no se traducen automáticamente
 entre tarjetas; al volver a la anterior se resuelven nuevamente sin perder
 conexiones.
 
+## Runtime gráfico portable
+
+Construye la aplicación Linux en Ubuntu 24.04 con PyInstaller y el archivo
+`packaging/pyinstaller/FPGALab.spec`. Instala las bibliotecas XCB de construcción
+indicadas por `packaging/pyinstaller/linux_runtime.py` (también las instala el
+workflow de release). El spec las incluye explícitamente y falla si falta alguna,
+en vez de generar un ejecutable que exija instalarlas al usuario. PyInstaller
+resuelve sus dependencias transitivas. Distribuye la carpeta portable completa,
+incluyendo `_internal`.
+
+Wayland nativo sigue habilitado. El arranque muestra la ventana normal y espera
+su primera exposición antes de maximizar; X11 y las demás plataformas maximizan
+directamente. No se impone `QT_QPA_PLATFORM` globalmente. Las pruebas automáticas
+verifican ese orden; también se validó el arranque predeterminado en un escritorio
+Ubuntu 24.04 limpio sin forzar X11. Otras configuraciones de compositor requieren
+validación aparte; una prueba sin escritorio por sí sola no valida el compositor.
+
 ## Toolchain Linux autocontenido experimental
 
 `packaging/linux_toolchain/build.py` es un **prototipo para mantenedores**, no

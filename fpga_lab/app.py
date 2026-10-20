@@ -31,6 +31,7 @@ from .theme import application_palette, application_stylesheet, load_theme_mode
 from .verilog_interface import VerilogInterface
 from .update_controller import UpdateController
 from .virtual_lab import FPGAVirtualLab
+from .window_startup import show_main_window
 
 
 class BuildWorker(QThread):
@@ -484,8 +485,7 @@ def main() -> None:
     QTimer.singleShot(1200, update_controller.check_on_startup)
     if namespace.ice:
         window.set_project_path(namespace.ice)
-    window.showMaximized()
-    QTimer.singleShot(100, window.showMaximized)
+    show_main_window(window)
     if namespace.ice:
         QTimer.singleShot(0, lambda: controller.execute_project(namespace.ice))
     elif namespace.library:

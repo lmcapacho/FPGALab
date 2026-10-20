@@ -167,6 +167,23 @@ inactive with a compatibility notice. Assignments are not automatically
 translated between boards; switching back restores their resolution without
 losing connections.
 
+## Portable graphical runtime
+
+Build the Linux application on Ubuntu 24.04 with PyInstaller and the existing
+`packaging/pyinstaller/FPGALab.spec`. Install the XCB build libraries listed by
+`packaging/pyinstaller/linux_runtime.py` (also installed by the release workflow).
+The spec explicitly collects these libraries and fails if any is unavailable,
+instead of producing an executable that requires users to install them later.
+PyInstaller resolves their transitive dependencies. Keep the entire portable
+directory, including `_internal`, together when distributing it.
+
+Native Wayland remains enabled. Startup maps the window normally and waits for
+its first exposure before requesting maximization; X11 and other platforms
+maximize directly. No global `QT_QPA_PLATFORM` override is applied. Automated
+tests verify this ordering; default startup also passed on a clean Ubuntu 24.04
+desktop without forcing X11. Other compositor configurations require separate
+validation; a headless test alone does not establish compositor compatibility.
+
 ## Experimental self-contained Linux toolchain
 
 `packaging/linux_toolchain/build.py` is a **maintainer prototype**, not the

@@ -38,6 +38,25 @@ C++17. En Windows, FPGALab detecta la instalación habitual `C:\msys64`; usa
 
 ## Linux
 
+### La aplicación ejecuta pero no aparece la ventana
+
+Si sucede en Wayland, cierra el proceso anterior y ejecuta el portable desde
+una terminal. Solo para diagnóstico, prueba `QT_QPA_PLATFORM=xcb ./FPGALab`.
+Si abre, informa las versiones de Ubuntu/GNOME y Qt junto con la salida de la
+terminal: esto aísla el backend gráfico, no las herramientas de simulación.
+Las versiones de desarrollo posponen la maximización hasta que Wayland exponga
+la ventana inicial. Se validó el arranque predeterminado en un escritorio Ubuntu
+24.04 limpio sin forzar X11; otras configuraciones de compositor requieren sus propias pruebas.
+
+Ante un error del plugin `xcb`, usa `QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORM=xcb ./FPGALab`
+y conserva toda la salida. El mensaje sobre la biblioteca de cursor no identifica
+por sí solo todas las dependencias faltantes. Las nuevas construcciones exigen
+las bibliotecas XCB durante el empaquetado; extrae la carpeta completa de la
+aplicación, no copies solo el ejecutable. Los paquetes anteriores pueden carecer
+de esas bibliotecas.
+
+### Herramientas de simulación
+
 Instala Make y un compilador C++ con el gestor de paquetes de tu distribución.
 Para Verilator puedes usar un paquete del sistema de versión 5+ o la suite de
 Apio. Usar Verilator de Apio no sustituye Make ni el compilador. En Debian o

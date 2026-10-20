@@ -20,6 +20,39 @@ from fpga_lab.profile import BoardProfile
 _APPLICATION = QApplication.instance() or QApplication([])
 
 
+def test_startup_maps_wayland_before_maximizing_and_does_not_reopen_closed_windows():
+    from fpga_lab.window_startup import show_main_window
+
+    class Window(QWidget):
+        def __init__(self):
+            super().__init__()
+            self.calls = []
+
+        def show(self):
+            self.calls.append("show")
+            super().show()
+
+        def showMaximized(self):
+            self.calls.append("maximize")
+            super().showMaximized()
+
+    for platform_name, close_early in (("wayland", False), ("wayland", True), ("xcb", False)):
+        window = Window()
+        try:
+            show_main_window(window, platform_name=platform_name)
+            assert window.calls == (["show"] if platform_name == "wayland" else ["maximize"])
+            if close_early:
+                window.close()
+            for _ in range(5):
+                _APPLICATION.processEvents()
+            assert window.calls == (["show"] if close_early else
+                                    ["show", "maximize"] if platform_name == "wayland" else ["maximize"])
+            assert window.isVisible() is not close_early
+        finally:
+            window.close()
+            window.deleteLater()
+
+
 def test_recent_clear_preserves_files_and_current_project(tmp_path, monkeypatch):
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
     projects = [tmp_path / "first.ice", tmp_path / "second.ice"]

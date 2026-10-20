@@ -33,6 +33,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Fixed
 
+- Require and bundle Linux Qt/XCB utility libraries when packaging; defer Wayland startup maximization until the window is first exposed instead of issuing duplicate early requests. Default startup was validated on a clean Ubuntu 24.04 desktop without forcing X11.
 - SPI monitors discard incomplete capture data after overflow and recover at the next transaction without interrupting native MISO responses.
 - UART text entry takes precedence over workbench button shortcuts while its input is focused.
 - Editing annotation appearance or Markdown preserves the latest canvas size, position and line geometry instead of restoring the item's original dimensions.

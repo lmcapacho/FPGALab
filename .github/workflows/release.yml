@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -28,6 +28,8 @@ jobs:
             .github/workflows/release.yml
       - name: Install build dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-util1 libxcb-xkb1 libxkbcommon-x11-0
           python -m pip install --upgrade pip setuptools wheel pyinstaller
           python -m pip install -e .
       - name: Build portable application
