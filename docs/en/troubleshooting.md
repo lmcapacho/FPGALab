@@ -17,9 +17,12 @@ package managers described in their sections.
 
 FPGALab searches for:
 
-1. The OSS CAD Suite installed by Apio or Icestudio.
-2. A suite configured through `FPGALAB_OSS_CAD_SUITE`.
-3. Verilator on the system `PATH`.
+1. An explicit executable (`FPGALAB_VERILATOR`, or the advanced CLI override).
+2. A suite configured through `FPGALAB_OSS_CAD_SUITE` or `OSS_CAD_SUITE`.
+3. A compatible private SDK included beside the packaged executable.
+4. A compatible private SDK installed in the user's application data.
+5. The OSS CAD Suite installed by Apio or Icestudio.
+6. Verilator on the system `PATH`.
 
 Use `FPGALAB_VERILATOR` to select a specific executable and `MSYS2_ROOT` for a non-standard MSYS2 location.
 
@@ -37,6 +40,36 @@ a C++17 compiler. On Windows, FPGALab detects a standard `C:\msys64`
 installation; set `MSYS2_ROOT` when MSYS2 lives elsewhere.
 
 ## Linux
+
+### Private SDK locations (development builds)
+
+The controlled Linux SDK can be placed manually in either location:
+
+```text
+FPGALab/toolchains/<sdk-id>/         # beside the portable executable
+~/.local/share/FPGALab/toolchains/<sdk-id>/
+```
+
+`<sdk-id>` must match `recipe.id` in `toolchain.json`, currently
+`ubuntu24.04-x86_64-sdk1`. Each directory directly contains `bin/`, `rootfs/`
+and `toolchain.json`: rename the archive's extracted `toolchain` directory to
+that ID, rather than leaving an extra nested directory. If `XDG_DATA_HOME` is
+an absolute path, it replaces `~/.local/share`. Source runs also discover the
+per-user location, but do not search beside the Python interpreter.
+
+No environment override is needed once the SDK is in place. The diagnostic
+shows its source, ID, root and resolved tools. Incompatible or incomplete SDKs
+are skipped with diagnostic notices; an explicitly selected broken SDK fails
+instead of silently changing compilers. A private SDK uses its own tools, not
+host Make/G++. It is never copied or removed by compilation-cache cleanup.
+
+This first integration accepts the controlled Linux x86-64 SDK format only,
+with Verilator 5+, a compatible host glibc and paths without whitespace.
+Folders are searched in descending natural ID order within each location;
+the bundled location has priority over per-user SDKs. Versioned SDKs should be
+immutable: use a new ID when replacing tools. Automatic download, installation
+and updates are not implemented. Use only SDKs from a trusted source: metadata
+compatibility checks are not signature or archive-integrity verification.
 
 ### The application runs but no window appears
 

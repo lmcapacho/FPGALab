@@ -392,9 +392,12 @@ class ApplicationController(QObject):
         ]
         if toolchain.suite_root is not None:
             details.append(t("Toolchain root: {path}", path=toolchain.suite_root))
+        if toolchain.sdk is not None:
+            details.append(t("SDK: {id}", id=toolchain.sdk.sdk_id))
         details.append(t("Verilator: {path}", path=toolchain.executable))
         for name, path in toolchain.build_tools().items():
             details.append(t("{tool}: {path}", tool=name, path=path))
+        details.extend(toolchain.diagnostics)
         cache = VerilatorBuildCache(self._namespace.cache_dir)
         details.append(t(
             "Build cache: {used} of {limit} (managed automatically)",

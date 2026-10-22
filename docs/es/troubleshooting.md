@@ -17,9 +17,12 @@ respectivas secciones como alternativa a descargar la suite.
 
 FPGALab busca:
 
-1. OSS CAD Suite instalado por Apio o Icestudio.
-2. Una instalación configurada mediante `FPGALAB_OSS_CAD_SUITE`.
-3. Verilator disponible en el `PATH` del sistema.
+1. Un ejecutable explícito (`FPGALAB_VERILATOR` o la opción avanzada de consola).
+2. Una suite configurada mediante `FPGALAB_OSS_CAD_SUITE` u `OSS_CAD_SUITE`.
+3. Un SDK privado compatible junto al ejecutable empaquetado.
+4. Un SDK privado compatible en los datos de aplicación del usuario.
+5. OSS CAD Suite instalado por Apio o Icestudio.
+6. Verilator disponible en el `PATH` del sistema.
 
 Usa `FPGALAB_VERILATOR` para seleccionar un ejecutable y `MSYS2_ROOT` si MSYS2 está instalado en otra ubicación.
 
@@ -37,6 +40,38 @@ C++17. En Windows, FPGALab detecta la instalación habitual `C:\msys64`; usa
 `MSYS2_ROOT` si MSYS2 está en otra carpeta.
 
 ## Linux
+
+### Ubicaciones del SDK privado (versiones de desarrollo)
+
+El SDK Linux controlado puede colocarse manualmente en cualquiera de estas rutas:
+
+```text
+FPGALab/toolchains/<sdk-id>/         # junto al ejecutable portable
+~/.local/share/FPGALab/toolchains/<sdk-id>/
+```
+
+`<sdk-id>` debe coincidir con `recipe.id` de `toolchain.json`, actualmente
+`ubuntu24.04-x86_64-sdk1`. Cada carpeta contiene directamente `bin/`, `rootfs/`
+y `toolchain.json`: renombra la carpeta `toolchain` extraída del comprimido con
+ese ID, sin dejar un nivel adicional. Si `XDG_DATA_HOME` es una ruta absoluta,
+sustituye `~/.local/share`. La ejecución desde código fuente también detecta
+la ubicación del usuario, pero no busca junto al intérprete Python.
+
+Una vez ubicado el SDK no se necesita una variable de entorno. El diagnóstico
+muestra origen, ID, raíz y herramientas resueltas. Los SDK incompatibles o
+incompletos se omiten con avisos en el diagnóstico; un SDK explícito inválido
+produce un error en vez de cambiar de compilador silenciosamente. El SDK usa
+sus propias herramientas, no Make/G++ del sistema. La limpieza de caché de
+compilación no copia ni elimina estas herramientas.
+
+Esta primera integración admite solo el formato controlado Linux x86-64, con
+Verilator 5+, glibc del sistema compatible y rutas sin espacios. Dentro de cada
+ubicación las carpetas se buscan por ID en orden natural descendente; la
+ubicación incluida tiene prioridad sobre la del usuario. Los SDK versionados
+deben ser inmutables: usa un ID nuevo al cambiar herramientas. No se implementan
+todavía descarga, instalación ni actualización automáticas. Usa solo SDK de
+origen confiable: validar compatibilidad de metadatos no verifica firmas ni la
+integridad del comprimido.
 
 ### La aplicación ejecuta pero no aparece la ventana
 

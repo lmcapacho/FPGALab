@@ -9,6 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .i18n import t
+from .private_toolchain import (
+    PrivateSDK, SDKValidationError, bundled_toolchains_root, sdk_candidates, user_toolchains_root,
+)
 
 
 class ToolchainNotFoundError(FileNotFoundError):
@@ -29,9 +32,13 @@ class VerilatorToolchain:
     executable: Path
     source: str
     suite_root: Path | None = None
+    sdk: PrivateSDK | None = None
+    diagnostics: tuple[str, ...] = ()
 
     def environment(self) -> dict[str, str]:
         """Return a process environment suitable for the selected toolchain."""
+        if self.sdk is not None:
+            return self.sdk.environment()
         environment = os.environ.copy()
         if self.suite_root is None:
             return environment
@@ -92,6 +99,8 @@ class VerilatorToolchain:
 
     def make_variables(self) -> tuple[str, ...]:
         """Return Make overrides needed when native Verilator uses MSYS2 Make."""
+        if self.sdk is not None:
+            return ("CXX=g++",)
         if sys.platform == "darwin":
             return ("CXX=c++",)
         if sys.platform != "win32" or self.suite_root is None:
@@ -103,7 +112,7 @@ class VerilatorToolchain:
 
 
 def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
-    """Resolve Verilator in priority order: Apio, OSS CAD Suite, then system PATH."""
+    """Resolve explicit configuration, private SDKs, then external installations."""
     configured = explicit or os.environ.get("FPGALAB_VERILATOR")
     if configured:
         toolchain = _from_executable(Path(configured), "explicit configuration")
@@ -113,18 +122,35 @@ def resolve_verilator(explicit: str | Path | None = None) -> VerilatorToolchain:
             t("Configured Verilator executable was not found: {path}", path=configured)
         )
 
-    for root in _apio_suite_roots():
-        if toolchain := _from_suite(root, "Apio/Icestudio"):
-            return toolchain
+    # Explicit external suite configuration also takes precedence over SDKs.
     for root in _oss_cad_suite_roots():
         if toolchain := _from_suite(root, "OSS CAD Suite"):
             return toolchain
+    diagnostics = []
+    for directory, source in ((bundled_toolchains_root(), t("bundled SDK")),
+                              (user_toolchains_root(), t("user SDK"))):
+        try:
+            candidates = sdk_candidates(directory)
+        except OSError as error:
+            diagnostics.append(t("Ignored SDK {path}: {reason}", path=directory, reason=error))
+            continue
+        for candidate in candidates:
+            try:
+                sdk = PrivateSDK.load(candidate, expected_id=candidate.name)
+            except (SDKValidationError, OSError) as error:
+                diagnostics.append(t("Ignored SDK {path}: {reason}", path=candidate, reason=error))
+                continue
+            return VerilatorToolchain(sdk.root / "bin/verilator", source, sdk.root, sdk, tuple(diagnostics))
+    for root in _apio_suite_roots():
+        if toolchain := _from_suite(root, "Apio/Icestudio"):
+            return VerilatorToolchain(toolchain.executable, toolchain.source, toolchain.suite_root,
+                                      diagnostics=tuple(diagnostics))
     if executable := shutil.which("verilator"):
-        return VerilatorToolchain(Path(executable), "system PATH")
+        return VerilatorToolchain(Path(executable), "system PATH", diagnostics=tuple(diagnostics))
 
     raise ToolchainNotFoundError(t(
         "Verilator was not found. Install Icestudio/Apio, configure FPGALAB_OSS_CAD_SUITE, or install Verilator on PATH.",
-    ))
+    ) + ("\n\n" + "\n".join(diagnostics) if diagnostics else ""))
 
 
 def _build_path(path: Path) -> str:
@@ -215,10 +241,14 @@ def _from_suite(root: Path, source: str) -> VerilatorToolchain | None:
 def _from_executable(path: Path, source: str) -> VerilatorToolchain | None:
     """Resolve an explicitly configured executable or command name."""
     candidate = path.expanduser()
+    if not candidate.is_file() and (found := shutil.which(str(candidate))):
+        candidate = Path(found)
     if candidate.is_file():
-        return VerilatorToolchain(candidate.resolve(), source, _suite_parent(candidate))
-    if found := shutil.which(str(candidate)):
-        return VerilatorToolchain(Path(found), source)
+        root = _suite_parent(candidate)
+        if root is not None and (root / "toolchain.json").exists():
+            sdk = PrivateSDK.load(root)
+            return VerilatorToolchain(candidate.resolve(), source, sdk.root, sdk)
+        return VerilatorToolchain(candidate.resolve(), source, root)
     return None
 
 

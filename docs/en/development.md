@@ -195,6 +195,25 @@ The package list and exact versions, build OS and glibc are recorded in
 `toolchain.json`. Only Linux x86-64 is supported at this stage; the first local
 baseline is Ubuntu 24.04/glibc 2.39. This is not a universal Linux binary.
 
+### Private SDK discovery
+
+`private_toolchain.py` owns SDK locations and format-1 compatibility checks;
+`toolchain.py` integrates them into the existing compiler resolver. Frozen
+applications search `toolchains/<sdk-id>/` beside `sys.executable`, not the
+working directory or PyInstaller's temporary `_MEIPASS`. Per-user Linux SDKs
+live in `$XDG_DATA_HOME/FPGALab/toolchains/` (default `~/.local/share/`).
+The compiler cache remains independent; discovery does not install or modify SDKs.
+
+SDK metadata must identify a controlled build, matching directory/recipe ID,
+Linux x86-64 platform, Verilator 5+ and the required package versions. The resolver
+also checks host glibc compatibility, executable resources and the sysroot.
+Candidates rejected during automatic discovery are reported by toolchain
+diagnostics; explicit SDK selection errors are not silently ignored. This is
+compatibility validation, not authentication of native executable packages.
+The selected SDK supplies a private build environment without modifying the
+GUI's loader environment or falling back to host build tools. See the
+[resolution order and installation layout](troubleshooting.md#resolution-order).
+
 ### Controlled Ubuntu build
 
 The preferred experimental build uses `container_build.py`. Docker is required
@@ -272,8 +291,8 @@ packaged sysroot; Python and Perl use their private standard libraries. This
 prototype still relies on the Linux kernel and basic shell plumbing. Generated
 models are loaded into the application's process and must match its host ABI;
 older glibc, other distributions/architectures, whitespace paths and GUI runtime
-compatibility need separate qualification. First-run download, automatic SDK
-selection, signing and installers are later steps, not provided by these scripts.
+compatibility need separate qualification. First-run download, signing and
+installers are later steps, not provided by these scripts.
 
 ## External peripherals
 

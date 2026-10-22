@@ -198,6 +198,27 @@ herramientas de FPGALab. Registra versiones exactas, sistema y glibc en
 `toolchain.json`. Esta etapa admite Linux x86-64; la primera base local es
 Ubuntu 24.04/glibc 2.39. No es un binario universal para cualquier Linux.
 
+### Detección del SDK privado
+
+`private_toolchain.py` gestiona ubicaciones y validación de compatibilidad del
+formato 1; `toolchain.py` lo integra en el resolvedor existente del compilador.
+La aplicación empaquetada busca `toolchains/<sdk-id>/` junto a `sys.executable`,
+no en el directorio de trabajo ni en el `_MEIPASS` temporal de PyInstaller.
+Los SDK Linux del usuario están en `$XDG_DATA_HOME/FPGALab/toolchains/`
+(`~/.local/share/` por defecto). La caché de compilación sigue separada; la
+detección no instala ni modifica los SDK.
+
+Los metadatos deben identificar una construcción controlada, ID coincidente
+entre carpeta y receta, plataforma Linux x86-64, Verilator 5+ y las versiones
+de los paquetes requeridos. También se verifica compatibilidad de glibc del
+sistema, recursos ejecutables y sysroot. Los rechazos durante la detección
+automática aparecen en el diagnóstico; los errores de selección explícita no
+se ignoran silenciosamente. Esto valida compatibilidad, no autenticidad de
+paquetes ejecutables nativos. El SDK seleccionado usa un entorno privado de
+compilación sin modificar el entorno del cargador de la GUI ni recurrir a las
+herramientas del sistema. Consulta el
+[orden de búsqueda y estructura de instalación](troubleshooting.md#orden-de-busqueda).
+
 ### Construcción controlada sobre Ubuntu
 
 La ruta experimental preferida usa `container_build.py`. Docker se necesita
@@ -278,7 +299,7 @@ bibliotecas estándar privadas. El prototipo depende del kernel Linux y del
 shell básico. Los modelos se cargan en el proceso de la aplicación y deben
 ser compatibles con su ABI; faltan validaciones con glibc anterior, otras
 distribuciones/arquitecturas, rutas con espacios y el runtime gráfico. La
-descarga inicial, selección automática, firma e instaladores quedan para pasos
+descarga inicial, firma e instaladores quedan para pasos
 posteriores: estos scripts no los implementan.
 
 ## Periféricos externos
