@@ -52,3 +52,4 @@ nav:
   - Toolchain and troubleshooting: troubleshooting.md
   - External peripheral API: peripheral-api.md
   - Architecture and contribution: development.md
+  - Contribute a translation: translations.md

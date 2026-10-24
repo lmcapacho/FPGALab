@@ -404,3 +404,6 @@ QT_QPA_PLATFORM=offscreen pytest -q
 ```
 
 Keep source code, identifiers, and developer comments in English. User-visible text must pass through the translation layer.
+
+See [Contribute a translation](translations.md) for catalog metadata, templates,
+validation and English-reference maintenance. New language catalogs need no code changes.

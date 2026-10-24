@@ -13,8 +13,8 @@ from linux_runtime import collect_linux_qt_runtime
 repository_root = Path(SPECPATH).parents[1]
 datas = collect_data_files("fpga_lab")
 datas += [(str(repository_root / name), ".") for name in ("LICENSE", "NOTICE", "AUTHORS.md", "AI_USAGE.md")]
-qtbase_es = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) / "qtbase_es.qm"
-datas.append((str(qtbase_es), "fpga_lab/translations"))
+qt_translations = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))
+datas += [(str(path), "fpga_lab/translations") for path in sorted(qt_translations.glob("qtbase_*.qm"))]
 
 a = Analysis(
     [str(Path(SPECPATH) / "launcher.py")],

@@ -1,5 +1,8 @@
 # Arquitectura y contribución
 
+Para agregar idiomas de interfaz sin modificar código, consulta la guía de
+[traducciones comunitarias](translations.md): metadatos, plantillas y validación.
+
 ## Arquitectura de simulación
 
 ```text

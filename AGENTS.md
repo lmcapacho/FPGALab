@@ -21,6 +21,7 @@ Read the relevant [architecture guide](docs/en/development.md) and [peripheral A
 - User-installed peripherals are declarative manifests and packaged resources, not executable Python. Validate versions, terminal directions, resource paths, and replacements before installation.
 - Keep existing Labs usable when a newer peripheral or property is unavailable. Do not silently discard unknown instances, connections, or user settings.
 - Keep user-visible strings translatable through `fpga_lab/i18n.py` and `fpga_lab/locales/es.json`. Check both light and dark themes for UI changes.
+- After adding translatable source strings, run `python -m fpga_lab.locale_tools update-source` and `python -m fpga_lab.locale_tools validate`. Keep locale metadata and placeholders valid; partial community catalogs are supported and must not block unrelated features. See `docs/en/translations.md`.
 - Keep generated Verilator models and caches out of the repository and Icestudio's `ice-build`; use the existing managed cache behavior.
 
 ## Verification

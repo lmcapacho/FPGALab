@@ -27,6 +27,9 @@ from PyQt6.QtWidgets import (
     QProgressDialog,
     QStackedWidget,
     QStatusBar,
+    QStyle,
+    QStyleOptionComboBox,
+    QStylePainter,
     QVBoxLayout,
     QWidget,
 )
@@ -72,6 +75,29 @@ class RecentProjectDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         size = super().sizeHint(option, index)
         return QSize(size.width(), 12) if index.data(Qt.ItemDataRole.AccessibleDescriptionRole) == "separator" else size
+
+
+class LanguageSelector(QComboBox):
+    """Compact locale code when closed; native language names in the popup."""
+
+    def __init__(self, manager, parent=None):
+        super().__init__(parent)
+        self.setObjectName("languageSelector")
+        for code in manager.languages:
+            self.addItem(f"{manager.language_name(code)} ({code.replace('_', '-')})", code)
+        self.setFixedWidth(max(58, max(self.fontMetrics().horizontalAdvance(code.upper())
+                                      for code in manager.languages) + 26))
+        self.view().setMinimumWidth(max(self.fontMetrics().horizontalAdvance(self.itemText(index))
+                                        for index in range(self.count())) + 40)
+        self.setCurrentIndex(self.findData(manager.language))
+
+    def paintEvent(self, event):
+        option = QStyleOptionComboBox()
+        self.initStyleOption(option)
+        option.currentText = str(self.currentData() or "").replace("_", "-").upper()
+        painter = QStylePainter(self)
+        painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, option)
+        painter.drawControl(QStyle.ControlElement.CE_ComboBoxLabel, option)
 
 
 class LabNameDialog(QDialog):
@@ -425,13 +451,8 @@ class FPGALabMainWindow(QMainWindow):
         self._lab_button.setMinimumWidth(210)
         self._lab_button.clicked.connect(self._open_lab_manager)
         self._refresh_labs()
-        self._language = QComboBox()
-        self._language.setObjectName("languageSelector")
-        for language in language_manager.languages:
-            self._language.addItem(language.upper(), language)
-        self._language.setCurrentIndex(self._language.findData(language_manager.language))
+        self._language = LanguageSelector(language_manager)
         self._language.currentIndexChanged.connect(self._choose_language)
-        self._language.setFixedWidth(58)
         self._theme_button = QPushButton()
         style_button(self._theme_button, "icon")
         self._theme_button.clicked.connect(self._toggle_theme)
@@ -457,6 +478,7 @@ class FPGALabMainWindow(QMainWindow):
         self._board.setToolTip(t("Board used for compilation and simulation"))
         self._board.setAccessibleName(t("Board"))
         self._language.setToolTip(t("Interface language"))
+        self._language.setAccessibleName(t("Interface language"))
         self._refresh_theme_button()
         self._update_button.setToolTip(t("Check for updates"))
         self._toolchain_button.setToolTip(t("Check simulation toolchain"))

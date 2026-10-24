@@ -41,3 +41,5 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest -q
+      - name: Validate translation catalogs
+        run: python -m fpga_lab.locale_tools validate

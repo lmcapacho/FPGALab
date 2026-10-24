@@ -1,4 +1,5 @@
 {
+  "_meta": {"code": "es", "name": "Español", "contributors": []},
   "A build is already in progress.": "Ya hay una compilación en curso.",
   "A peripheral with that identifier already exists.": "Ya existe un periférico con ese identificador.",
   "Advanced library loaded. Select an .ice file to change design.": "Biblioteca avanzada cargada. Seleccione un .ice para cambiar de diseño.",
