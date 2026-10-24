@@ -6,6 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Experimental offline Linux package assembly combines the application and a checksum-verified SDK in one portable archive, with automatic tool discovery, retained license inventories and a manual CI workflow that reuses an independently validated SDK artifact. Direct startup, compilation and simulation were validated on a clean Ubuntu 24.04 VM without manual tool paths. Public SDK redistribution approval remains pending.
 - Automatic discovery of compatible Linux SDKs beside the packaged executable or in per-user application data, with isolated build tools, compatibility checks and diagnostic notices. Explicit toolchain configuration remains authoritative; SDK download and installation are not automatic yet.
 - Experimental Linux x86-64 SDK tooling with private build tools/sysroot, version and source-package inventories, and archive/checksum output. A frozen Ubuntu container recipe and manual CI workflow build and probe the native ABI in a clean offline runtime. Automatic installation, public redistribution approval and cross-distribution qualification remain pending.
 - Annotation appearance controls for lines and shapes: custom stroke color, width and solid/dashed/dotted styles, optional shape fill and restoring theme defaults. Selection uses a separate outline without replacing the chosen stroke color.

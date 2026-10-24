@@ -15,9 +15,14 @@ Descarga el paquete para Linux, Windows o macOS desde [GitHub Releases](https://
 
 La aplicación de macOS tiene firma ad hoc, pero todavía no está notarizada por Apple. En la primera ejecución puede ser necesario usar **Control-clic → Abrir** sobre `FPGALab.app`.
 
-Los paquetes incluyen Python y PyQt, **no el toolchain completo de simulación**.
+Los paquetes publicados incluyen Python y PyQt, **no el toolchain completo de simulación**.
 Esto también aplica al `.exe` independiente de Windows: continúa con el paso 2
 antes de intentar ejecutar un diseño.
+
+El paquete experimental de prueba `linux-x86_64-offline.tar.gz` es diferente:
+incluye el SDK Linux privado. Extrae toda la carpeta `FPGALab` en una ruta sin
+espacios y ejecuta `FPGALab` directamente; no necesita instalar herramientas ni
+definir variables. En el paso 2, comprueba las herramientas en vez de instalarlas.
 
 ## 2. Preparar y comprobar las herramientas de simulación
 

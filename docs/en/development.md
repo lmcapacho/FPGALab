@@ -294,6 +294,77 @@ older glibc, other distributions/architectures, whitespace paths and GUI runtime
 compatibility need separate qualification. First-run download, signing and
 installers are later steps, not provided by these scripts.
 
+## Experimental offline Linux bundle
+
+`assemble.py` combines a **clean, current PyInstaller onedir build** and an
+existing controlled SDK archive; the SDK is not rebuilt for each application
+change. Run with Python 3.12+ in the application's build environment:
+
+```bash
+.venv/bin/python packaging/linux_toolchain/assemble.py \
+  --app dist/FPGALab --sdk-archive /path/to/fpgalab-linux-sdk.tar.gz \
+  --sdk-sha256 <expected-sha256-from-trusted-sdk-build> \
+  --output /tmp/fpgalab-offline --app-version development
+```
+
+The new output directory contains a runnable `FPGALab/`,
+`FPGALab-linux-x86_64-offline.tar.gz` and its `.sha256` sidecar. The assembler
+checks the SDK digest before safe extraction, validates SDK metadata and
+relocatable links, rejects existing outputs/toolchains, and preserves executable
+modes and license/source inventories. `bundle.json` records the declared app
+version/revision and SDK ID/digest. No SDK installation or user-data changes occur.
+The portable layout is:
+
+```text
+FPGALab/
+├── FPGALab
+├── _internal/
+├── bundle.json
+├── OFFLINE-README.txt
+└── toolchains/<sdk-id>/
+    ├── bin/
+    ├── rootfs/
+    ├── toolchain.json
+    ├── source-packages.json
+    └── REDISTRIBUTION.txt
+```
+
+Extract the complete archive to a new location and verify the built executable,
+not a source run:
+
+```bash
+.venv/bin/python packaging/linux_toolchain/smoke_offline.py \
+  --bundle /path/to/extracted/FPGALab --work-dir /tmp/fpgalab-offline-probe
+```
+
+This maintainer probe launches the packaged app from another directory with an
+empty host PATH, no SDK overrides and fresh application data/cache. It builds a
+synthetic Icestudio-style design, then checks combinational logic, clock stepping
+and Reset through the generated native ABI in the probe process. It retains an
+application log and writes a success receipt only after all checks. Headless Qt
+does not validate desktop rendering; empty PATH is not filesystem/network
+isolation. Finally test the extracted package on a clean Ubuntu 24.04 desktop:
+open the executable directly, verify its toolchain points inside `toolchains/`,
+then load a Lab/design, simulate, Stop/Run, close and reopen without variables.
+The VM does not need Docker, Python or build tools, but designs must include
+their generated `ice-build` files.
+
+The complete bundle was validated on a clean Ubuntu 24.04 VM: direct startup,
+automatic bundled-tool discovery, Lab/design loading, compilation, simulation
+and reopening worked without manual toolchain paths. This does not establish
+compatibility with other distributions or prove network isolation.
+
+The manual **Experimental Linux offline package** workflow builds the app and
+downloads `experimental-linux-sdk` from a specified successful SDK workflow run
+on this repository's `main` branch. Supply that run ID and the trusted SDK archive
+SHA-256; it verifies origin/integrity, assembles, extracts/relocates and probes the
+bundle before uploading a seven-day test artifact. Expired SDK artifacts require
+a new SDK run; longer-lived versioned SDK distribution is not implemented yet.
+Normal release workflows remain unchanged. SDK source/license obligations must
+be completed before public distribution; these experimental artifacts are not
+an approved SDK release. Initial support is Ubuntu 24.04 x86-64 desktop, not
+universal Linux compatibility or an installer.
+
 ## External peripherals
 
 The [external peripheral API v1](peripheral-api.md) documents the manifest fields, reusable renderers, package metadata, examples, validation, and installation. Use it when creating a shareable package. FPGALab does not load Python code from user peripheral folders.

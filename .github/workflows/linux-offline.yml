@@ -1,0 +1,86 @@
+name: Experimental Linux offline package
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdk_run_id:
+        description: Successful Experimental Linux SDK run ID from main
+        required: true
+        type: string
+      sdk_sha256:
+        description: Expected SHA-256 of fpgalab-linux-sdk.tar.gz from that run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  assemble-and-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify SDK run origin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SDK_RUN_ID: ${{ inputs.sdk_run_id }}
+        run: |
+          [[ "$SDK_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SDK_RUN_ID" > "$RUNNER_TEMP/sdk-run.json"
+          python3 -c 'import json,os,sys; r=json.load(open(sys.argv[1])); assert r["conclusion"] == "success" and r["path"] == ".github/workflows/linux-sdk.yml" and r["head_branch"] == "main" and r["head_repository"]["full_name"] == os.environ["GITHUB_REPOSITORY"], "SDK must come from a successful SDK workflow on this repository main branch"' "$RUNNER_TEMP/sdk-run.json"
+      - name: Reuse validated SDK artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: experimental-linux-sdk
+          run-id: ${{ inputs.sdk_run_id }}
+          github-token: ${{ github.token }}
+          path: sdk-input
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            .github/workflows/linux-offline.yml
+      - name: Install application build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-util1 libxcb-xkb1 libxkbcommon-x11-0
+          python -m pip install --upgrade pip setuptools wheel pyinstaller
+          python -m pip install -e .
+      - name: Build application
+        run: python -m PyInstaller packaging/pyinstaller/FPGALab.spec --noconfirm --clean
+      - name: Assemble verified offline package
+        env:
+          SDK_SHA256: ${{ inputs.sdk_sha256 }}
+        run: |
+          python packaging/linux_toolchain/assemble.py --app dist/FPGALab \
+            --sdk-archive sdk-input/fpgalab-linux-sdk.tar.gz --sdk-sha256 "$SDK_SHA256" \
+            --output "$RUNNER_TEMP/fpgalab-offline" --revision "$GITHUB_SHA" \
+            --app-version "$(python -c 'import fpga_lab; print(fpga_lab.__version__)')"
+      - name: Probe extracted and relocated package without host PATH tools
+        run: |
+          mkdir "$RUNNER_TEMP/offline-relocated"
+          tar -xzf "$RUNNER_TEMP/fpgalab-offline/FPGALab-linux-x86_64-offline.tar.gz" -C "$RUNNER_TEMP/offline-relocated"
+          python packaging/linux_toolchain/smoke_offline.py \
+            --bundle "$RUNNER_TEMP/offline-relocated/FPGALab" --work-dir "$RUNNER_TEMP/offline-probe"
+      - name: Upload experimental offline bundle (not a release)
+        uses: actions/upload-artifact@v6
+        with:
+          name: experimental-linux-offline
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/fpgalab-offline/FPGALab-linux-x86_64-offline.tar.gz
+            ${{ runner.temp }}/fpgalab-offline/FPGALab-linux-x86_64-offline.tar.gz.sha256
+            ${{ runner.temp }}/offline-probe/validation.json
+      - name: Preserve probe log on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: offline-probe-failure
+          retention-days: 7
+          if-no-files-found: ignore
+          path: ${{ runner.temp }}/offline-probe/application.log
