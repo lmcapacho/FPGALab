@@ -265,6 +265,66 @@ Esta prueba valida el SDK/modelo nativo, no la aplicación PyQt completa en un
 escritorio limpio. El empaquetado gráfico, otras distribuciones y las obligaciones
 de entrega del código fuente correspondiente siguen pendientes antes de publicar.
 
+### Descarga experimental del SDK
+
+`python -m fpga_lab.sdk_install` permite probar una descarga e instalación
+explícitas para mantenimiento; no es todavía un descargador gráfico del primer
+inicio ni un servicio público. Recibe la URL de un catálogo de confianza y un
+ID de SDK concreto. Instala en los datos del usuario,
+`FPGALab/toolchains/<sdk-id>/`, descritos arriba, no en la carpeta del programa
+ni en la caché de compilación. Los IDs instalados no se sobrescriben: una
+versión con contenido diferente debe usar un ID nuevo.
+
+El catálogo tiene `format: 1` y una lista `sdks`. Cada entrada requiere `id`,
+`platform` (por ahora `linux-x86_64`), `url` (absoluta o relativa al catálogo),
+`size` (bytes comprimidos exactos) y `sha256` en minúsculas. Se exige HTTPS,
+incluidas las redirecciones. El checksum contrasta el archivo con el catálogo;
+no autentica un catálogo desconocido. Su origen debe estar controlado. No hay
+firmas ni selección automática de actualizaciones todavía.
+
+Para una prueba local, sirve un archivo SDK ya validado y de confianza desde
+la raíz del repositorio; sustituye la ruta por la salida de tu construcción:
+
+```bash
+python3 packaging/linux_toolchain/serve_sdk.py \
+  --archive /ruta/al/fpgalab-linux-sdk.tar.gz \
+  --sdk-id ubuntu24.04-x86_64-sdk1
+```
+
+El servidor genera el catálogo en memoria y solo expone ese catálogo y el
+archivo en `127.0.0.1:8765`, sin copiarlo ni publicarlo externamente. Déjalo
+abierto. En otra terminal, desde la raíz del repositorio:
+
+```bash
+python -m fpga_lab.sdk_install \
+  --catalog http://127.0.0.1:8765/catalog.json \
+  --sdk-id ubuntu24.04-x86_64-sdk1 --allow-local-http
+python -m fpga_lab.app
+```
+
+Usa el entorno Python del proyecto. `--allow-local-http` es una excepción de
+prueba limitada a direcciones de loopback, no a servidores HTTP remotos. El
+arranque de la aplicación no descarga nada. Detén el servidor con Ctrl+C.
+El SDK se descubre al resolver nuevamente las herramientas; una configuración
+explícita o un SDK incluido en el paquete conservan su prioridad habitual.
+
+La descarga tiene límites de tamaño, timeout e indicador de progreso. El
+tamaño y SHA-256 deben coincidir antes de extraer. La extracción limita recursos
+y rechaza rutas/enlaces que escapen y archivos especiales. Se validan metadatos,
+plataforma, glibc, herramientas e inventarios antes de publicar la carpeta de
+versión. La cancelación y los fallos normales limpian temporales. Un bloqueo por
+ID evita instalaciones simultáneas; después de matar el proceso forzadamente,
+inspecciona los temporales/bloqueos ocultos antes de borrarlos y verifica que no
+haya otro instalador activo. El API admite un callback de progreso que puede
+lanzar una excepción para cancelar; la futura GUI debe ejecutarlo fuera de su
+hilo principal. Python debe incluir `tarfile.data_filter` (3.12+ o una versión
+anterior actualizada). La aprobación de redistribución pública sigue pendiente.
+
+El archivo del SDK controlado también pasó la descarga completa por loopback
+a datos de usuario temporales aislados, la detección automática y la prueba ABI
+nativa reubicada sin herramientas de compilación del sistema. La integración
+gráfica del primer inicio y su prueba en un escritorio limpio siguen pendientes.
+
 ### Snapshot local y prueba aislada
 
 El constructor local anterior sigue disponible para diagnóstico, pero no es la

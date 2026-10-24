@@ -255,6 +255,64 @@ This probe qualifies the SDK/native model, not the complete PyQt application in
 a clean desktop. GUI packaging, other distributions and corresponding-source
 redistribution obligations remain separate gates before public distribution.
 
+### Experimental SDK download
+
+`python -m fpga_lab.sdk_install` provides an opt-in download/install path for
+maintainer testing, not a first-run GUI downloader or public SDK service.
+It accepts a trusted catalog URL and an explicit SDK ID. Installation is in
+the per-user `FPGALab/toolchains/<sdk-id>/` data directory described above,
+not the application folder or build cache. Existing SDK IDs are never updated
+in place; publish changed contents under a new ID.
+
+Catalog format 1 contains an `sdks` list. Each entry requires `id`, `platform`
+(currently `linux-x86_64`), `url` (absolute or relative to the catalog), `size`
+(exact compressed bytes), and lowercase `sha256`. The installer requires HTTPS,
+including redirects. A checksum verifies the archive against the catalog; it
+does not authenticate an untrusted catalog. Use a controlled catalog origin.
+Signatures and automatic update selection are not implemented.
+
+For a local exercise, serve an already validated, trusted SDK archive from
+the repository root (replace the archive path with your build output):
+
+```bash
+python3 packaging/linux_toolchain/serve_sdk.py \
+  --archive /path/to/fpgalab-linux-sdk.tar.gz \
+  --sdk-id ubuntu24.04-x86_64-sdk1
+```
+
+This generates the catalog in memory and serves only it and the archive on
+`127.0.0.1:8765`; it neither copies the archive nor publishes it externally.
+Keep that terminal running. In another terminal, from the repository root:
+
+```bash
+python -m fpga_lab.sdk_install \
+  --catalog http://127.0.0.1:8765/catalog.json \
+  --sdk-id ubuntu24.04-x86_64-sdk1 --allow-local-http
+python -m fpga_lab.app
+```
+
+Use the project's Python environment. `--allow-local-http` is a test-only
+exception restricted to loopback addresses, not remote HTTP hosts. No network
+access is initiated by application startup. Stop the test server with Ctrl+C.
+The application discovers the installed SDK on its next toolchain resolution;
+explicit tool settings and a bundled SDK retain their normal precedence.
+
+Downloads have size limits, a timeout and progress reporting. Size and SHA-256
+must match before extraction. Extraction limits reject escaping paths/links
+and special files; metadata, platform, host glibc, required tools and inventories
+are validated before the version directory becomes visible. Cancellation and
+ordinary failures remove staging files. A per-ID lock blocks concurrent installs;
+after a forced process kill, inspect hidden staging/lock files before removing
+them, and ensure no installer is running. The API supports a progress callback
+that may raise to cancel; future GUI integration must run it off the GUI thread.
+Python must include `tarfile.data_filter` (Python 3.12+ or a patched older version).
+Public redistribution licensing remains a separate prerequisite.
+
+The controlled SDK archive has also passed a complete loopback download into
+isolated temporary user data, automatic toolchain discovery and the relocated
+native ABI probe without host build tools. First-run GUI integration and a
+downloaded-SDK clean-desktop check remain separate validation steps.
+
 ### Local snapshot and isolated probe
 
 The earlier local snapshot builder remains useful for diagnosis, but is not the
