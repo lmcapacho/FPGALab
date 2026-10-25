@@ -36,6 +36,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Fixed
 
+- Toolchain diagnostics keep long messages selectable and scrollable instead of clipping them; initial focus and the primary action follow tool readiness (Close when ready, Download SDK when missing). The explicit HTTP SDK test option accepts trusted private IPv4 addresses for host-to-VM tests while HTTPS remains required by default.
 - Require and bundle Linux Qt/XCB utility libraries when packaging; defer Wayland startup maximization until the window is first exposed instead of issuing duplicate early requests. Default startup was validated on a clean Ubuntu 24.04 desktop without forcing X11.
 - SPI monitors discard incomplete capture data after overflow and recover at the next transaction without interrupting native MISO responses.
 - UART text entry takes precedence over workbench button shortcuts while its input is focused.

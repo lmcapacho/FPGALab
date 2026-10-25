@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 from http.client import HTTPException
+from ipaddress import ip_address, ip_network
 import json
 import os
 import platform
@@ -21,6 +22,7 @@ from .private_toolchain import PrivateSDK, user_toolchains_root
 
 MAX_ARCHIVE_SIZE = 1024**3
 MAX_EXTRACTED_SIZE = 4 * 1024**3
+_TEST_NETWORKS = tuple(ip_network(value) for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
 
 
 class SDKInstallCancelled(InterruptedError):
@@ -34,10 +36,15 @@ def _check_cancel(cancel_requested):
 
 def _check_url(url: str, allow_local_http: bool) -> None:
     parsed = urlsplit(url)
-    local = parsed.scheme == "http" and parsed.hostname in ("localhost", "127.0.0.1", "::1")
+    local = parsed.hostname == "localhost"
+    try:
+        address = ip_address(parsed.hostname or "")
+        local = address.is_loopback or any(address in network for network in _TEST_NETWORKS)
+    except ValueError:
+        pass  # Do not resolve arbitrary DNS names for the HTTP test exception.
     if (not parsed.hostname or parsed.username or parsed.password or parsed.fragment or
-            not (parsed.scheme == "https" or (allow_local_http and local))):
-        raise ValueError("Use HTTPS; HTTP is allowed only on loopback with --allow-local-http")
+            not (parsed.scheme == "https" or (parsed.scheme == "http" and allow_local_http and local))):
+        raise ValueError("Use HTTPS; --allow-local-http permits only trusted loopback or private IPv4 test servers")
 
 
 class _Redirects(HTTPRedirectHandler):
@@ -208,7 +215,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", required=True, help="Trusted HTTPS catalog URL")
     parser.add_argument("--sdk-id", required=True)
-    parser.add_argument("--allow-local-http", action="store_true", help="Loopback-only maintainer tests")
+    parser.add_argument("--allow-local-http", action="store_true", help="Trusted loopback/private IPv4 maintainer tests")
     args = parser.parse_args()
     last_percent = -10
     def progress(current, total):

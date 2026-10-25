@@ -116,7 +116,13 @@ def test_sdk_catalog_transport_and_schema_are_checked(sdk_download, tmp_path):
     url, entry, archive, catalog = sdk_download
     with pytest.raises(ValueError, match="HTTPS"):
         installer.read_catalog(url)
-    for invalid in ("http://example.com/sdk", "file:///tmp/sdk", "https://user:secret@example.com/sdk"):
+    for host in ("127.0.0.1", "localhost", "[::1]", "10.0.2.2", "172.16.1.2", "192.168.1.2"):
+        installer._check_url(f"http://{host}:8765/catalog.json", True)
+        with pytest.raises(ValueError, match="HTTPS"):
+            installer._check_url(f"http://{host}:8765/catalog.json", False)
+    for invalid in ("http://example.com/sdk", "file:///tmp/sdk", "https://user:secret@example.com/sdk",
+                    "http://8.8.8.8/sdk", "http://169.254.169.254/sdk", "http://100.64.0.1/sdk",
+                    "http://172.32.0.1/sdk", "ftp://127.0.0.1/sdk", "http://10.0.2.2.example.com/sdk"):
         with pytest.raises(ValueError):
             installer._check_url(invalid, True)
     for entries in ([entry, entry], [{**entry, "id": "../escape"}], [{**entry, "size": True}],

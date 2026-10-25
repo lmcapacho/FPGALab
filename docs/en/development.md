@@ -292,7 +292,11 @@ python -m fpga_lab.app
 ```
 
 Use the project's Python environment. `--allow-local-http` is a test-only
-exception restricted to loopback addresses, not remote HTTP hosts. No network
+exception restricted to loopback and literal RFC 1918 private IPv4 addresses
+(`10/8`, `172.16/12`, `192.168/16`). It does not allow public HTTP addresses,
+arbitrary DNS names or link-local metadata endpoints. Only use it with a trusted
+local/VM test server: HTTP is unencrypted, and a checksum from the same catalog
+cannot protect against network tampering. No network
 access is initiated by application startup. Stop the test server with Ctrl+C.
 The application discovers the installed SDK on its next toolchain resolution;
 explicit tool settings and a bundled SDK retain their normal precedence.
@@ -310,7 +314,7 @@ Public redistribution licensing remains a separate prerequisite.
 
 The GUI exposes the same installer from **Check simulation toolchain → Download
 SDK…** on Linux x86-64. Enter the trusted catalog URL and explicitly load it;
-for the local server above, enable the loopback HTTP test option. Choose an SDK,
+for the local server above, enable **Allow HTTP for trusted local/VM tests**. Choose an SDK,
 review its compressed size/checksum and installation folder, then select
 **Download and install**. Catalog loading, downloading and extraction run on a
 background thread; the dialog shows progress and installation stages. Cancel,
@@ -321,6 +325,19 @@ toolchain diagnostic with fresh resolution; existing explicit settings or a
 bundled SDK may still take precedence. Changing the catalog URL/test option
 invalidates its selection, and an entry changed on the server must be reloaded
 before installation. No catalog URL is bundled or fetched automatically.
+
+With Quickemu's default QEMU user networking, the VM normally reaches the host
+at `10.0.2.2`. Keep the test server running on the host and enter
+`http://10.0.2.2:8765/catalog.json` in the VM with the HTTP test option enabled.
+The loopback URL `127.0.0.1` refers to the VM itself unless a tunnel is in use.
+The supplied server speaks plain HTTP, not HTTPS; changing the URL scheme to
+HTTPS causes a TLS protocol error, not a certificate problem. Rebuild the
+application package after source changes before copying it to the VM.
+The toolchain diagnostic is resizable, with selectable and scrollable text so
+long errors and paths remain accessible.
+When tools are ready, Close is the primary/default action; otherwise Download
+SDK is primary where supported. Initial focus stays on that button, not the
+read-only diagnostic text. Escape always closes without starting a download.
 
 The controlled SDK archive has also passed a complete loopback download into
 isolated temporary user data, automatic toolchain discovery and the relocated

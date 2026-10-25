@@ -9,7 +9,7 @@ from threading import Event
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QSettings, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, QSettings, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from .board import DEFAULT_BOARD_ID, BoardDefinition, bundled_board_definition
@@ -26,7 +26,7 @@ from .project_pins import ProjectPinMap
 from .signals import signal_reference
 from .simulation import VerilatorSimulation
 from .simulation_settings import SimulationSettings, SimulationSettingsDialog
-from .sdk_dialog import SDKInstallDialog, sdk_download_supported
+from .sdk_dialog import SDKInstallDialog, ToolchainReportDialog
 from .toolchain import resolve_verilator
 from .theme import application_palette, application_stylesheet, load_theme_mode
 from .verilog_interface import VerilogInterface
@@ -387,15 +387,8 @@ class ApplicationController(QObject):
             ready, message = self._toolchain_report()
             self._window.set_status(t("Simulation toolchain is ready.") if ready
                                     else t("Simulation toolchain is not ready."))
-            report = QMessageBox(self._window)
-            report.setWindowTitle(t("Simulation toolchain"))
-            report.setIcon(QMessageBox.Icon.Information if ready else QMessageBox.Icon.Warning)
-            report.setTextFormat(Qt.TextFormat.PlainText)
-            report.setText(message)
-            report.setStandardButtons(QMessageBox.StandardButton.Ok)
-            download = report.addButton(t("Download SDK…"), QMessageBox.ButtonRole.ActionRole) if sdk_download_supported() else None
-            report.exec()
-            requested = download is not None and report.clickedButton() is download
+            report = ToolchainReportDialog(ready, message, self._window)
+            requested = report.exec() == ToolchainReportDialog.DialogCode.Accepted
             report.deleteLater()
             if not requested:
                 return

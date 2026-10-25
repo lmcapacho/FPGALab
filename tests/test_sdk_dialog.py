@@ -4,9 +4,9 @@ from threading import Event
 from time import monotonic
 from types import SimpleNamespace
 
-from PyQt6.QtCore import QThread
+from PyQt6.QtCore import QThread, Qt
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QPushButton
 
 import fpga_lab.sdk_dialog as gui
 
@@ -62,6 +62,43 @@ def test_sdk_gui_load_and_install_run_off_gui_thread_and_pin_consent(monkeypatch
         settle(dialog)
         dialog.close()
         dialog.deleteLater()
+
+
+def test_toolchain_report_keeps_long_diagnostics_selectable_and_scrollable(monkeypatch):
+    message = "Verilator was not found. Install Icestudio/Apio, configure a toolchain, or download an SDK.\n" * 50
+    dialog = gui.ToolchainReportDialog(False, message)
+    try:
+        dialog.show()
+        _APP.processEvents()
+        assert dialog.details.toPlainText() == message
+        assert dialog.details.isReadOnly()
+        assert dialog.details.textInteractionFlags() & Qt.TextInteractionFlag.TextSelectableByKeyboard
+        assert dialog.details.verticalScrollBar().maximum() > 0
+        assert dialog.details.height() > 100
+        dialog.details.selectAll()
+        assert dialog.details.textCursor().selectedText()
+    finally:
+        dialog.close()
+        dialog.deleteLater()
+    for ready, supported in ((True, True), (False, True), (False, False)):
+        monkeypatch.setattr(gui, "sdk_download_supported", lambda: supported)
+        for key in (Qt.Key.Key_Return, Qt.Key.Key_Escape):
+            dialog = gui.ToolchainReportDialog(ready, message)
+            try:
+                dialog.show()
+                _APP.processEvents()
+                primary = dialog.focusWidget()
+                assert isinstance(primary, QPushButton) and primary.isDefault()
+                assert primary.property("role") == "primary"
+                assert not dialog.details.hasFocus()
+                assert len([button for button in dialog.findChildren(QPushButton) if button.isDefault()]) == 1
+                QTest.keyClick(primary, key)
+                accepted = key == Qt.Key.Key_Return and not ready and supported
+                assert dialog.result() == (dialog.DialogCode.Accepted if accepted else dialog.DialogCode.Rejected)
+                assert not dialog.isVisible()
+            finally:
+                dialog.close()
+                dialog.deleteLater()
 
 
 def test_sdk_gui_close_defers_thread_destruction_until_cancellation_finishes(monkeypatch):

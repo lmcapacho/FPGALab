@@ -303,7 +303,11 @@ python -m fpga_lab.app
 ```
 
 Usa el entorno Python del proyecto. `--allow-local-http` es una excepción de
-prueba limitada a direcciones de loopback, no a servidores HTTP remotos. El
+prueba limitada a loopback e IPv4 privadas literales RFC 1918 (`10/8`,
+`172.16/12`, `192.168/16`). No admite IP públicas HTTP, nombres DNS arbitrarios
+ni direcciones link-local de metadatos. Úsala solo con un servidor local/VM de
+confianza: HTTP no está cifrado y un checksum del mismo catálogo no evita
+la manipulación de red. El
 arranque de la aplicación no descarga nada. Detén el servidor con Ctrl+C.
 El SDK se descubre al resolver nuevamente las herramientas; una configuración
 explícita o un SDK incluido en el paquete conservan su prioridad habitual.
@@ -322,8 +326,8 @@ anterior actualizada). La aprobación de redistribución pública sigue pendient
 
 La GUI ofrece el mismo instalador desde **Comprobar herramientas de simulación
 → Descargar SDK…** en Linux x86-64. Introduce la URL de confianza y carga el
-catálogo explícitamente; para el servidor anterior, activa la opción de prueba
-HTTP local. Elige un SDK, revisa tamaño comprimido/checksum y carpeta de destino,
+catálogo explícitamente; para el servidor anterior, activa **Permitir HTTP para
+pruebas locales/VM de confianza**. Elige un SDK, revisa tamaño comprimido/checksum y carpeta de destino,
 y pulsa **Descargar e instalar**. La carga del catálogo, descarga y extracción
 se ejecutan en un hilo de fondo, con progreso y fases visibles. Cancelar, Escape
 o cerrar la ventana solicita cancelación y conserva el hilo hasta que termine
@@ -334,6 +338,19 @@ configuración explícita o un SDK incluido aún pueden tener prioridad. Cambiar
 la URL/opción de prueba invalida la selección; si la entrada del servidor
 cambió, hay que recargarla antes de instalar. No se incluye ni consulta
 automáticamente ninguna URL de catálogo.
+
+Con la red de usuario QEMU predeterminada de Quickemu, la VM normalmente llega
+al anfitrión mediante `10.0.2.2`. Deja el servidor de prueba abierto en el
+anfitrión e introduce `http://10.0.2.2:8765/catalog.json` en la VM con la opción
+de HTTP de prueba activada. `127.0.0.1` apunta a la propia VM salvo que uses un
+túnel. El servidor incluido habla HTTP, no HTTPS: cambiar el esquema a HTTPS
+provoca un error de protocolo TLS, no de certificados. Reconstruye el paquete
+de la aplicación después de cambiar el código antes de copiarlo a la VM.
+El diagnóstico de herramientas es redimensionable, con texto seleccionable y
+scroll para consultar completos los errores y rutas largos.
+Si las herramientas están listas, Cerrar es la acción primaria/predeterminada;
+si no, lo es Descargar SDK donde esté disponible. El foco inicial queda en ese
+botón, no en el texto de solo lectura. Escape siempre cierra sin descargar.
 
 El archivo del SDK controlado también pasó la descarga completa por loopback
 a datos de usuario temporales aislados, la detección automática y la prueba ABI

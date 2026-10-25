@@ -9,8 +9,9 @@ from threading import Event
 from PyQt6.QtCore import QThread, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
-    QProgressBar, QPushButton, QVBoxLayout,
+    QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
 )
+from PyQt6.QtGui import QTextOption
 
 from .i18n import t
 from .private_toolchain import user_toolchains_root
@@ -20,6 +21,52 @@ from .theme import Metrics, style_button
 
 def sdk_download_supported() -> bool:
     return sys.platform == "linux" and platform.machine().lower() in ("x86_64", "amd64")
+
+
+class ToolchainReportDialog(QDialog):
+    """Resizable, selectable diagnostics with scrolling instead of a clipped message box."""
+
+    def __init__(self, ready, message, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("Simulation toolchain"))
+        self.setMinimumSize(500, 240)
+        self.resize(680, 360)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(*([Metrics.SPACE_LG] * 4))
+        layout.setSpacing(Metrics.SPACE_LG)
+        summary = QLabel(t("Simulation toolchain is ready.") if ready else t("Simulation toolchain is not ready."))
+        summary.setObjectName("infoText" if ready else "warningText")
+        summary.setWordWrap(True)
+        layout.addWidget(summary)
+        self.details = QPlainTextEdit()
+        self.details.setAccessibleName(t("Toolchain details"))
+        self.details.setReadOnly(True)
+        self.details.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        )
+        self.details.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.details.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        self.details.setPlainText(message)
+        layout.addWidget(self.details, 1)
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+        close = QPushButton(t("Close"))
+        close.setAutoDefault(False)
+        style_button(close, "primary" if ready or not sdk_download_supported() else "secondary")
+        close.clicked.connect(self.reject)
+        buttons.addWidget(close)
+        primary = close
+        if sdk_download_supported():
+            download = QPushButton(t("Download SDK…"))
+            download.setAutoDefault(False)
+            style_button(download, "secondary" if ready else "primary")
+            download.clicked.connect(self.accept)
+            buttons.addWidget(download)
+            if not ready:
+                primary = download
+        layout.addLayout(buttons)
+        primary.setDefault(True)
+        primary.setFocus(Qt.FocusReason.OtherFocusReason)
 
 
 class SDKTask(QThread):
@@ -94,7 +141,8 @@ class SDKInstallDialog(QDialog):
         row.addWidget(self._url, 1)
         row.addWidget(self._load)
         layout.addLayout(row)
-        self._local = QCheckBox(t("Allow local HTTP for testing (loopback only)"))
+        self._local = QCheckBox(t("Allow HTTP for trusted local/VM tests"))
+        self._local.setToolTip(t("Only loopback and private IPv4 addresses are allowed. HTTP is not encrypted."))
         layout.addWidget(self._local)
         self._sdks = QComboBox()
         self._sdks.setAccessibleName(t("Available SDKs"))
