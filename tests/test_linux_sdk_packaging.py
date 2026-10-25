@@ -87,12 +87,13 @@ def test_controlled_sdk_pins_inputs_and_tests_offline_before_archiving(tmp_path,
     recipe = module.load_recipe()
     # Docker orchestration is Linux-only; recipe validation is portable.
     if sys.platform == "linux":
-        build, export, probe, archive = module.commands(tmp_path / "sdk", recipe)
+        build, export, probe, sources, archive = module.commands(tmp_path / "sdk", recipe)
         assert f"UBUNTU_IMAGE={recipe['image']}" in build
         assert f"UBUNTU_SNAPSHOT={recipe['snapshot']}" in build
         assert "--export" in export and "--archive" in archive
         assert recipe["image"] in probe and "--sandboxed" in probe
         assert "/out/relocated-sdk/bin/python3" in probe
+        assert "--sources" in sources and sources[sources.index("--network") + 1] == "bridge"
         for command in (export, probe, archive):
             assert command[command.index("--network") + 1] == "none"
             assert "--read-only" in command

@@ -243,20 +243,23 @@ Esto controla los insumos, pero no garantiza archivos comprimidos idénticos bit
 La confianza HTTPS se prepara con `ca-certificates=20240203` desde el repositorio
 original firmado de Noble por HTTP, antes de activar el snapshot HTTPS. Se
 mantienen las verificaciones TLS y las firmas de APT; cualquier fallo al descargar
-un repositorio detiene la construcción. El contexto de Docker solo incluye la
-aplicación y los scripts del SDK, no el entorno virtual, historial Git ni archivos
-locales de configuración del checkout.
+un repositorio detiene la construcción. El contexto de Docker incluye fuentes
+de la aplicación/SDK, licencias del proyecto, `pyproject.toml` y procedencia con
+hashes, no el entorno virtual, historial Git ni secretos locales. Los enlaces
+simbólicos inesperados en esas fuentes se rechazan, sin seguir rutas externas.
 
 El script reubica el SDK, prepara la prueba sintética de la ABI nativa de FPGALab
 y la ejecuta en el Ubuntu limpio fijado, sin red, cabeceras ni compiladores del
 anfitrión. Los contenedores son de solo lectura salvo la carpeta nueva de salida
-y el almacenamiento temporal. Solo genera el comprimido y checksum si pasa la
-prueba. La salida incluye `toolchain.json`, `source-packages.json`, copyrights,
-`REDISTRIBUTION.txt` y un comprobante separado `validation.json`. Si falla conserva
+y el almacenamiento temporal. La prueba nativa y el empaquetado final no tienen
+red; una fase separada descarga fuentes del mismo repositorio congelado.
+Solo genera el SDK comprimido y checksum si pasan la prueba y la verificación
+de fuentes. La salida incluye `toolchain.json`, `source-packages.json`, copyrights,
+`REDISTRIBUTION.txt`, licencia/avisos de las adaptaciones de FPGALab y un comprobante separado `validation.json`. Si falla conserva
 la salida parcial para diagnóstico; se reintenta con otra carpeta nueva.
 
 El workflow manual **Experimental Linux SDK** de GitHub Actions ejecuta el mismo
-proceso y conserva los artefactos experimentales exitosos durante siete días.
+proceso y conserva por separado binarios y fuentes experimentales durante siete días.
 No crea un release ni modifica el empaquetado habitual. La receta controlada de
 Ubuntu pasó la prueba nativa con SDK reubicado y sin red. La prueba se repite al
 cambiar la receta; las pruebas unitarias solas no validan una nueva toolchain.
@@ -264,6 +267,50 @@ cambiar la receta; las pruebas unitarias solas no validan una nueva toolchain.
 Esta prueba valida el SDK/modelo nativo, no la aplicación PyQt completa en un
 escritorio limpio. El empaquetado gráfico, otras distribuciones y las obligaciones
 de entrega del código fuente correspondiente siguen pendientes antes de publicar.
+
+### Fuentes del SDK y revisión de redistribución
+
+La receta controlada actual usa `ubuntu24.04-x86_64-sdk2`, sin sobrescribir
+instalaciones SDK1. El recolector usa el inventario real `source-packages.json`
+del SDK y deduplica pares idénticos de paquete fuente/versión. Activa índices
+`deb-src` firmados del mismo snapshot, selecciona la versión exacta (nunca otra
+más reciente) y ejecuta `apt-get source --download-only`. Conserva `.dsc`,
+archivos originales y empaquetado/parches Debian/Ubuntu sin extraerlos ni
+ejecutar sus scripts de construcción. El tamaño y SHA-256 de cada archivo deben
+coincidir con el registro APT autenticado; el `.dsc` debe identificar ese mismo
+paquete/versión y cubrir los archivos restantes.
+
+La carpeta separada `sdk-sources/` contiene:
+
+- `packages/<fuente>/<versión>/`: archivos originales y registros APT conservados
+  (solo en los nombres de carpetas, el epoch usa `_` en lugar de `:`).
+- `notices/` y `common-licenses/`: copyrights y textos de licencias conservados.
+- `fpgalab/`: entradas exactas de la aplicación/construcción/reubicación y licencia
+  del proyecto, para volver a ejecutar el constructor con Docker y acceso a red.
+- `source-manifest.json`: cobertura binario/fuente, checksums, receta y procedencia
+  local. Registra revisión Git y estado modificado cuando estén disponibles; los
+  hashes describen los archivos reales, incluso antes de hacer commit.
+
+La salida exitosa agrega `fpgalab-linux-sdk-sources.tar.gz` y su `.sha256` junto
+al archivo habitual del SDK. Sus metadatos enlazan el acompañante mediante SHA-256;
+`source-bundle.json` relaciona los hashes de ambos archivos. Versiones, cobertura,
+copyrights, licencias y entradas locales se verifican de nuevo sin red antes de
+comprimir. Versiones ausentes, fallos de red o checksums incorrectos detienen el
+proceso sin producir un paquete binario exitoso. Los reintentos usan una salida
+nueva; descargar fuentes puede requerir varios GB temporales.
+
+Actions sube el acompañante por separado como `experimental-linux-sdk-sources`.
+El artefacto `experimental-linux-sdk` sigue siendo compatible con el ensamblador
+offline. Los estudiantes descargan solo el SDK binario, no sus fuentes.
+
+El manifiesto indica expresamente **recolectado, no aprobado legalmente**.
+Reunir los archivos no determina automáticamente que sean el código fuente
+correspondiente completo ni que satisfagan todas las licencias. Antes de
+publicar, revisa licencias, adaptaciones, instrucciones de reconstrucción e
+integridad de las fuentes, y ofrece acceso claro y duradero a las fuentes
+exactas junto a los binarios. Los artefactos de Actions de siete días o una
+página upstream genérica no son distribución permanente de fuentes. No retires
+el aviso experimental de redistribución basándote solo en pruebas unitarias.
 
 ### Descarga experimental del SDK
 
@@ -288,7 +335,7 @@ la raíz del repositorio; sustituye la ruta por la salida de tu construcción:
 ```bash
 python3 packaging/linux_toolchain/serve_sdk.py \
   --archive /ruta/al/fpgalab-linux-sdk.tar.gz \
-  --sdk-id ubuntu24.04-x86_64-sdk1
+  --sdk-id ubuntu24.04-x86_64-sdk2
 ```
 
 El servidor genera el catálogo en memoria y solo expone ese catálogo y el
@@ -298,7 +345,7 @@ abierto. En otra terminal, desde la raíz del repositorio:
 ```bash
 python -m fpga_lab.sdk_install \
   --catalog http://127.0.0.1:8765/catalog.json \
-  --sdk-id ubuntu24.04-x86_64-sdk1 --allow-local-http
+  --sdk-id ubuntu24.04-x86_64-sdk2 --allow-local-http
 python -m fpga_lab.app
 ```
 

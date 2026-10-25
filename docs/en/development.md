@@ -234,19 +234,23 @@ This controls build inputs, but does not claim bit-identical archives.
 HTTPS trust is bootstrapped with `ca-certificates=20240203` from Noble's original
 signed release pocket over HTTP, before enabling the HTTPS snapshot. TLS and
 APT signature checks remain enabled; any repository download failure aborts the
-build. Only the application and SDK scripts are sent as the Docker build context,
-not the checkout's virtual environment, Git history or local configuration files.
+build. The Docker context contains application/SDK sources, project license
+files, `pyproject.toml` and hashed provenance, not the checkout's virtual
+environment, Git history or local secrets. Unexpected source-tree symlinks are
+rejected instead of following paths outside those inputs.
 
 The script relocates the SDK, prepares FPGALab's synthetic native ABI probe, and
 runs it in the pinned clean Ubuntu image without network, host headers or build
 tools. Containers run read-only except for the new output directory and temporary
-storage. An archive/checksum is generated only after the probe passes. Output
+storage. The native probe and final archiving are offline; a separate source
+collection phase has network access to download from the same frozen repository.
+Binary archives/checksums are generated only after the probe and source verification pass. Output
 includes `toolchain.json`, `source-packages.json`, package copyright notices,
-`REDISTRIBUTION.txt` and a separate `validation.json` receipt. Partial output is
+`REDISTRIBUTION.txt`, FPGALab adaptation license/notices and a separate `validation.json` receipt. Partial output is
 retained on failure for diagnosis; retry with a new directory.
 
 The manual **Experimental Linux SDK** GitHub Actions workflow runs this same
-process and retains successful experimental artifacts for seven days. It does
+process and retains separate binary/source experimental artifacts for seven days. It does
 not create a release or modify normal application packaging. The controlled
 Ubuntu recipe has passed the relocated, offline native ABI probe. Re-run that
 probe after recipe changes; unit tests alone do not qualify a new toolchain.
@@ -254,6 +258,49 @@ probe after recipe changes; unit tests alone do not qualify a new toolchain.
 This probe qualifies the SDK/native model, not the complete PyQt application in
 a clean desktop. GUI packaging, other distributions and corresponding-source
 redistribution obligations remain separate gates before public distribution.
+
+### SDK sources and redistribution review
+
+The current controlled recipe uses `ubuntu24.04-x86_64-sdk2`, keeping SDK1
+installations immutable. The source collector uses the SDK's actual
+`source-packages.json` inventory and deduplicates identical source/version pairs.
+It enables signed `deb-src` indexes from the same snapshot, selects the exact
+version (never the newest substitute), then uses `apt-get source --download-only`.
+The `.dsc`, original archives and Debian/Ubuntu packaging/patch archives are
+retained without unpacking or executing package build scripts. Every downloaded
+file's size and SHA-256 must match the authenticated APT source record; the `.dsc`
+must identify that same source/version and cover the remaining files.
+
+The separate `sdk-sources/` directory includes:
+
+- `packages/<source>/<version>/`: original source files and retained APT records
+  (epochs use `_` instead of `:` in directory names only).
+- `notices/` and `common-licenses/`: retained package notices and license texts.
+- `fpgalab/`: exact application/build/relocation inputs and project license,
+  sufficient to rerun the controlled builder with Docker and network access.
+- `source-manifest.json`: binary-to-source coverage, checksums, recipe and local
+  input provenance. The Git revision and dirty state are recorded when available;
+  file hashes describe the actual working tree even before a commit.
+
+Successful output adds `fpgalab-linux-sdk-sources.tar.gz` and its `.sha256` beside
+the normal SDK archive. The SDK metadata links that companion by SHA-256;
+`source-bundle.json` links the binary/source archive digests. Source versions,
+coverage, notices, license texts and local inputs are checked again offline before
+archiving. Missing versions, network errors or checksum mismatches abort rather
+than producing a successful binary package. Retry failed builds in a new output
+directory; source downloads may require several GB of temporary disk space.
+
+Actions uploads the companion separately as `experimental-linux-sdk-sources`;
+the existing `experimental-linux-sdk` artifact remains usable by the offline
+assembler. Students download only the binary SDK, not the source companion.
+
+The manifest deliberately says **collected, not legally approved**. A complete
+file collection is not an automatic determination of Corresponding Source or
+component-specific compliance. Before publishing, review licenses, adaptations,
+rebuild instructions and source completeness, and provide clear, durable access
+to the matching sources alongside binaries. Seven-day Actions artifacts or a
+generic upstream homepage are not a permanent source distribution mechanism.
+Do not remove the experimental redistribution warning based on unit tests alone.
 
 ### Experimental SDK download
 
@@ -277,7 +324,7 @@ the repository root (replace the archive path with your build output):
 ```bash
 python3 packaging/linux_toolchain/serve_sdk.py \
   --archive /path/to/fpgalab-linux-sdk.tar.gz \
-  --sdk-id ubuntu24.04-x86_64-sdk1
+  --sdk-id ubuntu24.04-x86_64-sdk2
 ```
 
 This generates the catalog in memory and serves only it and the archive on
@@ -287,7 +334,7 @@ Keep that terminal running. In another terminal, from the repository root:
 ```bash
 python -m fpga_lab.sdk_install \
   --catalog http://127.0.0.1:8765/catalog.json \
-  --sdk-id ubuntu24.04-x86_64-sdk1 --allow-local-http
+  --sdk-id ubuntu24.04-x86_64-sdk2 --allow-local-http
 python -m fpga_lab.app
 ```
 

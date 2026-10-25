@@ -15,10 +15,14 @@ RUN test -n "$UBUNTU_SNAPSHOT" && \
     apt-get update --error-on=any && apt-get dist-upgrade -y && \
     apt-get install -y --no-install-recommends \
       verilator make g++ perl python3 bash dash coreutils findutils
+# Source indexes use exactly the same signed snapshot as the installed binaries.
+RUN sed -n 's/^deb /deb-src /p' /etc/apt/sources.list > /etc/apt/sources.list.d/fpgalab-sources.list && \
+    apt-get update --error-on=any
 # Preparing the real compiler wrapper imports board/i18n (QtCore). This is a
 # builder-only dependency and is not part of the exported SDK package closure.
 RUN apt-get install -y --no-install-recommends python3-pyqt6
 WORKDIR /src
 COPY fpga_lab /src/fpga_lab
 COPY packaging/linux_toolchain /src/packaging/linux_toolchain
+COPY LICENSE NOTICE AUTHORS.md AI_USAGE.md pyproject.toml provenance.json /src/
 ENTRYPOINT ["python3", "/src/packaging/linux_toolchain/container_build.py"]

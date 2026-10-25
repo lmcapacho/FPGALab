@@ -9,11 +9,22 @@ permissions:
 jobs:
   build-and-probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
       - name: Build frozen SDK and probe in clean offline Ubuntu
         run: python3 packaging/linux_toolchain/container_build.py --output "$RUNNER_TEMP/fpgalab-sdk"
+      - name: Upload exact SDK sources (not legal approval or permanent hosting)
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-linux-sdk-sources
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/fpgalab-sdk/fpgalab-linux-sdk-sources.tar.gz
+            ${{ runner.temp }}/fpgalab-sdk/fpgalab-linux-sdk-sources.tar.gz.sha256
+            ${{ runner.temp }}/fpgalab-sdk/sdk-sources/source-manifest.json
+            ${{ runner.temp }}/fpgalab-sdk/source-bundle.json
       - name: Upload experimental SDK (not a release)
         uses: actions/upload-artifact@v4
         with:
@@ -26,3 +37,4 @@ jobs:
             ${{ runner.temp }}/fpgalab-sdk/relocated-sdk/toolchain.json
             ${{ runner.temp }}/fpgalab-sdk/relocated-sdk/source-packages.json
             ${{ runner.temp }}/fpgalab-sdk/validation.json
+            ${{ runner.temp }}/fpgalab-sdk/source-bundle.json
