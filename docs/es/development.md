@@ -268,7 +268,7 @@ de entrega del código fuente correspondiente siguen pendientes antes de publica
 ### Descarga experimental del SDK
 
 `python -m fpga_lab.sdk_install` permite probar una descarga e instalación
-explícitas para mantenimiento; no es todavía un descargador gráfico del primer
+explícitas para mantenimiento; no es un descargador automático del primer
 inicio ni un servicio público. Recibe la URL de un catálogo de confianza y un
 ID de SDK concreto. Instala en los datos del usuario,
 `FPGALab/toolchains/<sdk-id>/`, descritos arriba, no en la carpeta del programa
@@ -320,10 +320,25 @@ lanzar una excepción para cancelar; la futura GUI debe ejecutarlo fuera de su
 hilo principal. Python debe incluir `tarfile.data_filter` (3.12+ o una versión
 anterior actualizada). La aprobación de redistribución pública sigue pendiente.
 
+La GUI ofrece el mismo instalador desde **Comprobar herramientas de simulación
+→ Descargar SDK…** en Linux x86-64. Introduce la URL de confianza y carga el
+catálogo explícitamente; para el servidor anterior, activa la opción de prueba
+HTTP local. Elige un SDK, revisa tamaño comprimido/checksum y carpeta de destino,
+y pulsa **Descargar e instalar**. La carga del catálogo, descarga y extracción
+se ejecutan en un hilo de fondo, con progreso y fases visibles. Cancelar, Escape
+o cerrar la ventana solicita cancelación y conserva el hilo hasta que termine
+de forma segura. Una operación de red pendiente puede tardar hasta su timeout
+de socket en responder. Los errores permanecen en el diálogo para corregir o
+reintentar. Al instalar, se vuelve a resolver y mostrar el diagnóstico; una
+configuración explícita o un SDK incluido aún pueden tener prioridad. Cambiar
+la URL/opción de prueba invalida la selección; si la entrada del servidor
+cambió, hay que recargarla antes de instalar. No se incluye ni consulta
+automáticamente ninguna URL de catálogo.
+
 El archivo del SDK controlado también pasó la descarga completa por loopback
 a datos de usuario temporales aislados, la detección automática y la prueba ABI
-nativa reubicada sin herramientas de compilación del sistema. La integración
-gráfica del primer inicio y su prueba en un escritorio limpio siguen pendientes.
+nativa reubicada sin herramientas de compilación del sistema. La configuración
+automática del primer inicio y su prueba en un escritorio limpio siguen pendientes.
 
 ### Snapshot local y prueba aislada
 

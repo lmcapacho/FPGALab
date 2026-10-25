@@ -92,6 +92,18 @@ def test_sdk_http_install_is_discoverable_immutable_and_cleans_failed_downloads(
             installer.install_sdk(url, entry["id"], destination=failed, allow_local_http=True)
         assert list(failed.iterdir()) == []
     catalog.write_text(json.dumps({"format": 1, "sdks": [entry]}))
+    with pytest.raises(ValueError, match="catalog changed"):
+        installer.install_sdk(url, entry["id"], destination=tmp_path / "changed",
+                              allow_local_http=True, expected_entry={**entry, "sha256": "0" * 64})
+    assert not (tmp_path / "changed").exists()
+    cancelled = [False]
+    def cancel_extract(phase):
+        if phase == "extract":
+            cancelled[0] = True
+    with pytest.raises(installer.SDKInstallCancelled):
+        installer.install_sdk(url, entry["id"], destination=tmp_path / "extract-cancelled",
+                              allow_local_http=True, cancel_requested=lambda: cancelled[0], phase=cancel_extract)
+    assert list((tmp_path / "extract-cancelled").iterdir()) == []
     def cancel(*args):
         raise InterruptedError("cancelled")
     with pytest.raises(InterruptedError):

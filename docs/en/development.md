@@ -258,7 +258,7 @@ redistribution obligations remain separate gates before public distribution.
 ### Experimental SDK download
 
 `python -m fpga_lab.sdk_install` provides an opt-in download/install path for
-maintainer testing, not a first-run GUI downloader or public SDK service.
+maintainer testing, not an automatic first-run downloader or public SDK service.
 It accepts a trusted catalog URL and an explicit SDK ID. Installation is in
 the per-user `FPGALab/toolchains/<sdk-id>/` data directory described above,
 not the application folder or build cache. Existing SDK IDs are never updated
@@ -308,9 +308,23 @@ that may raise to cancel; future GUI integration must run it off the GUI thread.
 Python must include `tarfile.data_filter` (Python 3.12+ or a patched older version).
 Public redistribution licensing remains a separate prerequisite.
 
+The GUI exposes the same installer from **Check simulation toolchain → Download
+SDK…** on Linux x86-64. Enter the trusted catalog URL and explicitly load it;
+for the local server above, enable the loopback HTTP test option. Choose an SDK,
+review its compressed size/checksum and installation folder, then select
+**Download and install**. Catalog loading, downloading and extraction run on a
+background thread; the dialog shows progress and installation stages. Cancel,
+Escape or closing the dialog requests cancellation and retains the thread until
+it stops safely. A pending network operation may take up to its socket timeout
+to respond. Errors stay in the dialog for correction/retry. Success reopens the
+toolchain diagnostic with fresh resolution; existing explicit settings or a
+bundled SDK may still take precedence. Changing the catalog URL/test option
+invalidates its selection, and an entry changed on the server must be reloaded
+before installation. No catalog URL is bundled or fetched automatically.
+
 The controlled SDK archive has also passed a complete loopback download into
 isolated temporary user data, automatic toolchain discovery and the relocated
-native ABI probe without host build tools. First-run GUI integration and a
+native ABI probe without host build tools. Automatic first-run setup and a
 downloaded-SDK clean-desktop check remain separate validation steps.
 
 ### Local snapshot and isolated probe

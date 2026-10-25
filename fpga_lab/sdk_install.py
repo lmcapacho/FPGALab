@@ -23,6 +23,15 @@ MAX_ARCHIVE_SIZE = 1024**3
 MAX_EXTRACTED_SIZE = 4 * 1024**3
 
 
+class SDKInstallCancelled(InterruptedError):
+    """Cooperative cancellation, distinct from network or filesystem failures."""
+
+
+def _check_cancel(cancel_requested):
+    if cancel_requested is not None and cancel_requested():
+        raise SDKInstallCancelled("SDK installation cancelled")
+
+
 def _check_url(url: str, allow_local_http: bool) -> None:
     parsed = urlsplit(url)
     local = parsed.scheme == "http" and parsed.hostname in ("localhost", "127.0.0.1", "::1")
@@ -78,7 +87,7 @@ def read_catalog(url: str, *, allow_local_http=False) -> tuple[dict, ...]:
     return tuple(validated)
 
 
-def _extract(archive: Path, stage: Path) -> Path:
+def _extract(archive: Path, stage: Path, cancel_requested=None) -> Path:
     if not hasattr(tarfile, "data_filter"):
         raise ValueError("Safe SDK extraction requires an updated Python with tarfile.data_filter")
     root = stage / "toolchain"
@@ -86,6 +95,7 @@ def _extract(archive: Path, stage: Path) -> Path:
     with tarfile.open(archive, "r:gz") as source:
         count, total = 0, 0
         for member in source:
+            _check_cancel(cancel_requested)
             count += 1
             total += member.size
             path = PurePosixPath(member.name)
@@ -104,6 +114,7 @@ def _extract(archive: Path, stage: Path) -> Path:
                     raise ValueError("SDK archive link escapes its root")
             source.extract(member, stage, filter="data")
     for path in root.rglob("*"):
+        _check_cancel(cancel_requested)
         if path.is_symlink() and (os.path.isabs(os.readlink(path)) or
                                   not path.resolve().is_relative_to(root) or not path.exists()):
             raise ValueError("SDK contains a non-portable symbolic link")
@@ -111,16 +122,26 @@ def _extract(archive: Path, stage: Path) -> Path:
 
 
 def install_sdk(catalog_url: str, sdk_id: str, *, destination: Path | None = None,
-                allow_local_http=False, progress=None) -> PrivateSDK:
+                allow_local_http=False, progress=None, cancel_requested=None,
+                phase=None, expected_entry: dict | None = None) -> PrivateSDK:
     """Download, verify and publish a new SDK atomically; never overwrite an SDK.
 
     progress receives (downloaded_bytes, expected_bytes) and may raise to cancel.
+    cancel_requested is checked between download blocks and archive members.
+    phase receives a stage identifier; callbacks run on the caller's thread.
+    expected_entry pins the catalog entry shown before GUI confirmation.
     Temporary files and the per-ID installation lock are cleaned on failure.
     """
+    _check_cancel(cancel_requested)
+    if phase:
+        phase("catalog")
     entries = read_catalog(catalog_url, allow_local_http=allow_local_http)
+    _check_cancel(cancel_requested)
     entry = next((item for item in entries if item["id"] == sdk_id), None)
     if entry is None:
         raise ValueError("SDK ID is not present in this catalog")
+    if expected_entry is not None and entry != expected_entry:
+        raise ValueError("SDK catalog changed; reload it before installing")
     # Only the controlled Linux SDK has a validated runtime today.
     if (sys.platform != "linux" or platform.machine().lower() not in ("x86_64", "amd64") or
             entry["platform"] != "linux-x86_64"):
@@ -140,8 +161,15 @@ def install_sdk(catalog_url: str, sdk_id: str, *, destination: Path | None = Non
                 stage = Path(temporary)
                 archive = stage / "download.tar.gz"
                 digest, received = hashlib.sha256(), 0
+                if phase:
+                    phase("download")
                 with _open(entry["url"], allow_local_http) as response, archive.open("xb") as output:
-                    while block := response.read(1024 * 1024):
+                    read = getattr(response, "read1", response.read)
+                    while True:
+                        _check_cancel(cancel_requested)
+                        block = read(1024 * 1024)
+                        if not block:
+                            break
                         received += len(block)
                         if received > entry["size"]:
                             raise ValueError("SDK download exceeds declared size")
@@ -151,7 +179,13 @@ def install_sdk(catalog_url: str, sdk_id: str, *, destination: Path | None = Non
                             progress(received, entry["size"])
                 if received != entry["size"] or digest.hexdigest() != entry["sha256"]:
                     raise ValueError("SDK download size or SHA-256 does not match the catalog")
-                root = _extract(archive, stage)
+                _check_cancel(cancel_requested)
+                if phase:
+                    phase("extract")
+                root = _extract(archive, stage, cancel_requested)
+                _check_cancel(cancel_requested)
+                if phase:
+                    phase("validate")
                 sdk = PrivateSDK.load(root, expected_id=sdk_id)
                 for name in ("source-packages.json", "REDISTRIBUTION.txt"):
                     if not (root / name).is_file():
@@ -161,6 +195,9 @@ def install_sdk(catalog_url: str, sdk_id: str, *, destination: Path | None = Non
                 (root / "installation.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
                 if target.exists() or target.is_symlink():
                     raise FileExistsError("SDK destination appeared during installation")
+                _check_cancel(cancel_requested)
+                if phase:
+                    phase("publish")
                 root.rename(target)
             return PrivateSDK.load(target, expected_id=sdk_id)
         finally:

@@ -9,7 +9,7 @@ from threading import Event
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QSettings, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QSettings, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from .board import DEFAULT_BOARD_ID, BoardDefinition, bundled_board_definition
@@ -26,6 +26,7 @@ from .project_pins import ProjectPinMap
 from .signals import signal_reference
 from .simulation import VerilatorSimulation
 from .simulation_settings import SimulationSettings, SimulationSettingsDialog
+from .sdk_dialog import SDKInstallDialog, sdk_download_supported
 from .toolchain import resolve_verilator
 from .theme import application_palette, application_stylesheet, load_theme_mode
 from .verilog_interface import VerilogInterface
@@ -167,6 +168,7 @@ class ApplicationController(QObject):
         )
         self._manual_profile = BoardProfile.load(namespace.profile) if namespace.profile else None
         self._build_worker: BuildWorker | None = None
+        self._sdk_dialog: SDKInstallDialog | None = None
         self._pending_run: PendingProjectRun | None = None
         self._switching_lab = False
         window.project_requested.connect(self.execute_project)
@@ -359,6 +361,9 @@ class ApplicationController(QObject):
 
     def shutdown(self) -> None:
         """Cancel an in-flight native build before Qt destroys thread objects."""
+        if self._sdk_dialog is not None and self._sdk_dialog.is_busy():
+            self._sdk_dialog.reject()
+            self._window.block_close(t("Waiting for SDK setup to stop safely."))
         worker = self._build_worker
         if worker is not None and worker.isRunning():
             worker.cancel()
@@ -378,13 +383,39 @@ class ApplicationController(QObject):
 
     def check_toolchain(self) -> None:
         """Report the resolved compiler stack before a user starts a build."""
+        while True:
+            ready, message = self._toolchain_report()
+            self._window.set_status(t("Simulation toolchain is ready.") if ready
+                                    else t("Simulation toolchain is not ready."))
+            report = QMessageBox(self._window)
+            report.setWindowTitle(t("Simulation toolchain"))
+            report.setIcon(QMessageBox.Icon.Information if ready else QMessageBox.Icon.Warning)
+            report.setTextFormat(Qt.TextFormat.PlainText)
+            report.setText(message)
+            report.setStandardButtons(QMessageBox.StandardButton.Ok)
+            download = report.addButton(t("Download SDK…"), QMessageBox.ButtonRole.ActionRole) if sdk_download_supported() else None
+            report.exec()
+            requested = download is not None and report.clickedButton() is download
+            report.deleteLater()
+            if not requested:
+                return
+            self._sdk_dialog = SDKInstallDialog(self._window)
+            try:
+                installed = self._sdk_dialog.exec() == SDKInstallDialog.DialogCode.Accepted
+            finally:
+                self._sdk_dialog.deleteLater()
+                self._sdk_dialog = None
+            if not installed:
+                return
+            # Re-resolve rather than assuming the downloaded SDK overrides explicit settings.
+
+    def _toolchain_report(self) -> tuple[bool, str]:
+        """Keep diagnostics identical before and after SDK installation."""
         try:
             toolchain = resolve_verilator()
             toolchain.validate_build_prerequisites()
         except Exception as error:
-            self._window.set_status(t("Simulation toolchain is not ready."))
-            QMessageBox.warning(self._window, t("Simulation toolchain"), str(error))
-            return
+            return False, str(error)
         details = [
             t("Ready to compile."),
             "",
@@ -405,8 +436,7 @@ class ApplicationController(QObject):
             limit=_format_storage(cache.budget_bytes()),
         ))
         message = "\n".join(details)
-        self._window.set_status(t("Simulation toolchain is ready."))
-        QMessageBox.information(self._window, t("Simulation toolchain"), message)
+        return True, message
 
     def configure_simulation(self) -> None:
         """Persist runtime rates selected in the graphical interface."""
