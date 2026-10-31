@@ -180,9 +180,8 @@ directory, including `_internal`, together when distributing it.
 Native Wayland remains enabled. Startup maps the window normally and waits for
 its first exposure before requesting maximization; X11 and other platforms
 maximize directly. No global `QT_QPA_PLATFORM` override is applied. Automated
-tests verify this ordering; default startup also passed on a clean Ubuntu 24.04
-desktop without forcing X11. Other compositor configurations require separate
-validation; a headless test alone does not establish compositor compatibility.
+tests verify this ordering. Validate compositor compatibility on a real desktop;
+a headless test alone does not establish it.
 
 ## Experimental self-contained Linux toolchain
 
@@ -234,7 +233,7 @@ This controls build inputs, but does not claim bit-identical archives.
 HTTPS trust is bootstrapped with `ca-certificates=20240203` from Noble's original
 signed release pocket over HTTP, before enabling the HTTPS snapshot. TLS and
 APT signature checks remain enabled; any repository download failure aborts the
-build. The Docker context contains application/SDK sources, project license
+build. The Docker context contains compiler/probe and SDK packaging sources, project license
 files, `pyproject.toml` and hashed provenance, not the checkout's virtual
 environment, Git history or local secrets. Unexpected source-tree symlinks are
 rejected instead of following paths outside those inputs.
@@ -251,9 +250,9 @@ retained on failure for diagnosis; retry with a new directory.
 
 The manual **Experimental Linux SDK** GitHub Actions workflow runs this same
 process and retains separate binary/source experimental artifacts for seven days. It does
-not create a release or modify normal application packaging. The controlled
-Ubuntu recipe has passed the relocated, offline native ABI probe. Re-run that
-probe after recipe changes; unit tests alone do not qualify a new toolchain.
+not create a release or modify normal application packaging. Run the relocated,
+offline native ABI probe after recipe changes; unit tests alone do not qualify
+a new toolchain.
 
 This probe qualifies the SDK/native model, not the complete PyQt application in
 a clean desktop. GUI packaging, other distributions and corresponding-source
@@ -261,8 +260,14 @@ redistribution obligations remain separate gates before public distribution.
 
 ### SDK sources and redistribution review
 
-The current controlled recipe uses `ubuntu24.04-x86_64-sdk2`, keeping SDK1
-installations immutable. The source collector uses the SDK's actual
+The SDK ID and frozen build inputs are defined in
+`packaging/linux_toolchain/recipe.json`. Published IDs are immutable.
+The build context limits local inputs to the compiler/probe import
+closure, native `.cpp`/`.h` files, SDK packaging scripts and project notices.
+Desktop artwork, board packages, peripheral packages and translations are not
+build inputs. The source companion copies only provenance-listed files. This
+does not change the licensing review of those resources in the desktop package.
+The source collector uses the SDK's actual
 `source-packages.json` inventory and deduplicates identical source/version pairs.
 It enables signed `deb-src` indexes from the same snapshot, selects the exact
 version (never the newest substitute), then uses `apt-get source --download-only`.
@@ -276,7 +281,7 @@ The separate `sdk-sources/` directory includes:
 - `packages/<source>/<version>/`: original source files and retained APT records
   (epochs use `_` instead of `:` in directory names only).
 - `notices/` and `common-licenses/`: retained package notices and license texts.
-- `fpgalab/`: exact application/build/relocation inputs and project license,
+- `fpgalab/`: exact compiler/probe/build/relocation inputs and project license,
   sufficient to rerun the controlled builder with Docker and network access.
 - `source-manifest.json`: binary-to-source coverage, checksums, recipe and local
   input provenance. The Git revision and dirty state are recorded when available;
@@ -302,6 +307,10 @@ to the matching sources alongside binaries. Seven-day Actions artifacts or a
 generic upstream homepage are not a permanent source distribution mechanism.
 Do not remove the experimental redistribution warning based on unit tests alone.
 
+Maintainer-only artifact evidence and publication checks are kept in the
+[SDK compliance record](https://github.com/lmcapacho/FPGALab/blob/main/packaging/linux_toolchain/compliance/sdk-licenses.en.md),
+separate from this development procedure.
+
 ### Experimental SDK download
 
 `python -m fpga_lab.sdk_install` provides an opt-in download/install path for
@@ -324,7 +333,7 @@ the repository root (replace the archive path with your build output):
 ```bash
 python3 packaging/linux_toolchain/serve_sdk.py \
   --archive /path/to/fpgalab-linux-sdk.tar.gz \
-  --sdk-id ubuntu24.04-x86_64-sdk2
+  --sdk-id ubuntu24.04-x86_64-sdk3
 ```
 
 This generates the catalog in memory and serves only it and the archive on
@@ -334,7 +343,7 @@ Keep that terminal running. In another terminal, from the repository root:
 ```bash
 python -m fpga_lab.sdk_install \
   --catalog http://127.0.0.1:8765/catalog.json \
-  --sdk-id ubuntu24.04-x86_64-sdk2 --allow-local-http
+  --sdk-id ubuntu24.04-x86_64-sdk3 --allow-local-http
 python -m fpga_lab.app
 ```
 
@@ -385,11 +394,6 @@ long errors and paths remain accessible.
 When tools are ready, Close is the primary/default action; otherwise Download
 SDK is primary where supported. Initial focus stays on that button, not the
 read-only diagnostic text. Escape always closes without starting a download.
-
-The controlled SDK archive has also passed a complete loopback download into
-isolated temporary user data, automatic toolchain discovery and the relocated
-native ABI probe without host build tools. Automatic first-run setup and a
-downloaded-SDK clean-desktop check remain separate validation steps.
 
 ### Local snapshot and isolated probe
 
@@ -484,11 +488,6 @@ open the executable directly, verify its toolchain points inside `toolchains/`,
 then load a Lab/design, simulate, Stop/Run, close and reopen without variables.
 The VM does not need Docker, Python or build tools, but designs must include
 their generated `ice-build` files.
-
-The complete bundle was validated on a clean Ubuntu 24.04 VM: direct startup,
-automatic bundled-tool discovery, Lab/design loading, compilation, simulation
-and reopening worked without manual toolchain paths. This does not establish
-compatibility with other distributions or prove network isolation.
 
 The manual **Experimental Linux offline package** workflow builds the app and
 downloads `experimental-linux-sdk` from a specified successful SDK workflow run

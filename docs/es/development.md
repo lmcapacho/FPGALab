@@ -186,9 +186,8 @@ incluyendo `_internal`.
 Wayland nativo sigue habilitado. El arranque muestra la ventana normal y espera
 su primera exposición antes de maximizar; X11 y las demás plataformas maximizan
 directamente. No se impone `QT_QPA_PLATFORM` globalmente. Las pruebas automáticas
-verifican ese orden; también se validó el arranque predeterminado en un escritorio
-Ubuntu 24.04 limpio sin forzar X11. Otras configuraciones de compositor requieren
-validación aparte; una prueba sin escritorio por sí sola no valida el compositor.
+verifican ese orden. Valida la compatibilidad del compositor en un escritorio real;
+una prueba sin escritorio por sí sola no la establece.
 
 ## Toolchain Linux autocontenido experimental
 
@@ -244,7 +243,7 @@ La confianza HTTPS se prepara con `ca-certificates=20240203` desde el repositori
 original firmado de Noble por HTTP, antes de activar el snapshot HTTPS. Se
 mantienen las verificaciones TLS y las firmas de APT; cualquier fallo al descargar
 un repositorio detiene la construcción. El contexto de Docker incluye fuentes
-de la aplicación/SDK, licencias del proyecto, `pyproject.toml` y procedencia con
+del compilador/prueba y empaquetado del SDK, licencias del proyecto, `pyproject.toml` y procedencia con
 hashes, no el entorno virtual, historial Git ni secretos locales. Los enlaces
 simbólicos inesperados en esas fuentes se rechazan, sin seguir rutas externas.
 
@@ -260,9 +259,9 @@ la salida parcial para diagnóstico; se reintenta con otra carpeta nueva.
 
 El workflow manual **Experimental Linux SDK** de GitHub Actions ejecuta el mismo
 proceso y conserva por separado binarios y fuentes experimentales durante siete días.
-No crea un release ni modifica el empaquetado habitual. La receta controlada de
-Ubuntu pasó la prueba nativa con SDK reubicado y sin red. La prueba se repite al
-cambiar la receta; las pruebas unitarias solas no validan una nueva toolchain.
+No crea un release ni modifica el empaquetado habitual. Ejecuta la prueba nativa
+con SDK reubicado y sin red al cambiar la receta; las pruebas unitarias solas no
+validan una nueva toolchain.
 
 Esta prueba valida el SDK/modelo nativo, no la aplicación PyQt completa en un
 escritorio limpio. El empaquetado gráfico, otras distribuciones y las obligaciones
@@ -270,8 +269,15 @@ de entrega del código fuente correspondiente siguen pendientes antes de publica
 
 ### Fuentes del SDK y revisión de redistribución
 
-La receta controlada actual usa `ubuntu24.04-x86_64-sdk2`, sin sobrescribir
-instalaciones SDK1. El recolector usa el inventario real `source-packages.json`
+El ID del SDK y los insumos congelados se definen en
+`packaging/linux_toolchain/recipe.json`. Los IDs publicados son inmutables.
+El contexto de construcción limita las entradas locales al compilador y sus
+importaciones para la prueba, fuentes nativas `.cpp`/`.h`, scripts de empaquetado
+del SDK y avisos del proyecto. No incluye gráficos de escritorio, paquetes de
+tarjetas/periféricos ni traducciones, porque no intervienen en esa construcción.
+El acompañante copia solo archivos enumerados en la procedencia. Esto no cambia
+la revisión de licencias de esos recursos en el paquete de escritorio.
+El recolector usa el inventario real `source-packages.json`
 del SDK y deduplica pares idénticos de paquete fuente/versión. Activa índices
 `deb-src` firmados del mismo snapshot, selecciona la versión exacta (nunca otra
 más reciente) y ejecuta `apt-get source --download-only`. Conserva `.dsc`,
@@ -285,7 +291,7 @@ La carpeta separada `sdk-sources/` contiene:
 - `packages/<fuente>/<versión>/`: archivos originales y registros APT conservados
   (solo en los nombres de carpetas, el epoch usa `_` en lugar de `:`).
 - `notices/` y `common-licenses/`: copyrights y textos de licencias conservados.
-- `fpgalab/`: entradas exactas de la aplicación/construcción/reubicación y licencia
+- `fpgalab/`: entradas exactas del compilador/prueba/construcción/reubicación y licencia
   del proyecto, para volver a ejecutar el constructor con Docker y acceso a red.
 - `source-manifest.json`: cobertura binario/fuente, checksums, receta y procedencia
   local. Registra revisión Git y estado modificado cuando estén disponibles; los
@@ -312,6 +318,10 @@ exactas junto a los binarios. Los artefactos de Actions de siete días o una
 página upstream genérica no son distribución permanente de fuentes. No retires
 el aviso experimental de redistribución basándote solo en pruebas unitarias.
 
+Las evidencias de artefactos y controles de publicación para mantenedores están
+en el [registro de cumplimiento del SDK](https://github.com/lmcapacho/FPGALab/blob/main/packaging/linux_toolchain/compliance/sdk-licenses.es.md),
+separado de este procedimiento de desarrollo.
+
 ### Descarga experimental del SDK
 
 `python -m fpga_lab.sdk_install` permite probar una descarga e instalación
@@ -335,7 +345,7 @@ la raíz del repositorio; sustituye la ruta por la salida de tu construcción:
 ```bash
 python3 packaging/linux_toolchain/serve_sdk.py \
   --archive /ruta/al/fpgalab-linux-sdk.tar.gz \
-  --sdk-id ubuntu24.04-x86_64-sdk2
+  --sdk-id ubuntu24.04-x86_64-sdk3
 ```
 
 El servidor genera el catálogo en memoria y solo expone ese catálogo y el
@@ -345,7 +355,7 @@ abierto. En otra terminal, desde la raíz del repositorio:
 ```bash
 python -m fpga_lab.sdk_install \
   --catalog http://127.0.0.1:8765/catalog.json \
-  --sdk-id ubuntu24.04-x86_64-sdk2 --allow-local-http
+  --sdk-id ubuntu24.04-x86_64-sdk3 --allow-local-http
 python -m fpga_lab.app
 ```
 
@@ -398,11 +408,6 @@ scroll para consultar completos los errores y rutas largos.
 Si las herramientas están listas, Cerrar es la acción primaria/predeterminada;
 si no, lo es Descargar SDK donde esté disponible. El foco inicial queda en ese
 botón, no en el texto de solo lectura. Escape siempre cierra sin descargar.
-
-El archivo del SDK controlado también pasó la descarga completa por loopback
-a datos de usuario temporales aislados, la detección automática y la prueba ABI
-nativa reubicada sin herramientas de compilación del sistema. La configuración
-automática del primer inicio y su prueba en un escritorio limpio siguen pendientes.
 
 ### Snapshot local y prueba aislada
 
@@ -497,11 +502,6 @@ un escritorio Ubuntu 24.04 limpio: abre directamente el ejecutable, comprueba
 que las herramientas estén en `toolchains/` y carga un Lab/diseño, simula, prueba
 Stop/Run, cierra y vuelve a abrir sin variables. La VM no necesita Docker, Python
 ni herramientas de compilación, pero los diseños deben incluir `ice-build` generado.
-
-El paquete completo se validó en una VM Ubuntu 24.04 limpia: apertura directa,
-detección automática de herramientas incluidas, carga de Lab/diseño, compilación,
-simulación y reapertura sin rutas manuales del toolchain. Esto no demuestra
-compatibilidad con otras distribuciones ni aislamiento de red.
 
 El workflow manual **Experimental Linux offline package** construye la aplicación
 y descarga `experimental-linux-sdk` desde una ejecución exitosa del workflow SDK
