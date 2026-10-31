@@ -73,7 +73,11 @@ def test_source_collection_deduplicates_exact_versions_and_verifies_companion(to
     sdk.rename(relocated)
     sdk = relocated
     output = tmp_path / "sdk-sources"
+    unrelated = repository / "fpga_lab/assets/board.svg"
+    unrelated.parent.mkdir()
+    unrelated.write_text("not a build input")
     manifest = sources.collect(sdk, output, repository)
+    assert not (output / "fpgalab/fpga_lab/assets").exists()
     assert len(manifest["sources"]) == 1
     assert manifest["sources"][0]["binaries"] == ["demo-bin", "libdemo"]
     assert calls[-1][-1] == "demo=1:2.0-1"  # Never choose the newest available version.
@@ -125,7 +129,14 @@ def test_sdk_context_records_real_inputs_without_git_history_or_local_installs(t
     repository.mkdir()
     for name in ("fpga_lab", "packaging/linux_toolchain", ".git", ".venv", "fpga_lab/__pycache__"):
         (repository / name).mkdir(parents=True, exist_ok=True)
-    (repository / "fpga_lab/example.py").write_text("# current working tree\n")
+    for name in build.PROBE_FILES:
+        (repository / "fpga_lab" / name).write_text("# current working tree\n")
+    (repository / "fpga_lab/native").mkdir()
+    (repository / "fpga_lab/native/sim_streaming.cpp").write_text("// native input\n")
+    (repository / "fpga_lab/assets").mkdir()
+    (repository / "fpga_lab/assets/board.svg").write_text("artwork; not a build input")
+    (repository / "packaging/linux_toolchain/compliance").mkdir()
+    (repository / "packaging/linux_toolchain/compliance/review.md").write_text("maintenance evidence")
     (repository / "fpga_lab/__pycache__/example.pyc").write_bytes(b"cache")
     (repository / "fpga_lab/.env").write_text("local secret; never copy")
     (repository / ".env").write_text("local secret; never copy")
@@ -135,7 +146,34 @@ def test_sdk_context_records_real_inputs_without_git_history_or_local_installs(t
     context.mkdir()
     build.prepare_context(repository, context)
     provenance = json.loads((context / "provenance.json").read_text())
-    assert provenance["files"]["fpga_lab/example.py"] == sources.sha256(repository / "fpga_lab/example.py")
+    assert provenance["files"]["fpga_lab/compiler.py"] == sources.sha256(repository / "fpga_lab/compiler.py")
+    assert "fpga_lab/native/sim_streaming.cpp" in provenance["files"]
+    assert not (context / "fpga_lab/assets").exists()
+    assert not (context / "packaging/linux_toolchain/compliance").exists()
     assert not (context / ".git").exists() and not (context / ".env").exists()
     assert not (context / ".venv").exists() and not (context / "fpga_lab/__pycache__").exists()
     assert not (context / "fpga_lab/.env").exists()
+
+
+def test_minimal_sdk_context_prepares_real_native_probe(tools, tmp_path):
+    """Exercise the actual compiler import/resource closure without the full app."""
+    import subprocess
+    import sys
+    build, _ = tools
+    context = tmp_path / "context"
+    context.mkdir()
+    build.prepare_context(Path(__file__).parents[1], context)
+    sdk = tmp_path / "sdk"
+    sdk.mkdir()
+    (sdk / "bin").mkdir()
+    (sdk / "bin/verilator").write_text("synthetic path; prepare does not execute tools")
+    script = (
+        "import importlib.util, pathlib; "
+        "spec=importlib.util.spec_from_file_location('probe', 'packaging/linux_toolchain/probe.py'); "
+        "probe=importlib.util.module_from_spec(spec); spec.loader.exec_module(probe); "
+        f"probe.prepare(pathlib.Path({str(sdk)!r}), pathlib.Path({str(tmp_path / 'probe')!r}))"
+    )
+    subprocess.run([sys.executable, "-c", script], cwd=context, check=True)
+    assert (tmp_path / "probe/build/sim_main.cpp").is_file()
+    assert (tmp_path / "probe/build/native/sim_streaming.cpp").is_file()
+    assert not (context / "fpga_lab/assets").exists()

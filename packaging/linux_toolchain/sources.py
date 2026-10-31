@@ -144,11 +144,17 @@ def collect(sdk, output, repository):
     shutil.copytree(sdk / "rootfs/usr/share/common-licenses", output / "common-licenses")
     local = output / "fpgalab"
     local.mkdir()
-    ignore = shutil.ignore_patterns("__pycache__", "*.pyc")
-    for name in ("fpga_lab", "packaging/linux_toolchain"):
-        shutil.copytree(repository / name, local / name, ignore=ignore)
-    for name in ("LICENSE", "NOTICE", "AUTHORS.md", "AI_USAGE.md", "pyproject.toml", "provenance.json"):
-        shutil.copy2(repository / name, local / name)
+    # Copy exactly the recorded build inputs, never adjacent desktop resources.
+    for relative in provenance["files"]:
+        path = Path(relative)
+        source = repository / path
+        if (path.is_absolute() or ".." in path.parts or source.is_symlink() or
+                not source.resolve().is_relative_to(repository.resolve())):
+            raise ValueError(f"Invalid build input path: {relative}")
+        destination = local / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    shutil.copy2(repository / "provenance.json", local / "provenance.json")
     # Record every local input, not just a Git revision that may have uncommitted changes.
     for relative, checksum in provenance["files"].items():
         if sha256(local / relative) != checksum:

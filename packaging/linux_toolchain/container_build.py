@@ -14,6 +14,9 @@ import tempfile
 
 HERE = Path(__file__).resolve().parent
 CONTEXT_FILES = ("LICENSE", "NOTICE", "AUTHORS.md", "AI_USAGE.md", "pyproject.toml")
+# Compiler/probe import closure, not the desktop application or its artwork.
+PROBE_FILES = ("__init__.py", "compiler.py", "cpp_wrapper.py", "profile.py",
+               "board.py", "i18n.py", "locale_catalog.py")
 
 
 def load_tool(name):
@@ -31,14 +34,29 @@ def prepare_context(repository, context):
     """Capture actual build inputs, including dirty working-tree changes, never Git internals."""
     sources = source_tools()
     excluded = shutil.ignore_patterns("__pycache__", "*.pyc", ".env", ".env.*", ".git", ".venv", "venv",
-                                     "*.so", "*.dll", "*.dylib")
+                                     "*.so", "*.dll", "*.dylib", "compliance")
     def ignore(directory, names):
         ignored = excluded(directory, names)
         for name in set(names) - set(ignored):
             if (Path(directory) / name).is_symlink():
                 raise ValueError(f"Build input symlinks must be resolved explicitly: {Path(directory) / name}")
         return ignored
-    shutil.copytree(repository / "fpga_lab", context / "fpga_lab", ignore=ignore)
+    application = context / "fpga_lab"
+    application.mkdir()
+    for name in PROBE_FILES:
+        source = repository / "fpga_lab" / name
+        if source.is_symlink():
+            raise ValueError(f"Build input symlinks must be resolved explicitly: {source}")
+        shutil.copy2(source, application / name)
+    native = application / "native"
+    native.mkdir()
+    for source in sorted((repository / "fpga_lab/native").iterdir()):
+        if source.suffix not in {".cpp", ".h"}:
+            continue
+        if source.is_symlink():
+            raise ValueError(f"Build input symlinks must be resolved explicitly: {source}")
+        if source.is_file():
+            shutil.copy2(source, native / source.name)
     shutil.copytree(repository / "packaging/linux_toolchain", context / "packaging/linux_toolchain", ignore=ignore)
     for name in CONTEXT_FILES:
         shutil.copy2(repository / name, context / name)
