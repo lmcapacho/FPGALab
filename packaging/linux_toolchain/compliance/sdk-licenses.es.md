@@ -158,6 +158,12 @@ una enumeración exhaustiva de obligaciones.
 
 ## Hallazgos concretos y prioridad
 
+Seguimiento SDK3: [la revisión de componentes](sdk3-review.es.md) aclara la versión
+ACL/attr contra cabeceras y parches, y confirma cobertura fuente de DB_File. Es
+avance limitado; también registra reubicación Verilator y alcance MIT/BSD y de
+cabeceras estándar. No cierra esos puntos para todo el SDK. Se
+conservan los hallazgos históricos SDK2 siguientes.
+
 1. **Berkeley DB se usa, no solo aparece en una lista.** `readelf -d` sobre
    `rootfs/usr/lib/x86_64-linux-gnu/perl/5.38.2/auto/DB_File/DB_File.so` del SDK
    registra `libdb-5.3.so` como NEEDED. Sleepycat incluye condiciones de acceso

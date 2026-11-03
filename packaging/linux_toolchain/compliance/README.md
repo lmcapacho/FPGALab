@@ -7,6 +7,8 @@ the controlled Docker context and source companion: they are not build inputs.
 
 - [License matrix and SDK2/SDK3 evidence — English](sdk-licenses.en.md)
 - [Matriz de licencias y evidencias SDK2/SDK3 — español](sdk-licenses.es.md)
+- [SDK3 component review — English](sdk3-review.en.md)
+- [Revisión de componentes SDK3 — español](sdk3-review.es.md)
 - [Build and test procedure — English](../../../docs/en/development.md#experimental-self-contained-linux-toolchain)
 - [Procedimiento de construcción y pruebas — español](../../../docs/es/development.md#toolchain-linux-autocontenido-experimental)
 

@@ -153,6 +153,12 @@ check, not permission to redistribute or a complete list of obligations.
 
 ## Concrete findings and priority
 
+SDK3 follow-up: [the component review](sdk3-review.en.md) clarifies the ACL/attr
+version wording against source headers and patches, and confirms DB_File source
+coverage. It also records Verilator's observed relocation changes and embedded
+MIT/BSD/standard-header scope. This is limited progress, not closure of SDK-wide
+items. Historical SDK2 observations below are retained.
+
 1. **Berkeley DB is used, not merely listed.** `readelf -d` on the SDK's
    `rootfs/usr/lib/x86_64-linux-gnu/perl/5.38.2/auto/DB_File/DB_File.so` records
    `libdb-5.3.so` as NEEDED. Sleepycat includes source-access conditions for DB
