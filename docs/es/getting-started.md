@@ -82,6 +82,17 @@ otra caché y `--clock-hz`, `--ui-refresh-hz` y `--observation-hz` para ajustes
 de simulación válidos solo durante esta ejecución. Usa `fpga-lab --help` para
 ver todas las opciones.
 
+Abre un Lab con `fpga-lab /ruta/ejemplo.lab` o
+`fpga-lab --lab /ruta/ejemplo.lab`. También admite el formato anterior `.lab.json`.
+Puedes combinar `--lab` con `--ice` para seleccionar el Lab antes de ejecutar el
+diseño. Desde fuentes usa `python -m fpga_lab.app` con los mismos argumentos.
+Pon entre comillas las rutas con espacios. Los Labs externos se abren en su
+ubicación, sin importar una copia al workspace: las ediciones posteriores se
+guardan en ese archivo. Abrirlo no lo reescribe. Los externos no sustituyen el Lab
+recordado del workspace; usa Importar en el administrador para conservar una copia
+allí. Esto no instala asociaciones de archivos ni abre documentos en una instancia
+que ya esté ejecutándose.
+
 ## Opcional: ejecutar desde el código fuente
 
 Esta alternativa requiere Python 3.10+, además del toolchain del paso 2:

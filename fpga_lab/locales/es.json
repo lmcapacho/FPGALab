@@ -1,5 +1,10 @@
 {
   "_meta": {"code": "es", "name": "Español", "contributors": []},
+  "Lab file to open (.lab or legacy .lab.json).": "Archivo Lab que se abrirá (.lab o el formato anterior .lab.json).",
+  "Lab file to open at startup.": "Archivo Lab que se abrirá al iniciar.",
+  "Use either --lab or a positional Lab file, not both.": "Usa --lab o un archivo Lab como argumento directo, no ambos.",
+  "The Lab file must use .lab or .lab.json.": "El archivo Lab debe usar .lab o .lab.json.",
+  "Cannot open Lab {path}: {error}": "No se puede abrir el Lab {path}: {error}",
   "Download simulation SDK": "Descargar SDK de simulación",
   "Close": "Cerrar",
   "Download SDK…": "Descargar SDK…",

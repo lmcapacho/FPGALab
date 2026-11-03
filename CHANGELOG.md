@@ -6,6 +6,8 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Open a Lab at startup using `--lab` or a positional `.lab`/legacy `.lab.json` path, including alongside `--ice`. External Labs open in place without importing or overwriting workspace Labs; invalid files are rejected before startup.
+
 - Community translation infrastructure with locale metadata/credits, native-name language selection, English fallback for partial catalogs, template generation and CI validation. Qt dialog translations include regional fallback and locale-based text direction; no new interface languages are shipped yet.
 - Experimental offline Linux package assembly combines the application and a checksum-verified SDK in one portable archive, with automatic tool discovery, retained license inventories and a manual CI workflow that reuses an independently validated SDK artifact. Direct startup, compilation and simulation were validated on a clean Ubuntu 24.04 VM without manual tool paths. Public SDK redistribution approval remains pending.
 - Automatic discovery of compatible Linux SDKs beside the packaged executable or in per-user application data, with isolated build tools, compatibility checks and diagnostic notices. Experimental opt-in installation from a trusted versioned catalog is available by command and through the toolchain diagnostic, with size/SHA-256 verification, safe extraction, background GUI progress and cancellation. A loopback server supports maintainer tests without publishing SDKs. Explicit toolchain configuration remains authoritative; automatic first-run downloads and public SDK hosting are not implemented yet.

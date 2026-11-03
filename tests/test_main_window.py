@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import json
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,6 +19,61 @@ from fpga_lab.profile import BoardProfile
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
+
+
+def test_cli_lab_arguments_validate_paths_and_reject_conflicts(tmp_path):
+    from fpga_lab.app import parse_arguments
+
+    path = tmp_path / "shared example.lab"
+    path.write_text(json.dumps({"metadata": {"board_id": "alhambra-ii"}, "peripherals": []}))
+    for args in ([str(path)], ["--lab", str(path)], [str(path), "--ice", "design.ice"]):
+        namespace = parse_arguments(args)
+        assert namespace.lab == path.resolve()
+    assert parse_arguments([]).lab is None
+    legacy = tmp_path / "legacy.lab.json"
+    legacy.write_bytes(path.read_bytes())
+    assert parse_arguments([str(legacy)]).lab == legacy.resolve()
+    for args in ([str(path), "--lab", str(path)], [str(tmp_path / "missing.lab")], ["design.ice"]):
+        with pytest.raises(SystemExit) as error:
+            parse_arguments(args)
+        assert error.value.code == 2
+    for data in ("not json", "[]", '{"metadata":{"board_id":"missing-board"}}',
+                 '{"peripherals":[{"id":"bad","type":"led","connections":[]}]}'):
+        path.write_text(data)
+        with pytest.raises(SystemExit) as error:
+            parse_arguments([str(path)])
+        assert error.value.code == 2
+
+
+def test_external_startup_lab_selects_board_without_import_or_rewrite(tmp_path):
+    from fpga_lab.app import ApplicationController, parse_arguments
+    from fpga_lab.virtual_lab import FPGAVirtualLab
+
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    workspace = LabWorkspace(tmp_path / "workspace", settings)
+    previous = workspace.ensure_default()
+    workspace.remember_selected(previous)
+    from fpga_lab.simulation_settings import SimulationSettings
+    settings.setValue(SimulationSettings.CLOCK_KEY, 8_000_000)
+    path = tmp_path / "shared.lab"
+    original = json.dumps({"metadata": {"board_id": "icebreaker_bitsy_v1"}, "peripherals": []})
+    path.write_text(original)
+    namespace = parse_arguments(["--lab", str(path), "--cache-dir", str(tmp_path / "cache")])
+    window = FPGALabMainWindow(workspace, settings=settings, initial_lab=namespace.lab)
+    try:
+        controller = ApplicationController(_APPLICATION, window, namespace)
+        assert window.selected_lab() == path.resolve()
+        assert controller._board_id == window.selected_board_id()
+        assert controller._board_id != "alhambra_ii"
+        lab = FPGAVirtualLab(lab_file=window.selected_lab(), board_id=controller._board_id, settings=settings)
+        window.set_lab(lab)
+        assert lab._lab_file == path.resolve()
+        assert path.read_text() == original
+        assert workspace.last_selected() == previous.resolve()
+        assert [item.path for item in workspace.labs()] == [previous]
+    finally:
+        window.close()
+    assert path.read_text() == original
 
 
 def test_startup_maps_wayland_before_maximizing_and_does_not_reopen_closed_windows():

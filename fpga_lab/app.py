@@ -13,6 +13,7 @@ from PyQt6.QtCore import QObject, QSettings, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from .board import DEFAULT_BOARD_ID, BoardDefinition, bundled_board_definition
+from .board_catalog import BoardCatalog
 from .branding import application_icon
 from .build_cache import VerilatorBuildCache
 from .compiler import BuildCancelled
@@ -104,9 +105,11 @@ def migrate_legacy_clock(store: QSettings, window: FPGALabMainWindow) -> None:
     store.sync()
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line options while keeping the normal path GUI-first."""
     parser = argparse.ArgumentParser(description="Open the virtual FPGA lab.")
+    parser.add_argument("lab_file", nargs="?", type=Path, help=t("Lab file to open (.lab or legacy .lab.json)."))
+    parser.add_argument("--lab", type=Path, help=t("Lab file to open at startup."))
     parser.add_argument("--library", type=Path, help="Prebuilt library (advanced mode).")
     parser.add_argument("--ice", type=Path, help="Icestudio .ice file to open at startup.")
     parser.add_argument("--cache-dir", type=Path, help="Optional Verilator cache location.")
@@ -114,7 +117,23 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--clock-hz", type=int, help="Override the saved virtual clock frequency for this launch.")
     parser.add_argument("--ui-refresh-hz", type=int, help="Override the saved UI refresh frequency for this launch.")
     parser.add_argument("--observation-hz", type=int, help="Override the saved peripheral temporal sampling rate for this launch.")
-    return parser.parse_args()
+    namespace = parser.parse_args(argv)
+    if namespace.lab is not None and namespace.lab_file is not None:
+        parser.error(t("Use either --lab or a positional Lab file, not both."))
+    namespace.lab = namespace.lab or namespace.lab_file
+    if namespace.lab is not None:
+        path = namespace.lab.expanduser().resolve()
+        if not path.name.lower().endswith((".lab", ".lab.json")):
+            parser.error(t("The Lab file must use .lab or .lab.json."))
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            LabWorkspace._validate_lab_document(raw)
+            board_id = raw.get("metadata", {}).get("board_id") or DEFAULT_BOARD_ID
+            BoardCatalog().resolve(board_id)
+        except (OSError, UnicodeError, ValueError, KeyError) as error:
+            parser.error(t("Cannot open Lab {path}: {error}", path=path, error=error))
+        namespace.lab = path
+    return namespace
 
 
 def project_clock_port(project: IcestudioProject, interface: VerilogInterface, board_id: str = DEFAULT_BOARD_ID) -> str | None:
@@ -159,7 +178,10 @@ class ApplicationController(QObject):
         VerilatorBuildCache(namespace.cache_dir).maintain()
         self._board_id = window.selected_board_id()
         self._settings_store = window.user_settings()
-        migrate_legacy_clock(self._settings_store, window)
+        # Opening a supplied Lab must not migrate unrelated user preferences
+        # into that document. Defer the one-time migration to a normal launch.
+        if getattr(namespace, "lab", None) is None:
+            migrate_legacy_clock(self._settings_store, window)
         self._simulation_settings = SimulationSettings.load(
             self._settings_store, default_clock_hz=self._effective_clock_hz(self._board_id)
         ).with_overrides(
@@ -499,7 +521,7 @@ def main() -> None:
         app.setDesktopFileName("fpgalab")
     app.setWindowIcon(application_icon())
     workspace = LabWorkspace()
-    window = FPGALabMainWindow(workspace)
+    window = FPGALabMainWindow(workspace, initial_lab=namespace.lab)
     window.setWindowIcon(application_icon())
     controller = ApplicationController(app, window, namespace)
     window.set_lab(FPGAVirtualLab(

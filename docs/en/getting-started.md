@@ -81,6 +81,16 @@ Start the desktop application with `fpga-lab`, or open a design directly with
 build cache, and `--clock-hz`, `--ui-refresh-hz`, and `--observation-hz` for
 session-only simulation overrides. Run `fpga-lab --help` for the complete list.
 
+Open a Lab with `fpga-lab /path/to/example.lab` or
+`fpga-lab --lab /path/to/example.lab`. Legacy `.lab.json` files are also supported.
+You may combine `--lab` with `--ice` to select the Lab before running the design.
+From source, use `python -m fpga_lab.app` with the same arguments. Quote paths
+containing spaces. External Labs open in place, without importing a copy into
+the workspace: subsequent edits save to that file. Opening alone does not rewrite
+it. External files do not replace the workspace's remembered Lab; use Import in
+the Lab manager to keep a workspace copy. This does not install desktop file
+associations or add opening files to an already running instance.
+
 ## Optional: run from source
 
 This alternative requires Python 3.10+ in addition to the toolchain from step 2:

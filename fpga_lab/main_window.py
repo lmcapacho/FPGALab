@@ -345,7 +345,7 @@ class FPGALabMainWindow(QMainWindow):
     BOARD_KEY = "boards/selected_id"
 
     def __init__(self, workspace: LabWorkspace, parent=None, settings: QSettings | None = None,
-                 board_catalog: BoardCatalog | None = None):
+                 board_catalog: BoardCatalog | None = None, initial_lab: Path | None = None):
         super().__init__(parent)
         self.setMinimumSize(1000, 680)
         self._workspace = workspace
@@ -353,7 +353,8 @@ class FPGALabMainWindow(QMainWindow):
         self._board_catalog = board_catalog if board_catalog is not None else BoardCatalog()
         self._recent_projects = RecentProjects(self._settings)
         self._theme_mode = load_theme_mode(self._settings)
-        self._selected_lab = self._workspace.last_selected()
+        # External Labs open in place; importing into the workspace is explicit.
+        self._selected_lab = initial_lab.resolve() if initial_lab is not None else self._workspace.last_selected()
         try:
             self._initial_board_id = self.board_id_for_lab(self._selected_lab)
             self._board_load_error = None
