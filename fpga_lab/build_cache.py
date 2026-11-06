@@ -16,7 +16,7 @@ from typing import Callable
 from .compiler import BuildRequest, VerilatorCompiler, verilator_optimization_flags
 from .cpp_wrapper import render_cpp_wrapper
 from .ice_project import IcestudioProject
-from .i18n import t
+from .messages import t
 from .profile import BoardProfile
 from .toolchain import resolve_verilator
 

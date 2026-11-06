@@ -1,6 +1,9 @@
 """Reactive MISO response through the generated native ABI."""
 import shutil
 import subprocess
+import sys
+import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -30,6 +33,33 @@ def spi_library(tmp_path):
                     str(tmp_path / "wrapper.cpp"), str(native / "sim_streaming.cpp"),
                     str(native / "vga_decoder.cpp"), "-o", str(library)], check=True, capture_output=True)
     return library, profile
+
+
+def test_native_model_runs_without_qt(spi_library):
+    library, profile = spi_library
+    script = r'''
+import importlib.abc
+import sys
+import json
+class NoQt(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in ('PyQt6', 'PySide6'):
+            raise AssertionError('Native model tried to import Qt: ' + fullname)
+sys.meta_path.insert(0, NoQt())
+from fpga_lab.simulation import VerilatorSimulation
+from fpga_lab.profile import BoardProfile
+with VerilatorSimulation(sys.argv[1], BoardProfile(**json.loads(sys.argv[2]))) as sim:
+    sim.set_input('input_bus', 3)
+    sim.ticks(4)
+    assert sim.get_output('echo') == 3
+    sim.reset()
+    sim.set_input('input_bus', 1)
+    sim.ticks(2)
+    assert sim.get_output('echo') == 1
+assert 'fpga_lab.i18n' not in sys.modules
+'''
+    subprocess.run([sys.executable, "-c", script, str(library), json.dumps(asdict(profile))],
+                   cwd=Path(__file__).parents[1], check=True)
 
 
 def test_native_spi_response_modes_polarity_order_and_reset(spi_library):

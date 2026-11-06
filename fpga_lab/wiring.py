@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .board import BoardDefinition
 from .constraints import PcfParser, PinConstraint
-from .i18n import t
+from .messages import t
 from .peripherals.catalog import load_catalog, spec_for
 
 # Aliases computed from the bundled catalog (PR1 compatibility).

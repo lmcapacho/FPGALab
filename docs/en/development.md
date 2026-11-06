@@ -57,6 +57,47 @@ HDL does not use that board pin.
 
 ## Main modules
 
+### Framework-free core boundary
+
+Board definitions/catalogs/layout data, profiles, constraints and wiring,
+compiler/wrapper generation, build caching/toolchain resolution, native-model
+bindings, temporal models and UART/SPI decoding/scheduling can be imported
+without PyQt6 or a Qt application. These modules do not read Qt user preferences.
+Use explicit build requests/profiles and toolchain paths/environment for headless
+hosts. The package still installs PyQt6 for its desktop application; a separate
+headless distribution is not provided.
+
+`messages.py` formats English source messages by default, without loading locale
+catalogs or preferences. A host may explicitly install a process-wide translation
+callback with `set_translator`; `None` restores English. Importing the desktop
+`i18n.py` adapter installs the active Qt language manager's translator, preserving
+live language changes and catalog-formatting fallback. This callback is not a
+per-request language setting: concurrent web clients should not switch it for
+each request. A future server adapter must handle request-specific presentation.
+
+For a precompiled native model and its matching profile:
+
+```python
+from fpga_lab.profile import BoardProfile
+from fpga_lab.simulation import VerilatorSimulation
+
+profile = BoardProfile.load("profile.json")
+with VerilatorSimulation("./model.so", profile) as model:
+    model.set_input("button", 1)  # Must be an input in this profile.
+    model.ticks(1000)
+    print(model.get_output("led"))  # Must be an output in this profile.
+```
+
+Use the appropriate library extension for the host. Native execution still
+requires a compatible compiled model; removing Qt imports does not supply a
+toolchain or sandbox native code. `SimulationWorker`, application/session
+orchestration, workspace preferences and settings dialogs remain Qt adapters.
+There is no GUI-independent Run/Stop session service or web server yet.
+Regression tests block Qt imports in a fresh process, prepare a native build and
+exercise the generated C ABI with a synthetic model.
+
+### Desktop and domain modules
+
 - `app.py`: application orchestration and build lifecycle.
 - `compiler.py` and `build_cache.py`: Verilator generation and incremental native builds.
 - `simulation.py` and `simulation_worker.py`: native binding and background execution.

@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from .i18n import t
+from .messages import t
 from .board import DEFAULT_BOARD_ID
 
 

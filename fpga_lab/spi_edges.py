@@ -7,7 +7,7 @@ from itertools import groupby
 from typing import Iterable
 import re
 
-from .i18n import t
+from .messages import t
 
 
 def spi_response_byte(value) -> int:

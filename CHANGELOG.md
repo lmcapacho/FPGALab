@@ -6,6 +6,8 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
+- Framework-free imports for board/wiring data, compilation/toolchain services, native-model bindings and protocol helpers. Headless hosts use English messages or an explicit translation adapter; the desktop retains live translations. Qt worker/session orchestration remains separate from this initial core boundary.
+
 - Open a Lab at startup using `--lab` or a positional `.lab`/legacy `.lab.json` path, including alongside `--ice`. External Labs open in place without importing or overwriting workspace Labs; invalid files are rejected before startup.
 
 - Community translation infrastructure with locale metadata/credits, native-name language selection, English fallback for partial catalogs, template generation and CI validation. Qt dialog translations include regional fallback and locale-based text direction; no new interface languages are shipped yet.

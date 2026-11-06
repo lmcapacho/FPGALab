@@ -6,7 +6,7 @@ import ctypes
 from dataclasses import dataclass
 from pathlib import Path
 
-from .i18n import t
+from .messages import t
 from .profile import BoardProfile
 from .sink_bind import BoundBit, VgaTiming
 from .temporal import SignalWindow

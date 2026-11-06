@@ -16,7 +16,7 @@ HERE = Path(__file__).resolve().parent
 CONTEXT_FILES = ("LICENSE", "NOTICE", "AUTHORS.md", "AI_USAGE.md", "pyproject.toml")
 # Compiler/probe import closure, not the desktop application or its artwork.
 PROBE_FILES = ("__init__.py", "compiler.py", "cpp_wrapper.py", "profile.py",
-               "board.py", "i18n.py", "locale_catalog.py")
+               "board.py", "messages.py")
 
 
 def load_tool(name):

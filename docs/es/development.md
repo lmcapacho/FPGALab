@@ -60,6 +60,47 @@ físicamente en el Lab aunque el HDL actual no utilice ese pin.
 
 ## Módulos principales
 
+### Límite del núcleo independiente de frameworks
+
+Definiciones/catálogos/datos de layout de tarjetas, perfiles, restricciones y
+conexiones, compilador/generador del wrapper, caché/resolución de herramientas,
+binding del modelo nativo, modelos temporales y decodificación/planificación
+UART/SPI pueden importarse sin PyQt6 ni aplicación Qt. No leen preferencias Qt.
+Los anfitriones sin GUI usan solicitudes de compilación/perfiles explícitos y
+rutas/entorno de herramientas. El paquete sigue instalando PyQt6 para la
+aplicación de escritorio; no hay una distribución headless separada.
+
+`messages.py` formatea mensajes fuente en inglés por defecto, sin cargar catálogos
+ni preferencias. El anfitrión puede instalar explícitamente una función de
+traducción para todo el proceso con `set_translator`; `None` restaura el inglés.
+Importar el adaptador de escritorio `i18n.py` instala el traductor del gestor Qt,
+conservando cambios de idioma y fallback de formato. No es una configuración por
+petición: clientes web concurrentes no deben cambiarla para cada solicitud.
+Un futuro adaptador servidor deberá resolver la presentación por cliente.
+
+Para un modelo nativo ya compilado y su perfil correspondiente:
+
+```python
+from fpga_lab.profile import BoardProfile
+from fpga_lab.simulation import VerilatorSimulation
+
+profile = BoardProfile.load("profile.json")
+with VerilatorSimulation("./model.so", profile) as model:
+    model.set_input("button", 1)  # Debe ser una entrada del perfil.
+    model.ticks(1000)
+    print(model.get_output("led"))  # Debe ser una salida del perfil.
+```
+
+Usa la extensión de biblioteca apropiada para el sistema. La ejecución sigue
+necesitando un modelo compilado compatible: quitar imports Qt no aporta una
+toolchain ni aísla código nativo. `SimulationWorker`, la coordinación de sesiones,
+preferencias del workspace y diálogos de configuración siguen siendo adaptadores
+Qt. Aún no hay servicio Run/Stop independiente de GUI ni servidor web.
+Las regresiones bloquean imports Qt en un proceso nuevo, preparan una compilación
+nativa y ejercitan la ABI generada con un modelo sintético.
+
+### Módulos de escritorio y dominio
+
 - `app.py`: coordinación de la aplicación y ciclo de compilación.
 - `compiler.py` y `build_cache.py`: generación con Verilator y compilación incremental.
 - `simulation.py` y `simulation_worker.py`: enlace nativo y ejecución en segundo plano.

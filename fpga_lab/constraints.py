@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .i18n import t
+from .messages import t
 from pathlib import Path
 
 _SET_IO = re.compile(r"^\s*set_io\s+(?P<body>.+?)\s*$")

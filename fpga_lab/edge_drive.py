@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .i18n import t
+from .messages import t
 
 
 class TimedDriveScheduler:

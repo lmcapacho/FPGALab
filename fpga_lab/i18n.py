@@ -8,6 +8,7 @@ from pathlib import Path
 from PyQt6.QtCore import QCoreApplication, QLibraryInfo, QLocale, QObject, QSettings, QTranslator, pyqtSignal
 
 from .locale_catalog import LOCALES_DIR, LocaleCatalog, valid_translation
+from .messages import format_message, set_translator
 
 
 def _available_catalogs(directory=LOCALES_DIR) -> dict[str, LocaleCatalog]:
@@ -110,10 +111,9 @@ class QtDialogTranslations(QObject):
 
 def t(source: str, /, **values: object) -> str:
     """Translate a stable English source string and format named placeholders."""
-    text = language_manager.translate(source)
-    try:
-        return text.format(**values)
-    except (KeyError, ValueError, IndexError, AttributeError, TypeError):
-        if text == source:
-            raise
-        return source.format(**values)
+    return format_message(source, language_manager.translate(source), **values)
+
+
+# Only the Qt presentation layer chooses a persisted language. Core imports
+# never reach this module or initialize the desktop's preference store.
+set_translator(lambda source: language_manager.translate(source))

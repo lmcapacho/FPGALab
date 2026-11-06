@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .i18n import t
+from .messages import t
 from .private_toolchain import (
     PrivateSDK, SDKValidationError, bundled_toolchains_root, sdk_candidates, user_toolchains_root,
 )
