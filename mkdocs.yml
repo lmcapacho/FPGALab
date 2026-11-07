@@ -52,4 +52,5 @@ nav:
   - Toolchain and troubleshooting: troubleshooting.md
   - External peripheral API: peripheral-api.md
   - Architecture and contribution: development.md
+  - Packaging and controlled SDKs: packaging.md
   - Contribute a translation: translations.md

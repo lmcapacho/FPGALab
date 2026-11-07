@@ -33,6 +33,7 @@ Read the relevant [architecture guide](docs/en/development.md) and [peripheral A
 - Prefer a few tests for contracts and regressions over one test per cosmetic adjustment. Verify a GUI fix visually when automated assertions cannot establish its appearance.
 - Update both language versions of the documentation when changing a public workflow or peripheral API, and note user-visible changes under `Unreleased` in `CHANGELOG.md`.
 - Keep `README.md` as a concise project entry point: purpose, current scope, installation prerequisites, first-run steps, and links to the English and Spanish guides. Put detailed toolchain setup, architecture, APIs, and exhaustive controls in `docs/en/` and `docs/es/`, not in the README.
+- Keep `development.md` focused on architecture, core contracts and contribution. Put maintainer packaging/SDK procedures in `packaging.md` and artifact-specific evidence/open items in `packaging/linux_toolchain/compliance/`; do not turn contributor guides into a diary of local validation runs.
 
 ## Change hygiene
 

@@ -63,13 +63,25 @@ are skipped with diagnostic notices; an explicitly selected broken SDK fails
 instead of silently changing compilers. A private SDK uses its own tools, not
 host Make/G++. It is never copied or removed by compilation-cache cleanup.
 
-This first integration accepts the controlled Linux x86-64 SDK format only,
+SDK discovery accepts the controlled Linux x86-64 format only,
 with Verilator 5+, a compatible host glibc and paths without whitespace.
 Folders are searched in descending natural ID order within each location;
 the bundled location has priority over per-user SDKs. Versioned SDKs should be
 immutable: use a new ID when replacing tools. Automatic download, installation
 and updates are not implemented. Use only SDKs from a trusted source: metadata
 compatibility checks are not signature or archive-integrity verification.
+
+### Optional SDK download (development builds)
+
+On Linux x86-64, open **Check simulation toolchain → Download SDK…** and load
+a catalog URL supplied by a trusted maintainer. Select the SDK and choose
+**Download and install**. No public catalog is configured by default and startup
+does not download tools automatically. The installer verifies archive size and
+SHA-256 before installation; those checks do not authenticate an untrusted
+catalog. Cancel requests a safe stop and failed downloads are cleaned up.
+Explicit tool configuration and bundled SDKs retain priority over downloaded
+SDKs. Local catalog/VM experiments are described in the
+[maintainer packaging guide](packaging.md#experimental-sdk-download).
 
 ### The application runs but no window appears
 

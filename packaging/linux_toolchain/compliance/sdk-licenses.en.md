@@ -223,5 +223,5 @@ Students' Labs and HDL designs are not included in the SDK source companion.
 When the recipe, package versions, source inputs or selected artifacts change,
 compare the new `source-packages.json` and `source-manifest.json`, refresh every
 affected row/count/hash and reopen applicable items. Do not treat this SDK2
-snapshot as approval of another build. Keep [source collection](../../../docs/en/development.md#sdk-sources-and-redistribution-review)
+snapshot as approval of another build. Keep [source collection](../../../docs/en/packaging.md#sdk-sources-and-redistribution-review)
 and actual release hosting separate from license-review decisions.

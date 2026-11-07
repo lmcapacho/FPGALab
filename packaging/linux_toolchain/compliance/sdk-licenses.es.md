@@ -233,5 +233,5 @@ HDL de estudiantes no se incluyen en el acompañante de fuentes.
 Si cambian receta, versiones, entradas o artefactos elegidos, compara los nuevos
 `source-packages.json` y `source-manifest.json`, actualiza filas/conteos/hashes
 afectados y reabre los puntos aplicables. Este snapshot SDK2 no aprueba otras
-construcciones. La [recolección de fuentes](../../../docs/es/development.md#fuentes-del-sdk-y-revision-de-redistribucion)
+construcciones. La [recolección de fuentes](../../../docs/es/packaging.md#fuentes-del-sdk-y-revision-de-redistribucion)
 y el alojamiento del release no sustituyen las decisiones de revisión de licencias.

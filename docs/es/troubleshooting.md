@@ -64,7 +64,7 @@ produce un error en vez de cambiar de compilador silenciosamente. El SDK usa
 sus propias herramientas, no Make/G++ del sistema. La limpieza de caché de
 compilación no copia ni elimina estas herramientas.
 
-Esta primera integración admite solo el formato controlado Linux x86-64, con
+La detección admite solo el formato controlado Linux x86-64, con
 Verilator 5+, glibc del sistema compatible y rutas sin espacios. Dentro de cada
 ubicación las carpetas se buscan por ID en orden natural descendente; la
 ubicación incluida tiene prioridad sobre la del usuario. Los SDK versionados
@@ -72,6 +72,18 @@ deben ser inmutables: usa un ID nuevo al cambiar herramientas. No se implementan
 todavía descarga, instalación ni actualización automáticas. Usa solo SDK de
 origen confiable: validar compatibilidad de metadatos no verifica firmas ni la
 integridad del comprimido.
+
+### Descarga opcional del SDK (versiones de desarrollo)
+
+En Linux x86-64, abre **Comprobar herramientas de simulación → Descargar SDK…**
+y carga una URL de catálogo proporcionada por un mantenedor de confianza. Elige
+el SDK y **Descargar e instalar**. No hay catálogo público predeterminado ni
+descarga automática al iniciar. El instalador verifica tamaño y SHA-256 antes
+de instalar; eso no autentica un catálogo desconocido. Cancelar solicita una
+detención segura y las descargas fallidas se limpian. La configuración explícita
+y los SDK incluidos siguen teniendo prioridad sobre los descargados. Las pruebas
+con catálogos locales/VM están en la
+[guía de empaquetado](packaging.md#descarga-experimental-del-sdk).
 
 ### La aplicación ejecuta pero no aparece la ventana
 
