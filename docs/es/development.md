@@ -98,10 +98,10 @@ with VerilatorSimulation("./model.so", profile) as model:
 
 Usa la extensión de biblioteca apropiada para el sistema. La ejecución sigue
 necesitando un modelo compilado compatible: quitar imports Qt no aporta una
-toolchain ni aísla código nativo. La coordinación de sesiones, preferencias del
-workspace y diálogos siguen usando Qt; `SimulationWorker` adapta temporizador y
-señales al motor independiente. Aún no hay servicio completo de carga de proyectos
-y sesiones ni servidor web.
+toolchain ni aísla código nativo. `SessionService` prepara, compila y abre sesiones
+sin Qt; preferencias, diálogos y coordinación visual siguen en el escritorio.
+`SimulationWorker` adapta temporizador y señales al motor independiente. No se
+incluye un servidor web.
 Las regresiones bloquean imports Qt en un proceso nuevo, preparan una compilación
 nativa y ejercitan la ABI generada con un modelo sintético.
 
@@ -144,9 +144,66 @@ Las excepciones se propagan al anfitrión sin GUI; el adaptador Qt conserva señ
 de error/aviso y detiene su temporizador ante fallos de ejecución. Después de
 apagar, cambiar entradas combinacionales no publica salidas hasta Run.
 
-### Módulos de escritorio y dominio
+### Preparación, compilación y propiedad de sesiones
 
-- `app.py`: coordinación de la aplicación y ciclo de compilación.
+`session.py` ofrece `SessionService` síncrono para escritorio y anfitriones sin GUI.
+No abre diálogos, lee QSettings, crea hilos ni elige idioma.
+`prepare(ice_file, lab_file=..., board_id=..., profile=..., clock_hz=...)` lee la
+exportación existente de Icestudio, resuelve tarjeta/perfil y PCF/XDC y devuelve
+`PreparedSession` con controles integrados, conexiones, avisos y `lab_document`
+sin modificar, incluidos metadata/anotaciones. Trata sus diccionarios anidados
+como datos de solo lectura.
+Las instancias/conexiones desconocidas permanecen conservadas en el Lab original;
+preparar no importa ni reescribe el archivo. Tarjeta/reloj explícitos tienen
+prioridad sobre metadata; en su ausencia usa la tarjeta/reloj del Lab y después
+la tarjeta predeterminada y su reloj. El perfil manual opcional es un objeto
+`BoardProfile`, no una ruta de archivo.
+
+`build(prepared, verilator=..., optimization_mode=..., cancel_requested=...)` usa
+la caché exacta/incremental administrada, comprueba cancelación antes/después y
+la transmite al compilador. No sustituye la sesión activa.
+`open(prepared, artifact, observation_hz=...)` cierra la sesión anterior antes de
+inicializar el modelo nativo y crea un motor pausado con niveles inactivos de
+controles integrados, incluidos botones activos en bajo. Devuelve
+`SimulationSession` con preparación, artefacto, binding y motor. `close()` es
+idempotente; si falla la configuración, cierra el modelo que ya cargó.
+Cada preparación debe usarse con su propio artefacto compilado.
+
+```python
+from fpga_lab.session import SessionService
+
+service = SessionService(cache_dir="/path/to/managed-cache")
+prepared = service.prepare("design.ice", lab_file="example.lab")
+artifact = service.build(prepared, verilator="/path/to/sdk/bin/verilator")
+session = service.open(prepared, artifact)
+try:
+    session.engine.play()
+    frame = session.engine.advance(1 / 60)
+    print(frame.outputs, prepared.wires, prepared.warnings)
+    session.engine.reset()
+    session.engine.power_off()
+finally:
+    service.close()
+```
+
+Se requieren exportaciones `ice-build` existentes y herramientas compatibles.
+Compilar bloquea al llamador: el `BuildWorker` de escritorio lo hace fuera del
+hilo gráfico. Solo datos de preparación/compilación de lectura cruzan esa frontera;
+abrir y operar el modelo corresponde a su dueño. El escritorio cierra el worker
+anterior antes de `open` y transfiere el motor nuevo al worker Qt; no operes el
+servicio/modelo concurrentemente desde otro hilo. Servicios separados no aíslan
+la ABI global del proceso: la misma biblioteca no admite varios dueños activos.
+
+Es la base de sesiones nativas, no un renderizador headless del Lab ni una API
+servidor. La persistencia del workbench y planes automáticos de captura temporal/
+serie por renderizador siguen en escritorio; un anfitrión sin GUI puede usar las
+conexiones resueltas para configurar explícitamente las API de captura/entradas
+del motor. No incluye HTTP, aislamiento multiusuario ni sandbox de servidor.
+
+### Mapa de módulos
+
+- `app.py`: coordinación de escritorio y presentación de compilación asíncrona.
+- `session.py`: preparación, caché y propiedad de sesiones nativas sin GUI.
 - `compiler.py` y `build_cache.py`: generación con Verilator y compilación incremental.
 - `simulation.py`: enlace nativo; `simulation_engine.py`: ejecución y cuadros.
 - `simulation_worker.py`: adaptador de temporizador, ciclo de hilo y señales Qt.

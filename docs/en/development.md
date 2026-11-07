@@ -95,10 +95,10 @@ with VerilatorSimulation("./model.so", profile) as model:
 
 Use the appropriate library extension for the host. Native execution still
 requires a compatible compiled model; removing Qt imports does not supply a
-toolchain or sandbox native code. Application/session orchestration, workspace
-preferences and settings dialogs remain Qt-based; `SimulationWorker` is the
-timer/signals adapter for the independent engine. There is no complete
-project-loading/session service or web server yet.
+toolchain or sandbox native code. `SessionService` prepares, builds and opens
+native sessions without Qt; workspace preferences, settings dialogs and visual
+coordination remain desktop concerns. `SimulationWorker` is the timer/signals
+adapter for the independent engine. No web server is provided.
 Regression tests block Qt imports in a fresh process, prepare a native build and
 exercise the generated C ABI with a synthetic model.
 
@@ -141,9 +141,67 @@ Exceptions propagate to a headless host; the Qt adapter maps them to the existin
 failure/notice signals and stops its timer on execution failure. After power-off,
 combinational input changes do not publish fresh output frames until Run.
 
-### Desktop and domain modules
+### Session preparation, build and ownership
 
-- `app.py`: application orchestration and build lifecycle.
+`session.py` exposes a synchronous `SessionService` shared by the desktop and
+headless hosts. It does not open dialogs, read QSettings, start threads or choose
+a language. `prepare(ice_file, lab_file=..., board_id=..., profile=..., clock_hz=...)`
+reads the existing Icestudio export, resolves the board/profile and PCF/XDC,
+and returns a `PreparedSession` with integrated-control mappings, peripheral
+wires, the unmodified `lab_document` (including metadata/annotations) and
+compatibility warnings. Treat the preparation's nested dictionaries as read-only.
+Unknown peripheral instances/connections
+remain preserved in the source Lab; preparation never imports or rewrites it.
+An explicit board/clock takes precedence over Lab metadata; otherwise the Lab's
+board and clock override apply, falling back to the default board and its clock.
+The optional manual profile is a `BoardProfile`, not a filename.
+
+`build(prepared, verilator=..., optimization_mode=..., cancel_requested=...)`
+uses the managed exact/incremental cache and checks cancellation before/after
+the build as well as forwarding it to the compiler. It does not replace the
+active session. `open(prepared, artifact, observation_hz=...)` stops/closes the
+service's previous session before native initialization, then creates a paused
+engine with integrated-control idle levels (including active-low buttons).
+The host receives a `SimulationSession` containing the preparation, artifact,
+native binding and engine. `close()` is idempotent; setup failures close a model
+that was already loaded. Keep prepared results paired with their own artifacts.
+
+```python
+from fpga_lab.session import SessionService
+
+service = SessionService(cache_dir="/path/to/managed-cache")
+prepared = service.prepare("design.ice", lab_file="example.lab")
+artifact = service.build(prepared, verilator="/path/to/sdk/bin/verilator")
+session = service.open(prepared, artifact)
+try:
+    session.engine.play()
+    frame = session.engine.advance(1 / 60)
+    print(frame.outputs, prepared.wires, prepared.warnings)
+    session.engine.reset()
+    session.engine.power_off()
+finally:
+    service.close()
+```
+
+Existing exports in `ice-build` and a compatible toolchain remain required.
+Build calls block their caller: the desktop's `BuildWorker` runs them outside
+the GUI thread. Only immutable/read-only preparation/build data cross that
+boundary; opening and model operations stay with the model owner. The desktop
+closes its old worker before `open`, then transfers the new engine to its Qt
+worker; do not call service/model operations concurrently from another thread.
+Separate services do not isolate the process-global C ABI: the same shared
+library must not have multiple live owners in one process.
+
+This is the native session foundation, not a headless renderer of a Lab or a
+server API. Workbench persistence and automatic per-renderer temporal/serial
+binding plans still belong to the desktop; a headless host can use the resolved
+wires to configure the engine's existing capture/drive APIs explicitly. There
+is no HTTP transport, multi-user isolation or public-server sandbox in this API.
+
+### Module map
+
+- `app.py`: desktop coordination and asynchronous build presentation.
+- `session.py`: GUI-independent preparation, cached builds and native-session ownership.
 - `compiler.py` and `build_cache.py`: Verilator generation and incremental native builds.
 - `simulation.py`: native binding; `simulation_engine.py`: execution and frame contracts.
 - `simulation_worker.py`: Qt timer, thread-lifecycle and signal adapter.

@@ -28,11 +28,11 @@ class SimulationWorker(QObject):
                  observation_hz: int = 1_000_000,
                  led_sources: dict[int, tuple[str, int]] | None = None,
                  led_endpoints: tuple[str, ...] | None = None,
-                 led_active_low: tuple[bool, ...] = ()):
+                 led_active_low: tuple[bool, ...] = (), *, engine: SimulationEngine | None = None):
         super().__init__()
         if ui_refresh_hz <= 0:
             raise ValueError(t("clock_hz, ui_refresh_hz, and observation_hz must be positive."))
-        self._engine = SimulationEngine(
+        self._engine = engine if engine is not None else SimulationEngine(
             simulation, clock_hz, observation_hz=observation_hz, led_sources=led_sources,
             led_endpoints=tuple(led_endpoints or ()), led_active_low=led_active_low)
         self._ui_refresh_hz = ui_refresh_hz

@@ -22,7 +22,7 @@ class NoQt(importlib.abc.MetaPathFinder):
 sys.meta_path.insert(0, NoQt())
 for name in ('board', 'board_layout', 'board_catalog', 'profile', 'constraints',
              'project_pins', 'signals', 'wiring', 'sink_bind', 'temporal',
-             'compiler', 'cpp_wrapper', 'simulation', 'simulation_engine', 'ice_project', 'build_cache',
+             'compiler', 'cpp_wrapper', 'simulation', 'simulation_engine', 'session', 'ice_project', 'build_cache',
              'private_toolchain', 'toolchain', 'sdk_install', 'edge_drive',
              'serial_edges', 'spi_edges', 'peripherals.catalog', 'peripherals.validate'):
     importlib.import_module('fpga_lab.' + name)
@@ -51,6 +51,16 @@ profile = BoardProfile('headless', {'clk': 1}, {'led': 1}, {}, 'clk')
 target, args = VerilatorCompiler().prepare(BuildRequest(
     verilog, profile, build_dir=workspace / 'build', verilator=str(tool)))
 assert '--cc' in args and (workspace / 'build/sim_main.cpp').is_file()
+from fpga_lab.session import SessionService
+ice = workspace / 'probe.ice'
+ice.write_text('{}')
+exported = workspace / 'ice-build/probe'
+exported.mkdir(parents=True)
+(exported / 'main.v').write_text(verilog.read_text())
+prepared = SessionService(workspace / 'cache').prepare(ice)
+assert prepared.module_name == 'top' and prepared.board_id == 'alhambra_ii'
+assert not (workspace / 'cache').exists()
+assert 'fpga_lab.lab_workspace' not in sys.modules
 assert not any(name.startswith(('PyQt6', 'PySide6')) for name in sys.modules)
 assert 'fpga_lab.i18n' not in sys.modules
 '''

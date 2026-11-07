@@ -22,6 +22,26 @@ _TERMINAL_DIRECTIONS = PERIPHERAL_TERMINALS
 SUPPLY_ENDPOINTS = frozenset({"GND", "VCC"})
 
 
+def validate_lab_document(raw: object) -> None:
+    """Validate portable Lab structure without importing desktop preferences."""
+    if not isinstance(raw, dict):
+        raise ValueError("A FPGALab Lab must be a JSON object.")
+    if not isinstance(raw.get("metadata", {}), dict) or not isinstance(raw.get("peripherals", []), list):
+        raise ValueError("The Lab metadata or peripheral list is invalid.")
+    identifiers = set()
+    for item in raw.get("peripherals", []):
+        if not isinstance(item, dict):
+            raise ValueError("Every peripheral in a Lab must be an object.")
+        identifier, kind = item.get("id"), item.get("type")
+        if not isinstance(identifier, str) or not identifier.strip() or not isinstance(kind, str) or not kind.strip():
+            raise ValueError("Every peripheral must have a valid id and type.")
+        if identifier in identifiers:
+            raise ValueError("Multiple peripherals use the same id.")
+        if not isinstance(item.get("connections", {}), dict) or not isinstance(item.get("properties", {}), dict):
+            raise ValueError("Peripheral connections and properties must be objects.")
+        identifiers.add(identifier)
+
+
 @dataclass(frozen=True)
 class PeripheralInstance:
     peripheral_id: str
@@ -51,7 +71,7 @@ class VirtualLabProject:
     def from_raw(cls, raw: dict[str, object]) -> "VirtualLabProject":
         """Build a project from in-memory JSON before committing it to disk."""
         peripherals = tuple(
-            PeripheralInstance(item["id"], item["type"], dict(item["connections"]), dict(item.get("properties", {})))
+            PeripheralInstance(item["id"], item["type"], dict(item.get("connections", {})), dict(item.get("properties", {})))
             for item in raw.get("peripherals", [])  # type: ignore[union-attr]
         )
         ids = [item.peripheral_id for item in peripherals]

@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
-from fpga_lab.app import board_sources, project_clock_port
+from fpga_lab.session import board_sources, project_clock_port
 from fpga_lab.board_catalog import BoardCatalog
 from fpga_lab.board_layout import BoardLayout
 from fpga_lab.board_view import BoardView

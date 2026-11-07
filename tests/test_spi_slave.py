@@ -49,8 +49,29 @@ sys.meta_path.insert(0, NoQt())
 from fpga_lab.simulation import VerilatorSimulation
 from fpga_lab.profile import BoardProfile
 from fpga_lab.simulation_engine import SimulationEngine
-sim = VerilatorSimulation(sys.argv[1], BoardProfile(**json.loads(sys.argv[2])))
-engine = SimulationEngine(sim, clock_hz=1_000_000)
+from fpga_lab.session import SessionService
+from fpga_lab.build_cache import CachedBuild
+from pathlib import Path
+root = Path(sys.argv[1]).parent
+ice = root / 'native-session.ice'
+ice.write_text('{}')
+build = root / 'ice-build/native-session'
+build.mkdir(parents=True)
+(build / 'main.v').write_text('module top(input clk, input [1:0] controls, input [1:0] input_bus, '
+                            'output sck, output cs, output [1:0] echo); endmodule')
+lab = root / 'native-session.lab'
+lab.write_text('{"metadata":{"board_id":"alhambra-ii"},"peripherals":[]}')
+class HarnessCache:
+    # The fixture compiled the synthetic model with C++; this tests the session
+    # contract, not availability of a developer's Verilator installation.
+    def build_or_reuse(self, project, profile, **kwargs):
+        assert project.main_v == build / 'main.v'
+        assert kwargs['top_module'] == 'top'
+        return CachedBuild('synthetic', root, Path(sys.argv[1]), False)
+service = SessionService(cache=HarnessCache())
+prepared = service.prepare(ice, lab_file=lab, profile=BoardProfile(**json.loads(sys.argv[2])), clock_hz=1_000_000)
+session = service.open(prepared, service.build(prepared))
+sim, engine = session.simulation, session.engine
 try:
     engine.play()
     sim.set_input('input_bus', 3)
@@ -65,8 +86,9 @@ try:
     engine.play()
     assert engine.advance(0.000002).cycles == 2
 finally:
-    engine.close()
-    engine.close()
+    service.close()
+    service.close()
+assert service.current is None
 assert 'fpga_lab.i18n' not in sys.modules
 '''
     subprocess.run([sys.executable, "-c", script, str(library), json.dumps(asdict(profile))],

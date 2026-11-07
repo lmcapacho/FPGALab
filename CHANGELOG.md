@@ -6,7 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
-- Framework-free core for board/wiring data, compilation/toolchain services, native-model bindings and protocol helpers, with a synchronous simulation engine for Run/Pause/Stop/Reset, temporal/edge/VGA frames and timed inputs. The desktop worker now adapts Qt scheduling/signals to that engine. Headless hosts use English messages or an explicit translation adapter; the desktop retains live translations. Project/session orchestration remains separate; no web server is provided.
+- Framework-free core with synchronous session preparation, cached compilation and native-model ownership, shared by the desktop and headless hosts. Board/wiring resolution and the simulation engine support Run/Pause/Stop/Reset, temporal/edge/VGA frames and timed inputs; Qt adapts background builds, scheduling and signals. Headless hosts use English messages or an explicit translation adapter; the desktop retains live translations. Workbench/rendering-specific bindings remain in the desktop; no web server is provided.
 
 - Open a Lab at startup using `--lab` or a positional `.lab`/legacy `.lab.json` path, including alongside `--ice`. External Labs open in place without importing or overwriting workspace Labs; invalid files are rejected before startup.
 

@@ -13,6 +13,7 @@ from pathlib import Path
 from PyQt6.QtCore import QSettings
 
 from .board import DEFAULT_BOARD_PUBLIC_ID
+from .wiring import validate_lab_document
 
 
 @dataclass(frozen=True)
@@ -247,27 +248,7 @@ class LabWorkspace:
 
     @staticmethod
     def _validate_lab_document(raw: object) -> None:
-        if not isinstance(raw, dict):
-            raise ValueError("A FPGALab Lab must be a JSON object.")
-        metadata = raw.get("metadata", {})
-        peripherals = raw.get("peripherals", [])
-        if not isinstance(metadata, dict) or not isinstance(peripherals, list):
-            raise ValueError("The Lab metadata or peripheral list is invalid.")
-        identifiers: set[str] = set()
-        for peripheral in peripherals:
-            if not isinstance(peripheral, dict):
-                raise ValueError("Every peripheral in a Lab must be an object.")
-            identifier = peripheral.get("id")
-            kind = peripheral.get("type")
-            connections = peripheral.get("connections", {})
-            properties = peripheral.get("properties", {})
-            if not isinstance(identifier, str) or not identifier.strip() or not isinstance(kind, str) or not kind.strip():
-                raise ValueError("Every peripheral must have a valid id and type.")
-            if identifier in identifiers:
-                raise ValueError("Multiple peripherals use the same id.")
-            if not isinstance(connections, dict) or not isinstance(properties, dict):
-                raise ValueError("Peripheral connections and properties must be objects.")
-            identifiers.add(identifier)
+        validate_lab_document(raw)
 
     def _existing_lab_path(self, lab: str | Path) -> Path:
         target = Path(lab).resolve()

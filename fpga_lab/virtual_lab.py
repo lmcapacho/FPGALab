@@ -16,7 +16,7 @@ from .board_layout import BoardLayout, bundled_layout
 from .board_view import BoardView
 from .sink_bind import collect_vga_bindings
 from .simulation import VerilatorSimulation
-from .simulation_engine import SimulationFrame
+from .simulation_engine import SimulationEngine, SimulationFrame
 from .simulation_worker import SimulationWorker
 from .wiring import VirtualLabProject
 from .theme import Metrics, style_button
@@ -65,6 +65,7 @@ class FPGAVirtualLab(QWidget):
         board_id: str = DEFAULT_BOARD_ID,
         parent=None,
         settings: QSettings | None = None,
+        engine: SimulationEngine | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle(t("FPGALab · Virtual FPGA Lab"))
@@ -102,6 +103,7 @@ class FPGAVirtualLab(QWidget):
                 simulation, clock_hz, ui_refresh_hz, observation_hz,
                 self._led_sources, board.led_endpoints,
                 tuple(board.pin(endpoint).active_low for endpoint in board.led_endpoints),
+                engine=engine,
             )
             self._worker.moveToThread(self._thread)
             self._thread.started.connect(self._worker.start)

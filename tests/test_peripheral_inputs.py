@@ -27,9 +27,10 @@ def test_closing_a_running_worker_stops_its_thread_and_native_simulation(tmp_pat
 
         def __init__(self):
             self.closed = False
+            self.observation_configurations = 0
 
         def set_observation_divisor(self, _divisor):
-            pass
+            self.observation_configurations += 1
 
         def set_temporal_probes(self, _probes):
             pass
@@ -43,7 +44,11 @@ def test_closing_a_running_worker_stops_its_thread_and_native_simulation(tmp_pat
     lab_file = tmp_path / "lab.json"
     lab_file.write_text('{"peripherals": []}', encoding="utf-8")
     simulation = FakeSimulation()
-    lab = FPGAVirtualLab(simulation=simulation, lab_file=lab_file)
+    from fpga_lab.simulation_engine import SimulationEngine
+    engine = SimulationEngine(simulation, clock_hz=12_000_000)
+    lab = FPGAVirtualLab(simulation=simulation, lab_file=lab_file, engine=engine)
+    assert lab._worker._engine is engine
+    assert simulation.observation_configurations == 1
     thread = lab._thread
     assert thread is not None
     assert thread.isRunning()

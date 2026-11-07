@@ -6,31 +6,27 @@ import argparse
 import json
 import sys
 from threading import Event
-from dataclasses import dataclass
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QSettings, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from .board import DEFAULT_BOARD_ID, BoardDefinition, bundled_board_definition
+from .board import DEFAULT_BOARD_ID
 from .board_catalog import BoardCatalog
 from .branding import application_icon
 from .build_cache import VerilatorBuildCache
 from .compiler import BuildCancelled
-from .ice_project import IcestudioProject, IcestudioProjectError
+from .ice_project import IcestudioProjectError
 from .i18n import QtDialogTranslations, t
 from .lab_workspace import LabWorkspace
 from .main_window import FPGALabMainWindow
 from .profile import BoardProfile, bundled_profile
-from .profile_policy import apply_led_observed
-from .project_pins import ProjectPinMap
-from .signals import signal_reference
+from .session import SessionService, PreparedSession as PendingProjectRun, board_sources, project_clock_port
 from .simulation import VerilatorSimulation
 from .simulation_settings import SimulationSettings, SimulationSettingsDialog
 from .sdk_dialog import SDKInstallDialog, ToolchainReportDialog
 from .toolchain import resolve_verilator
 from .theme import application_palette, application_stylesheet, load_theme_mode
-from .verilog_interface import VerilogInterface
 from .update_controller import UpdateController
 from .virtual_lab import FPGAVirtualLab
 from .window_startup import show_main_window
@@ -43,14 +39,12 @@ class BuildWorker(QThread):
     failed = pyqtSignal(str)
 
     def __init__(
-        self, cache_dir: Path | None, project: IcestudioProject, profile: BoardProfile,
-        top_module: str, optimization_mode: str, parent=None,
+        self, service: SessionService, prepared: PendingProjectRun,
+        optimization_mode: str, parent=None,
     ):
         super().__init__(parent)
-        self._cache_dir = cache_dir
-        self._project = project
-        self._profile = profile
-        self._top_module = top_module
+        self._service = service
+        self._prepared = prepared
         self._optimization_mode = optimization_mode
         self._cancel_requested = Event()
 
@@ -60,10 +54,8 @@ class BuildWorker(QThread):
 
     def run(self) -> None:
         try:
-            artifact = VerilatorBuildCache(self._cache_dir).build_or_reuse(
-                self._project,
-                self._profile,
-                top_module=self._top_module,
+            artifact = self._service.build(
+                self._prepared,
                 optimization_mode=self._optimization_mode,
                 cancel_requested=self._cancel_requested.is_set,
             )
@@ -73,18 +65,6 @@ class BuildWorker(QThread):
             self.failed.emit(str(error))
             return
         self.completed.emit(artifact)
-
-
-@dataclass(frozen=True)
-class PendingProjectRun:
-    """UI data retained while the model is being built on a worker thread."""
-
-    project: IcestudioProject
-    profile: BoardProfile
-    module_name: str
-    led_sources: dict[int, tuple[str, int]]
-    input_sources: dict[str, tuple[str, int]]
-    board_id: str = DEFAULT_BOARD_ID
 
 
 def migrate_legacy_clock(store: QSettings, window: FPGALabMainWindow) -> None:
@@ -136,34 +116,6 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     return namespace
 
 
-def project_clock_port(project: IcestudioProject, interface: VerilogInterface, board_id: str = DEFAULT_BOARD_ID) -> str | None:
-    """Prefer the HDL net constrained to the board's physical clock endpoint."""
-    if project.pcf is None:
-        return None
-    board = BoardDefinition.load(bundled_board_definition(board_id))
-    pin_map = ProjectPinMap.from_constraints(board, project.pcf)
-    inputs = {port.name: port.width for port in interface.ports if port.direction in {"input", "inout"}}
-    reference = signal_reference(pin_map.net_for(board.clock_endpoint), inputs) if board.clock_endpoint else None
-    return reference[0] if reference is not None and reference[1] == 0 and inputs[reference[0]] == 1 else None
-
-
-def board_sources(project: IcestudioProject, profile: BoardProfile, board_id: str = DEFAULT_BOARD_ID) -> tuple[dict[int, tuple[str, int]], dict[str, tuple[str, int]]]:
-    """Resolve physical board controls to HDL names recorded in constraints."""
-    if project.pcf is None:
-        return {}, {}
-    board = BoardDefinition.load(bundled_board_definition(board_id))
-    pin_map = ProjectPinMap.from_constraints(board, project.pcf)
-    led_sources = {
-        index: reference
-        for index, endpoint in enumerate(board.led_endpoints)
-        if (reference := signal_reference(pin_map.net_for(endpoint), profile.outputs)) is not None
-    }
-    input_sources = {
-        endpoint: reference
-        for endpoint in board.input_endpoints
-        if (reference := signal_reference(pin_map.net_for(endpoint), profile.inputs)) is not None
-    }
-    return led_sources, input_sources
 
 
 
@@ -175,6 +127,7 @@ class ApplicationController(QObject):
         self._app = app
         self._window = window
         self._namespace = namespace
+        self._session_service = SessionService(namespace.cache_dir)
         VerilatorBuildCache(namespace.cache_dir).maintain()
         self._board_id = window.selected_board_id()
         self._settings_store = window.user_settings()
@@ -278,17 +231,11 @@ class ApplicationController(QObject):
             self._window.set_status(t("A build is already in progress."))
             return
         try:
-            project = IcestudioProject.discover(ice_file)
-            interface = VerilogInterface.discover(project.main_v)
-            clock_port = project_clock_port(project, interface, self._board_id)
-            board_name = self._window.board_name(self._board_id)
-            profile = self._manual_profile or interface.profile(
-                board_name=board_name, clock_port=clock_port
-            )
-            led_sources, input_sources = board_sources(project, profile, self._board_id)
-            if self._manual_profile is None:
-                profile = apply_led_observed(profile, led_sources)
-        except (IcestudioProjectError, ValueError, OSError) as error:
+            pending = self._session_service.prepare(
+                ice_file, lab_file=self._window.selected_lab(), board_id=self._board_id,
+                profile=self._manual_profile, clock_hz=self.clock_hz)
+            project = pending.project
+        except (IcestudioProjectError, ValueError, OSError, KeyError) as error:
             QMessageBox.critical(self._window, t("Cannot load design"), str(error))
             return
 
@@ -299,11 +246,11 @@ class ApplicationController(QObject):
             "Preparing {name}. FPGALab is checking the cache and may compile the HDL model.",
             name=project.ice_file.name,
         ))
-        self._pending_run = PendingProjectRun(project, profile, interface.module_name, led_sources, input_sources, self._board_id)
+        self._pending_run = pending
         self._window.set_project_loading(True)
         # The worker must outlive the window while a native build is running.
         self._build_worker = BuildWorker(
-            self._namespace.cache_dir, project, profile, interface.module_name,
+            self._session_service, pending,
             self._simulation_settings.verilator_optimization,
         )
         self._build_worker.completed.connect(self._complete_build)
@@ -327,7 +274,10 @@ class ApplicationController(QObject):
             self._build_failed(t("Could not stop the previous simulation safely."))
             return
         try:
-            simulation = VerilatorSimulation(artifact.library, pending.profile)
+            session = self._session_service.open(
+                pending, artifact, clock_hz=self.clock_hz,
+                observation_hz=self._simulation_settings.observation_hz)
+            simulation = session.simulation
         except Exception as error:
             self._build_failed(str(error))
             return
@@ -342,6 +292,7 @@ class ApplicationController(QObject):
             board_id=pending.board_id,
             led_sources=pending.led_sources,
             input_sources=pending.input_sources,
+            engine=session.engine,
         )
         if workbench_history is not None:
             lab.restore_workbench_history(workbench_history)

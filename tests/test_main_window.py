@@ -156,7 +156,7 @@ def test_main_window_stays_open_when_the_active_lab_cannot_close(tmp_path):
             event.accept() if self.allow_close else event.ignore()
 
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
-    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings), settings=settings)
     lab = RefusingLab()
     window.set_lab(lab)
     window.show()
@@ -352,12 +352,13 @@ def test_cached_model_is_closed_before_loading_same_library_again(tmp_path, monk
     def load_model(_library, _profile):
         events.append("load")
         assert events[0] == "close"
-        return object()
+        return SimpleNamespace(set_observation_divisor=lambda value: None, close=lambda: None)
 
     monkeypatch.setattr(app_module, "FPGAVirtualLab", FakeLab)
-    monkeypatch.setattr(app_module, "VerilatorSimulation", load_model)
+    from fpga_lab import session as session_module
+    monkeypatch.setattr(session_module, "VerilatorSimulation", load_model)
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
-    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings), settings=settings)
     window.set_lab(FakeLab())
     controller = app_module.ApplicationController(
         _APPLICATION, window,
@@ -380,7 +381,7 @@ def test_cached_model_is_closed_before_loading_same_library_again(tmp_path, monk
 
 def test_clock_indicator_reserves_space_before_actual_frequency_arrives(tmp_path):
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
-    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings), settings=settings)
 
     window.set_clock_performance(12_000_000)
     reserved_width = window._clock_status.minimumWidth()
@@ -418,7 +419,7 @@ def test_deleting_the_active_lab_immediately_selects_the_starter_lab(tmp_path, m
 
 def test_model_changing_controls_are_locked_while_running(tmp_path):
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
-    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings), settings=settings)
 
     window.set_simulation_running(True)
 
@@ -473,7 +474,7 @@ def test_browse_opens_last_project_folder_across_sessions(tmp_path, monkeypatch)
 
 def test_about_dialog_identifies_the_maintainer_license_and_source(tmp_path, monkeypatch):
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
-    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings))
+    window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings), settings=settings)
     dialogs: list[QMessageBox] = []
     monkeypatch.setattr(QMessageBox, "exec", lambda dialog: dialogs.append(dialog))
 
