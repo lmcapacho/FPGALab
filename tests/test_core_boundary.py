@@ -22,7 +22,7 @@ class NoQt(importlib.abc.MetaPathFinder):
 sys.meta_path.insert(0, NoQt())
 for name in ('board', 'board_layout', 'board_catalog', 'profile', 'constraints',
              'project_pins', 'signals', 'wiring', 'sink_bind', 'temporal',
-             'compiler', 'cpp_wrapper', 'simulation', 'ice_project', 'build_cache',
+             'compiler', 'cpp_wrapper', 'simulation', 'simulation_engine', 'ice_project', 'build_cache',
              'private_toolchain', 'toolchain', 'sdk_install', 'edge_drive',
              'serial_edges', 'spi_edges', 'peripherals.catalog', 'peripherals.validate'):
     importlib.import_module('fpga_lab.' + name)

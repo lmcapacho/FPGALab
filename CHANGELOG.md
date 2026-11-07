@@ -6,7 +6,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Added
 
-- Framework-free imports for board/wiring data, compilation/toolchain services, native-model bindings and protocol helpers. Headless hosts use English messages or an explicit translation adapter; the desktop retains live translations. Qt worker/session orchestration remains separate from this initial core boundary.
+- Framework-free core for board/wiring data, compilation/toolchain services, native-model bindings and protocol helpers, with a synchronous simulation engine for Run/Pause/Stop/Reset, temporal/edge/VGA frames and timed inputs. The desktop worker now adapts Qt scheduling/signals to that engine. Headless hosts use English messages or an explicit translation adapter; the desktop retains live translations. Project/session orchestration remains separate; no web server is provided.
 
 - Open a Lab at startup using `--lab` or a positional `.lab`/legacy `.lab.json` path, including alongside `--ice`. External Labs open in place without importing or overwriting workspace Labs; invalid files are rejected before startup.
 

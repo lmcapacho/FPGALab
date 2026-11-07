@@ -24,7 +24,9 @@ Diseño de Icestudio (.ice)
                                       enlace ctypes
                                             │
                                             ▼
-                         SimulationWorker (hilo de Qt)
+                         SimulationEngine (sin Qt)
+                                            │
+                         SimulationWorker (adaptador Qt)
                                             │  actualizaciones SimulationFrame
                          ┌──────────────────┴──────────────────┐
                          ▼                                     ▼
@@ -36,13 +38,16 @@ Diseño de Icestudio (.ice)
 Conexión del Lab: terminal → endpoint de tarjeta → pin FPGA → red HDL
 ```
 
-El wrapper nativo agrupa ciclos virtuales de FPGA y publica objetos `SimulationFrame`. Las entradas GPIO, salidas muestreadas, observaciones temporales y destinos de streaming como VGA permanecen como rutas de datos independientes.
+El wrapper nativo agrupa ciclos virtuales; `SimulationEngine` recoge los resultados
+en objetos `SimulationFrame`. GPIO, observaciones temporales y destinos de streaming
+como VGA permanecen como rutas de datos independientes.
 
 El wrapper C++ generado expone asignación de entradas, lectura de salidas,
 avance de reloj, ejecución por lotes, mediciones temporales y captura de flujos
 mediante una ABI nativa. Python enlaza la biblioteca propia de cada diseño
-(`.so`, `.dll` o `.dylib`) con `ctypes`; `SimulationWorker` la ejecuta fuera
-del hilo de interfaz y entrega cuadros compactos a la tarjeta y a la mesa.
+(`.so`, `.dll` o `.dylib`) con `ctypes`; `SimulationEngine` ejecuta y captura sin Qt.
+`SimulationWorker` lo programa fuera del hilo de interfaz y entrega cuadros
+compactos a la tarjeta y a la mesa.
 Qt no se actualiza a la frecuencia de reloj de la FPGA. La compilación
 incremental usa una caché administrada del usuario, fuera de `ice-build`.
 
@@ -93,17 +98,58 @@ with VerilatorSimulation("./model.so", profile) as model:
 
 Usa la extensión de biblioteca apropiada para el sistema. La ejecución sigue
 necesitando un modelo compilado compatible: quitar imports Qt no aporta una
-toolchain ni aísla código nativo. `SimulationWorker`, la coordinación de sesiones,
-preferencias del workspace y diálogos de configuración siguen siendo adaptadores
-Qt. Aún no hay servicio Run/Stop independiente de GUI ni servidor web.
+toolchain ni aísla código nativo. La coordinación de sesiones, preferencias del
+workspace y diálogos siguen usando Qt; `SimulationWorker` adapta temporizador y
+señales al motor independiente. Aún no hay servicio completo de carga de proyectos
+y sesiones ni servidor web.
 Las regresiones bloquean imports Qt en un proceso nuevo, preparan una compilación
 nativa y ejercitan la ABI generada con un modelo sintético.
+
+### Motor de ejecución y planificación del anfitrión
+
+`simulation_engine.py` controla ejecución y datos de cuadros. No tiene temporizador
+ni bucle de eventos: el anfitrión aporta tiempo real transcurrido a
+`advance(segundos)`. `play()` habilita el avance; `pause()` lo suspende sin reiniciar
+el modelo. `power_off()` detiene, reinicia captura/colas de entrada y devuelve un
+cuadro apagado. `reset()` limpia estado/colas y conserva si estaba ejecutándose.
+`close()` cierra el modelo a su cargo una sola vez e impide seguir usándolo.
+Todas las operaciones del motor/modelo deben permanecer en un único hilo dueño;
+no es un gestor multicliente seguro entre hilos ni crea un hilo en segundo plano.
+
+```python
+from fpga_lab.profile import BoardProfile
+from fpga_lab.simulation import VerilatorSimulation
+from fpga_lab.simulation_engine import SimulationEngine
+
+profile = BoardProfile.load("profile.json")
+engine = SimulationEngine(VerilatorSimulation("./model.so", profile), clock_hz=12_000_000)
+try:
+    engine.play()
+    frame = engine.advance(1 / 60)  # Explicit elapsed time; not a sleep.
+    print(frame.outputs)
+    engine.reset()
+    blank_frame = engine.power_off()
+finally:
+    engine.close()
+```
+
+Usa el reloj configurado de la tarjeta/sesión, no supongas los 12 MHz del ejemplo.
+El worker de escritorio aporta tiempo monotónico real desde su temporizador Qt.
+La recuperación se limita a 100 ms por llamada y conserva fracciones de ciclo;
+la velocidad usa tiempo real sin recortar. Los cuadros conservan timestamps
+nativos y notifican flancos perdidos, descartando el lote incompleto en overflow.
+Los pulsos y persistencia LED usan tiempo virtual, no intervalos de refresco.
+La planificación UART y configuración nativa SPI/VGA pertenecen al mismo motor.
+Las excepciones se propagan al anfitrión sin GUI; el adaptador Qt conserva señales
+de error/aviso y detiene su temporizador ante fallos de ejecución. Después de
+apagar, cambiar entradas combinacionales no publica salidas hasta Run.
 
 ### Módulos de escritorio y dominio
 
 - `app.py`: coordinación de la aplicación y ciclo de compilación.
 - `compiler.py` y `build_cache.py`: generación con Verilator y compilación incremental.
-- `simulation.py` y `simulation_worker.py`: enlace nativo y ejecución en segundo plano.
+- `simulation.py`: enlace nativo; `simulation_engine.py`: ejecución y cuadros.
+- `simulation_worker.py`: adaptador de temporizador, ciclo de hilo y señales Qt.
 - `virtual_lab.py`: composición de tarjeta y mesa.
 - `peripherals/catalog.py` y `peripherals/manifest.py`: catálogo declarativo.
 - `workbench/view.py` y `workbench/item.py`: interacción con el lienzo e instancias visuales.

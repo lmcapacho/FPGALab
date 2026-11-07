@@ -21,7 +21,9 @@ Icestudio design (.ice)
                                       ctypes binding
                                             │
                                             ▼
-                              SimulationWorker (Qt thread)
+                             SimulationEngine (Qt-free)
+                                            │
+                              SimulationWorker (Qt adapter)
                                             │  compact SimulationFrame updates
                          ┌──────────────────┴──────────────────┐
                          ▼                                     ▼
@@ -33,12 +35,15 @@ Icestudio design (.ice)
 Lab connection: peripheral terminal → board endpoint → FPGA pin → HDL net
 ```
 
-The native wrapper batches virtual FPGA cycles and publishes `SimulationFrame` objects. GPIO inputs, sampled outputs, temporal observations, and streaming sinks such as VGA remain separate data paths.
+The native wrapper batches virtual FPGA cycles; `SimulationEngine` collects
+results into `SimulationFrame` objects. GPIO inputs, sampled outputs, temporal
+observations and streaming sinks such as VGA remain separate data paths.
 
 The generated C++ wrapper exposes input setters, output getters, clock stepping,
 batched execution, temporal measurements, and streaming hooks through a native
 ABI. Python binds the per-design shared library (`.so`, `.dll`, or `.dylib`)
-with `ctypes`; `SimulationWorker` runs it off the GUI thread and delivers compact
+with `ctypes`; `SimulationEngine` owns execution and capture without Qt.
+`SimulationWorker` schedules that engine off the GUI thread and delivers compact
 frames to the board and workbench. Qt does not refresh at the FPGA clock rate.
 Incremental builds are kept in a managed user cache, outside Icestudio's
 `ice-build` directory.
@@ -90,17 +95,58 @@ with VerilatorSimulation("./model.so", profile) as model:
 
 Use the appropriate library extension for the host. Native execution still
 requires a compatible compiled model; removing Qt imports does not supply a
-toolchain or sandbox native code. `SimulationWorker`, application/session
-orchestration, workspace preferences and settings dialogs remain Qt adapters.
-There is no GUI-independent Run/Stop session service or web server yet.
+toolchain or sandbox native code. Application/session orchestration, workspace
+preferences and settings dialogs remain Qt-based; `SimulationWorker` is the
+timer/signals adapter for the independent engine. There is no complete
+project-loading/session service or web server yet.
 Regression tests block Qt imports in a fresh process, prepare a native build and
 exercise the generated C ABI with a synthetic model.
+
+### Execution engine and host scheduling
+
+`simulation_engine.py` owns model execution and frame data. It has no timer or
+event loop: a host supplies elapsed wall time to `advance(seconds)`. `play()`
+enables advancement; `pause()` suspends it without resetting the model.
+`power_off()` stops and resets native capture/input queues and returns a blank
+frame. `reset()` clears native state/queues while retaining whether execution
+was running. `close()` closes the owned model once and disallows further use.
+Keep all engine/model operations on one owner thread; it is not a thread-safe,
+multi-client session manager and does not start a background thread.
+
+```python
+from fpga_lab.profile import BoardProfile
+from fpga_lab.simulation import VerilatorSimulation
+from fpga_lab.simulation_engine import SimulationEngine
+
+profile = BoardProfile.load("profile.json")
+engine = SimulationEngine(VerilatorSimulation("./model.so", profile), clock_hz=12_000_000)
+try:
+    engine.play()
+    frame = engine.advance(1 / 60)  # Explicit elapsed time; not a sleep.
+    print(frame.outputs)
+    engine.reset()
+    blank_frame = engine.power_off()
+finally:
+    engine.close()
+```
+
+Use the board/session's configured clock rather than assuming the example's
+12 MHz. The desktop worker supplies actual monotonic elapsed time from its Qt
+timer. Catch-up stays capped at 100 ms per call, with fractional-cycle carry;
+speed measurement uses uncapped wall time. Frames retain native-cycle timestamps
+and report dropped edges, discarding an incomplete edge batch on overflow.
+Pulse widths and LED persistence use virtual time, not host refresh intervals.
+UART scheduling and native SPI/VGA configuration belong to the same engine.
+Exceptions propagate to a headless host; the Qt adapter maps them to the existing
+failure/notice signals and stops its timer on execution failure. After power-off,
+combinational input changes do not publish fresh output frames until Run.
 
 ### Desktop and domain modules
 
 - `app.py`: application orchestration and build lifecycle.
 - `compiler.py` and `build_cache.py`: Verilator generation and incremental native builds.
-- `simulation.py` and `simulation_worker.py`: native binding and background execution.
+- `simulation.py`: native binding; `simulation_engine.py`: execution and frame contracts.
+- `simulation_worker.py`: Qt timer, thread-lifecycle and signal adapter.
 - `virtual_lab.py`: board/workbench composition.
 - `peripherals/catalog.py` and `peripherals/manifest.py`: declarative catalog.
 - `workbench/view.py` and `workbench/item.py`: canvas interaction and rendered instances.

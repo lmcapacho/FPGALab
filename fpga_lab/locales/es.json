@@ -1,5 +1,8 @@
 {
   "_meta": {"code": "es", "name": "Español", "contributors": []},
+  "Simulation is closed.": "La simulación está cerrada.",
+  "Elapsed wall time must be finite and nonnegative.": "El tiempo real transcurrido debe ser finito y no negativo.",
+  "clock_hz and observation_hz must be positive.": "clock_hz y observation_hz deben ser positivos.",
   "Lab file to open (.lab or legacy .lab.json).": "Archivo Lab que se abrirá (.lab o el formato anterior .lab.json).",
   "Lab file to open at startup.": "Archivo Lab que se abrirá al iniciar.",
   "Use either --lab or a positional Lab file, not both.": "Usa --lab o un archivo Lab como argumento directo, no ambos.",

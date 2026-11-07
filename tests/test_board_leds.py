@@ -21,7 +21,7 @@ _APPLICATION = QApplication.instance() or QApplication([])
 
 
 class FakeSimulation:
-    profile = SimpleNamespace(outputs={"status_a": 1, "status_b": 1})
+    profile = SimpleNamespace(outputs={"status_a": 1, "status_b": 1}, clock_name="clk")
 
     def set_observation_divisor(self, _divisor):
         pass
@@ -63,7 +63,8 @@ def test_worker_uses_configured_led_count_and_sources():
     failures = []
     worker.state_changed.connect(frames.append)
     worker.failure.connect(failures.append)
-
+    worker.start()
+    worker.play()
     worker._last_frame_time = perf_counter() - 0.02
     worker._run_frame()
     assert not failures
@@ -73,7 +74,7 @@ def test_worker_uses_configured_led_count_and_sources():
 
     worker.power_off()
 
-    assert worker._led_sources == {0: ("status_a", 0), 1: ("status_b", 0)}
+    assert worker._engine._led_sources == {0: ("status_a", 0), 1: ("status_b", 0)}
     assert frames[-1].led_brightness == (0.0, 0.0)
 
 
@@ -84,6 +85,8 @@ def test_worker_applies_active_low_before_led_persistence():
     )
     frames = []
     worker.state_changed.connect(frames.append)
+    worker.start()
+    worker.play()
     worker._last_frame_time = perf_counter() - 0.02
     worker._run_frame()
     assert frames[-1].led_brightness == (0.0, 1.0, 0.0)

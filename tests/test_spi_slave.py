@@ -48,14 +48,25 @@ class NoQt(importlib.abc.MetaPathFinder):
 sys.meta_path.insert(0, NoQt())
 from fpga_lab.simulation import VerilatorSimulation
 from fpga_lab.profile import BoardProfile
-with VerilatorSimulation(sys.argv[1], BoardProfile(**json.loads(sys.argv[2]))) as sim:
+from fpga_lab.simulation_engine import SimulationEngine
+sim = VerilatorSimulation(sys.argv[1], BoardProfile(**json.loads(sys.argv[2])))
+engine = SimulationEngine(sim, clock_hz=1_000_000)
+try:
+    engine.play()
     sim.set_input('input_bus', 3)
-    sim.ticks(4)
-    assert sim.get_output('echo') == 3
-    sim.reset()
+    frame = engine.advance(0.000004)
+    assert frame.cycles == 4 and frame.outputs['echo'] == 3
+    engine.reset()
     sim.set_input('input_bus', 1)
-    sim.ticks(2)
-    assert sim.get_output('echo') == 1
+    frame = engine.advance(0.000002)
+    assert frame.cycles == 2 and frame.outputs['echo'] == 1
+    assert engine.power_off().outputs == {}
+    assert engine.advance(1.0) is None
+    engine.play()
+    assert engine.advance(0.000002).cycles == 2
+finally:
+    engine.close()
+    engine.close()
 assert 'fpga_lab.i18n' not in sys.modules
 '''
     subprocess.run([sys.executable, "-c", script, str(library), json.dumps(asdict(profile))],

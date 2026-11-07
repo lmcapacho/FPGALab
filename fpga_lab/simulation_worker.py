@@ -1,78 +1,21 @@
-"""Virtual-clock execution outside the Qt interface thread."""
+"""Qt scheduling/signals adapter for the framework-free simulation engine."""
 
-from __future__ import annotations
-
-from dataclasses import dataclass, field
 from time import perf_counter
 
 from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 
-from .edge_drive import TimedDriveScheduler
 from .board import bundled_board_clock_hz
 from .i18n import t
-from .simulation import EdgeEvent, VgaStats, VerilatorSimulation
-from .sink_bind import VgaBinding
-from .serial_edges import uart_8n1_drive_events
-from .temporal import LedModel, SignalWindow
-
-
-@dataclass(frozen=True)
-class VgaSnapshot:
-    kind: str = "vga"
-    seq: int = 0
-    width: int = 0
-    height: int = 0
-    pixels: bytes | None = None
-    stats: VgaStats | None = None
-    missing_required: tuple[str, ...] = ()
-    bind_errors: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class TemporalFrame:
-    """Native predicate summaries for declarative temporal peripherals."""
-
-    hits: tuple[int, ...] = ()
-    samples: int = 0
-    ends: tuple[bool, ...] = ()
-    edges: tuple[int, ...] = ()
-    elapsed_seconds: float = 0.0
-    pulse_high_seconds: tuple[float | None, ...] = ()
-
-
-@dataclass(frozen=True)
-class EdgeFrame:
-    """Transitions from all configured channels, in virtual-cycle order."""
-
-    cycle: int = 0
-    clock_hz: int = 0
-    events: tuple[EdgeEvent, ...] = ()
-    dropped: int = 0
-
-
-def pulse_samples_to_seconds(samples: int | None, divisor: int, clock_hz: int) -> float | None:
-    """Convert observation samples to virtual time, never wall-clock time."""
-    return samples * divisor / clock_hz if samples is not None else None
-
-
-@dataclass(frozen=True)
-class SimulationFrame:
-    led_brightness: tuple[float, ...]
-    outputs: dict[str, int]
-    sinks: dict[str, VgaSnapshot] = field(default_factory=dict)
-    virtual_hz: float = 0.0
-    cycles: int = 0
-    temporal: TemporalFrame = field(default_factory=TemporalFrame)
-    edge_stream: EdgeFrame = field(default_factory=EdgeFrame)
-
-
-def effective_virtual_hz(cycles: int, wall_elapsed: float) -> float:
-    """Return virtual cycles advanced per second of real elapsed time."""
-    return cycles / wall_elapsed if cycles > 0 and wall_elapsed > 0.0 else 0.0
+from .simulation import VerilatorSimulation
+# Re-export existing frame imports for compatibility with GUI consumers.
+from .simulation_engine import (
+    SimulationEngine, SimulationFrame, TemporalFrame, EdgeFrame, VgaSnapshot,
+    effective_virtual_hz, pulse_samples_to_seconds,
+)
 
 
 class SimulationWorker(QObject):
-    """Maintain the virtual clock and publish state only at visual frequency."""
+    """Own the Qt timer; all native execution belongs to the engine."""
 
     state_changed = pyqtSignal(object)
     failure = pyqtSignal(str)
@@ -80,150 +23,70 @@ class SimulationWorker(QObject):
     uart_send_result = pyqtSignal(int, str, bool)
     stopped = pyqtSignal()
 
-    def __init__(
-        self,
-        simulation: VerilatorSimulation,
-        clock_hz: int = bundled_board_clock_hz(),
-        ui_refresh_hz: int = 60,
-        observation_hz: int = 1_000_000,
-        led_sources: dict[int, tuple[str, int]] | None = None,
-        led_endpoints: tuple[str, ...] | None = None,
-        led_active_low: tuple[bool, ...] = (),
-    ):
+    def __init__(self, simulation: VerilatorSimulation,
+                 clock_hz: int = bundled_board_clock_hz(), ui_refresh_hz: int = 60,
+                 observation_hz: int = 1_000_000,
+                 led_sources: dict[int, tuple[str, int]] | None = None,
+                 led_endpoints: tuple[str, ...] | None = None,
+                 led_active_low: tuple[bool, ...] = ()):
         super().__init__()
-        if clock_hz <= 0 or ui_refresh_hz <= 0 or observation_hz <= 0:
+        if ui_refresh_hz <= 0:
             raise ValueError(t("clock_hz, ui_refresh_hz, and observation_hz must be positive."))
-        self._simulation = simulation
-        self._clock_hz = clock_hz
+        self._engine = SimulationEngine(
+            simulation, clock_hz, observation_hz=observation_hz, led_sources=led_sources,
+            led_endpoints=tuple(led_endpoints or ()), led_active_low=led_active_low)
         self._ui_refresh_hz = ui_refresh_hz
-        self._observation_hz = observation_hz
-        self._observation_divisor = max(1, (clock_hz + observation_hz - 1) // observation_hz)
-        self._simulation.set_observation_divisor(self._observation_divisor)
         self._timer: QTimer | None = None
         self._last_frame_time = 0.0
-        self._cycle_remainder = 0.0
-        self._performance_cycles = 0
-        self._performance_wall_seconds = 0.0
-        self._measured_virtual_hz = 0.0
-        self._led_endpoints = (
-            tuple(led_endpoints) if led_endpoints is not None
-            else ()
-        )
-        self._led_models = [LedModel() for _ in self._led_endpoints]
-        self._led_active_low = led_active_low
-        resolved = led_sources or {}
-        self._led_sources = {
-            index: resolved.get(index, (endpoint, 0))
-            for index, endpoint in enumerate(self._led_endpoints)
-        }
-        self._vga_bindings: tuple[VgaBinding, ...] = ()
-        self._sink_id: int | None = None
-        self._blank_next = False
-        self._temporal_probes: tuple[tuple[tuple[int, int, bool], ...], ...] = ()
-        self._edge_channels: tuple[tuple[int, int], ...] = ()
-        self._drive_channels: tuple[tuple[str, int, bool], ...] = ()
-        self._drive_scheduler = TimedDriveScheduler(simulation)
+
+    def _publish(self, frame: SimulationFrame | None) -> None:
+        if frame is not None:
+            self.state_changed.emit(frame)
+
+    def _call(self, operation, *args, notice=False) -> None:
+        try:
+            operation(*args)
+        except Exception as exc:
+            (self.notice if notice else self.failure).emit(str(exc))
 
     @pyqtSlot()
     def start(self) -> None:
+        if self._timer is not None:
+            return
         self._timer = QTimer(self)
         self._timer.setTimerType(Qt.TimerType.PreciseTimer)
         self._timer.setInterval(max(1, round(1000 / self._ui_refresh_hz)))
         self._timer.timeout.connect(self._run_frame)
         self._last_frame_time = perf_counter()
-        if self._simulation.profile.clock_name is None:
-            self._run_frame()
+        self._call(lambda: self._publish(self._engine.refresh()))
 
     @pyqtSlot(object)
     def configure_vga_bindings(self, bindings) -> None:
-        bindings = tuple(bindings or ())
-        if bindings == self._vga_bindings and self._sink_id is not None:
-            return
-        if self._sink_id is not None:
-            self._simulation.destroy_vga(self._sink_id)
-            self._sink_id = None
-        self._vga_bindings = bindings
-        if not bindings:
-            return
-        if len(bindings) > 1:
-            self.failure.emit(t("Only one VGA monitor is supported in this version."))
-            return
-        try:
-            self._sink_id = self._simulation.configure_vga(bindings[0].timing, bindings[0].channels)
-        except Exception as exc:
-            self.failure.emit(str(exc))
+        self._call(self._engine.configure_vga_bindings, bindings)
 
     @pyqtSlot(object)
     def set_temporal_probes(self, probes) -> None:
-        """Install generic output predicates configured by the workbench catalog."""
-        try:
-            self._temporal_probes = tuple(tuple(tuple(term) for term in probe) for probe in (probes or ()))
-            self._simulation.set_temporal_probes(list(self._temporal_probes))
-        except Exception as exc:
-            self.failure.emit(str(exc))
+        self._call(self._engine.set_temporal_probes, probes)
 
     @pyqtSlot(object)
     def configure_edge_channels(self, channels) -> None:
-        """Install the generic edge sources; decoding belongs to peripherals."""
-        try:
-            normalized = tuple((int(output), int(bit)) for output, bit in (channels or ()))
-            if normalized != self._edge_channels:
-                self._simulation.configure_edge_channels(list(normalized))
-                self._edge_channels = normalized
-        except Exception as exc:
-            self._simulation.configure_edge_channels([])
-            self._edge_channels = ()
-            self.failure.emit(str(exc))
+        self._call(self._engine.configure_edge_channels, channels)
 
     @pyqtSlot(object)
     def configure_drive_channels(self, channels) -> None:
-        """Reserve manifest-declared input bits for cycle-accurate drivers."""
-        try:
-            normalized = tuple((str(name), int(bit), bool(idle)) for name, bit, idle in (channels or ()))
-            if normalized != self._drive_channels:
-                self._simulation.configure_drive_channels(list(normalized))
-                self._drive_channels = normalized
-                self._drive_scheduler.reset()
-        except Exception as exc:
-            self._simulation.configure_drive_channels([])
-            self._drive_channels = ()
-            self._drive_scheduler.reset()
-            self.notice.emit(str(exc))
+        self._call(self._engine.configure_drive_channels, channels, notice=True)
 
     @pyqtSlot(object)
     def configure_spi_slaves(self, bindings) -> None:
-        try:
-            self._simulation.configure_spi_slaves(bindings or [])
-        except Exception as exc:
-            try:
-                self._simulation.configure_spi_slaves([])
-            except Exception:
-                pass
-            self.notice.emit(str(exc))
+        self._call(self._engine.configure_spi_slaves, bindings, notice=True)
 
     @pyqtSlot(int, int, str)
     def send_uart(self, channel: int, baud: int, text: str) -> None:
-        """Schedule a complete UTF-8 string in virtual time, not with Qt timers."""
         try:
-            if self._timer is None or not self._timer.isActive():
-                raise ValueError(t("Start the simulation before sending UART text."))
-            if not 0 <= channel < len(self._drive_channels):
-                raise ValueError(t("UART TX is not connected to an FPGA input."))
-            if baud <= 0 or baud > self._clock_hz // 2:
-                raise ValueError(t("Baud rate is too high for the virtual clock."))
-            data = text.encode("utf-8")
-            if not data:
-                return
-            if len(data) > 512:
-                raise ValueError(t("Send at most 512 UTF-8 bytes at once."))
-            edges, end = uart_8n1_drive_events(data, 1, self._clock_hz, baud)
-            self._drive_scheduler.enqueue(
-                ((channel, cycle - 1, level) for cycle, level in edges),
-                end - 1,
-                len(self._drive_channels),
-            )
-            self.notice.emit(t("Queued {count} UART byte(s).", count=len(data)))
-            self.uart_send_result.emit(channel, text, True)
+            count = self._engine.send_uart(channel, baud, text)
+            if count:
+                self.notice.emit(t("Queued {count} UART byte(s).", count=count))
+                self.uart_send_result.emit(channel, text, True)
         except (ValueError, RuntimeError, UnicodeError) as exc:
             self.notice.emit(str(exc))
             self.uart_send_result.emit(channel, text, False)
@@ -231,159 +94,58 @@ class SimulationWorker(QObject):
     @pyqtSlot()
     def play(self) -> None:
         if self._timer and not self._timer.isActive():
-            self._last_frame_time = perf_counter()
-            self._cycle_remainder = 0.0
-            self._performance_cycles = 0
-            self._performance_wall_seconds = 0.0
-            self._measured_virtual_hz = 0.0
-            self._blank_next = False
-            self._timer.start()
+            try:
+                self._engine.play()
+                self._last_frame_time = perf_counter()
+                self._timer.start()
+            except Exception as exc:
+                self.failure.emit(str(exc))
 
     @pyqtSlot()
     def pause(self) -> None:
         if self._timer:
             self._timer.stop()
+        self._engine.pause()
 
     @pyqtSlot()
     def power_off(self) -> None:
         self.pause()
-        self._simulation.reset()
-        self._simulation.streaming_reset()
-        self._drive_scheduler.reset()
-        self._blank_next = True
-        self.state_changed.emit(SimulationFrame(
-            led_brightness=(0.0,) * len(self._led_models),
-            outputs={},
-            sinks=self._blank_sinks(),
-            temporal=TemporalFrame(),
-        ))
-
-    def _blank_sinks(self) -> dict[str, VgaSnapshot]:
-        return {
-            binding.peripheral_id: VgaSnapshot(
-                seq=0,
-                pixels=b"",
-                missing_required=binding.missing_required,
-                bind_errors=binding.bind_errors,
-            )
-            for binding in self._vga_bindings
-        }
-
-    def _keep_sinks(self) -> dict[str, VgaSnapshot]:
-        snapshots = {}
-        for binding in self._vga_bindings:
-            copied = None
-            if self._sink_id is not None:
-                copied = self._simulation.vga_copy_front(
-                    self._sink_id, binding.timing.h_active, binding.timing.v_active
-                )
-            if copied is None:
-                snapshots[binding.peripheral_id] = VgaSnapshot(
-                    seq=0,
-                    pixels=None,
-                    missing_required=binding.missing_required,
-                    bind_errors=binding.bind_errors,
-                )
-                continue
-            pixels, stats = copied
-            snapshots[binding.peripheral_id] = VgaSnapshot(
-                seq=stats.seq,
-                width=binding.timing.h_active,
-                height=binding.timing.v_active,
-                pixels=pixels,
-                stats=stats,
-                missing_required=binding.missing_required,
-                bind_errors=binding.bind_errors,
-            )
-        return snapshots
+        self._call(lambda: self._publish(self._engine.power_off()))
 
     @pyqtSlot()
     def _run_frame(self) -> None:
         try:
             now = perf_counter()
-            wall_elapsed = max(0.0, now - self._last_frame_time)
-            elapsed = min(wall_elapsed, 0.100)
+            elapsed = max(0.0, now - self._last_frame_time)
             self._last_frame_time = now
-            exact_cycles = elapsed * self._clock_hz + self._cycle_remainder
-            cycles = int(exact_cycles)
-            self._cycle_remainder = exact_cycles - cycles
-            self._simulation.ticks(cycles)
-            windows = self._simulation.observed_windows(cycles)
-            temporal_hits, temporal_samples, temporal_ends, temporal_edges = self._simulation.temporal_probe_window()
-            temporal_pulses = self._simulation.temporal_pulse_window()
-            edge_cycle, edge_events, edge_dropped = self._simulation.edge_window()
-            if edge_dropped:
-                # A partial queue cannot reconstruct serial frames reliably.
-                edge_events = []
-            virtual_elapsed = cycles / self._clock_hz if self._clock_hz else 0.0
-            leds = []
-            for index, model in enumerate(self._led_models):
-                port, bit = self._led_sources[index]
-                signal = windows.get(f"{port}[{bit}]")
-                if signal and index < len(self._led_active_low) and self._led_active_low[index]:
-                    signal = SignalWindow(
-                        not signal.start, not signal.end,
-                        signal.half_cycles - signal.high_halves, signal.half_cycles, signal.edges,
-                    )
-                leds.append(model.advance({"anode": signal}, virtual_elapsed) if signal else 0.0)
-            outputs = {
-                name: self._simulation.get_output(name)
-                for name in self._simulation.profile.outputs
-            }
-            self._performance_cycles += cycles
-            self._performance_wall_seconds += wall_elapsed
-            if self._performance_wall_seconds >= 1.0:
-                self._measured_virtual_hz = effective_virtual_hz(
-                    self._performance_cycles, self._performance_wall_seconds
-                )
-                self._performance_cycles = 0
-                self._performance_wall_seconds = 0.0
-            self.state_changed.emit(SimulationFrame(
-                led_brightness=tuple(leds),
-                outputs=outputs,
-                sinks=self._keep_sinks(),
-                virtual_hz=self._measured_virtual_hz,
-                cycles=cycles,
-                temporal=TemporalFrame(
-                    tuple(temporal_hits), temporal_samples, tuple(temporal_ends), tuple(temporal_edges), virtual_elapsed,
-                    tuple(
-                        pulse_samples_to_seconds(samples, self._observation_divisor, self._clock_hz)
-                        for samples in temporal_pulses
-                    ),
-                ),
-                edge_stream=EdgeFrame(edge_cycle, self._clock_hz, tuple(edge_events), edge_dropped),
-            ))
+            self._publish(self._engine.advance(elapsed))
         except Exception as exc:
-            if self._timer:
-                self._timer.stop()
+            self.pause()
             self.failure.emit(str(exc))
 
     @pyqtSlot()
     def reset(self) -> None:
-        was_running = bool(self._timer and self._timer.isActive())
         if self._timer:
             self._timer.stop()
-        self._simulation.reset()
-        self._simulation.streaming_reset()
-        self._drive_scheduler.reset()
-        if was_running:
-            self.play()
-        elif self._simulation.profile.clock_name is None:
-            self._run_frame()
-
-    @pyqtSlot(str, int)
-    def set_input(self, name: str, value: int) -> None:
         try:
-            self._simulation.set_input(name, value)
-            if self._simulation.profile.clock_name is None:
-                self._run_frame()
+            self._publish(self._engine.reset())
+            if self._timer and self._engine.running:
+                self._last_frame_time = perf_counter()
+                self._timer.start()
         except Exception as exc:
             self.failure.emit(str(exc))
 
+    @pyqtSlot(str, int)
+    def set_input(self, name: str, value: int) -> None:
+        self._call(lambda: self._publish(self._engine.set_input(name, value)))
+
     @pyqtSlot()
     def shutdown(self) -> None:
-        if self._timer:
-            self._timer.stop()
-        self._simulation.close()
-        self.stopped.emit()
-        QThread.currentThread().quit()
+        self.pause()
+        try:
+            self._engine.close()
+        except Exception as exc:
+            self.failure.emit(str(exc))
+        finally:
+            self.stopped.emit()
+            QThread.currentThread().quit()

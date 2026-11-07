@@ -16,7 +16,8 @@ from .board_layout import BoardLayout, bundled_layout
 from .board_view import BoardView
 from .sink_bind import collect_vga_bindings
 from .simulation import VerilatorSimulation
-from .simulation_worker import SimulationFrame, SimulationWorker
+from .simulation_engine import SimulationFrame
+from .simulation_worker import SimulationWorker
 from .wiring import VirtualLabProject
 from .theme import Metrics, style_button
 
