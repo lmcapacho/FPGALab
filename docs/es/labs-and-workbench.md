@@ -28,6 +28,11 @@ asignadas y terminales de periféricos conectados.
 
 Abre el administrador desde el selector de la barra superior. Puedes crear, duplicar, renombrar, eliminar, importar y exportar Labs. Los archivos `.lab` exportados son documentos JSON portables que se pueden compartir junto con el diseño `.ice` correspondiente.
 
+Cada Lab muestra su tarjeta asociada y cantidad de periféricos, sin contar las
+anotaciones. Los Labs sin tarjeta declarada usan la predeterminada; las tarjetas
+no disponibles conservan su identificador en la lista. Esta vista no modifica
+los archivos de los Labs.
+
 Los archivos `.lab.json` anteriores siguen siendo compatibles. Al importar se
 valida y copia el Lab al espacio de trabajo local sin sobrescribir otro Lab.
 FPGALab recuerda el último Lab seleccionado en los ajustes del usuario y lo

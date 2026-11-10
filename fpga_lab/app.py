@@ -462,7 +462,8 @@ def main() -> None:
             pass
     app = QApplication(sys.argv)
     app.setApplicationName("FPGALab")
-    app.setApplicationDisplayName("FPGALab")
+    # Titles already provide context; avoid automatic platform-added suffixes.
+    app.setApplicationDisplayName("")
     app.setOrganizationName("FPGALab")
     qt_dialog_translations = QtDialogTranslations(app)
     theme_mode = load_theme_mode()

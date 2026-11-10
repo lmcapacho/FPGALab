@@ -27,6 +27,10 @@ terminals together in one table.
 
 Open the Lab manager from the selector in the top bar. You can create, duplicate, rename, delete, import, and export Labs. Exported `.lab` files are portable JSON documents and can be shared with the corresponding `.ice` design.
 
+Each Lab lists its associated board and peripheral count, excluding annotations.
+Labs without a board declaration use the default board; unavailable boards retain
+their identifier in the list. This overview does not modify Lab files.
+
 Existing `.lab.json` files remain supported. Import validates and copies a Lab
 into the local workspace without overwriting another Lab. The most recently
 selected Lab is remembered in the user's FPGALab settings and restored at

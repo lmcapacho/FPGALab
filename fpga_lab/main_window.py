@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from PyQt6.QtCore import QSettings, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QPen
+from PyQt6.QtGui import QFontMetrics, QIcon, QPen
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
     QStatusBar,
     QStyle,
     QStyleOptionComboBox,
+    QStyleOptionViewItem,
     QStylePainter,
     QVBoxLayout,
     QWidget,
@@ -128,6 +129,39 @@ class LabNameDialog(QDialog):
             self.accept()
 
 
+class LabSummaryDelegate(QStyledItemDelegate):
+    """Keep Lab names and secondary metadata aligned, readable and elided."""
+
+    SUMMARY_ROLE = Qt.ItemDataRole.UserRole + 1
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        return QSize(size.width(), max(38, size.height() + 12))
+
+    def paint(self, painter, option, index):
+        styled = QStyleOptionViewItem(option)
+        self.initStyleOption(styled, index)
+        name, summary = styled.text, str(index.data(self.SUMMARY_ROLE) or "")
+        styled.text = ""
+        style = styled.widget.style() if styled.widget is not None else QApplication.style()
+        painter.save()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, styled, painter, styled.widget)
+        rect = option.rect.adjusted(10, 0, -10, 0)
+        metrics = QFontMetrics(styled.font)
+        summary_width = min(metrics.horizontalAdvance(summary) + 4, max(0, rect.width() // 2))
+        summary_rect = rect.adjusted(rect.width() - summary_width, 0, 0, 0)
+        name_rect = rect.adjusted(0, 0, -(summary_width + 16), 0)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        painter.setFont(styled.font)
+        painter.setPen(option.palette.highlightedText().color() if selected else color("text"))
+        painter.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                         metrics.elidedText(name, Qt.TextElideMode.ElideRight, max(0, name_rect.width())))
+        painter.setPen(option.palette.highlightedText().color() if selected else color("text_muted"))
+        painter.drawText(summary_rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                         metrics.elidedText(summary, Qt.TextElideMode.ElideRight, summary_width))
+        painter.restore()
+
+
 class LabManagerDialog(QDialog):
     """Search, select, create, and delete reusable labs from one compact view."""
 
@@ -141,17 +175,26 @@ class LabManagerDialog(QDialog):
         self._selected_lab = selected_lab.resolve()
         self._active_lab_path = selected_lab.resolve()
         self.setWindowTitle(t("Laboratories"))
-        self.setMinimumSize(460, 360)
+        self.setMinimumSize(520, 380)
+        self.resize(640, 460)
+        self._board_labels = {
+            identifier: package.definition.label
+            for package in BoardCatalog().packages
+            for identifier in (package.board_id, package.definition.board_id)
+        }
         layout = QVBoxLayout(self)
         self._search = QLineEdit()
         self._search.setPlaceholderText(t("Search labs…"))
         self._search.textChanged.connect(self._refresh)
         layout.addWidget(self._search)
         self._list = QListWidget()
+        self._list.setItemDelegate(LabSummaryDelegate(self._list))
+        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._list.itemDoubleClicked.connect(lambda _: self.accept())
         self._list.itemSelectionChanged.connect(self._update_actions)
         management_actions = QGridLayout()
         self._new_button = QPushButton(t("New Lab"))
+        style_button(self._new_button, "primary")
         self._new_button.clicked.connect(self._create_lab)
         self._import_button = QPushButton()
         _style_lab_icon_button(self._import_button, "import")
@@ -186,6 +229,7 @@ class LabManagerDialog(QDialog):
         selection_actions.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Open)
         buttons.button(QDialogButtonBox.StandardButton.Open).setText(t("Open"))
+        style_button(buttons.button(QDialogButtonBox.StandardButton.Open), "primary")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(t("Cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -208,7 +252,10 @@ class LabManagerDialog(QDialog):
             name = t("My First Lab") if LabWorkspace.is_starter_lab(descriptor.path) else descriptor.name
             item = QListWidgetItem(LabWorkspace.base_name(name))
             item.setData(Qt.ItemDataRole.UserRole, descriptor.path)
-            item.setToolTip(name)
+            summary = self._lab_summary(descriptor.path)
+            item.setData(LabSummaryDelegate.SUMMARY_ROLE, summary)
+            item.setData(Qt.ItemDataRole.AccessibleDescriptionRole, summary)
+            item.setToolTip(f"{name}\n{summary}")
             self._list.addItem(item)
             if descriptor.path.resolve() == current.resolve():
                 self._list.setCurrentItem(item)
@@ -216,6 +263,23 @@ class LabManagerDialog(QDialog):
             self._list.setCurrentRow(0)
         self._list.blockSignals(False)
         self._update_actions()
+
+    def _lab_summary(self, path: Path) -> str:
+        """Read descriptive metadata without resolving or rewriting Lab content."""
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            metadata = raw.get("metadata", {})
+            peripherals = raw.get("peripherals", [])
+            if not isinstance(metadata, dict) or not isinstance(peripherals, list):
+                raise ValueError("Invalid Lab metadata")
+            identifier = metadata.get("board_id") or DEFAULT_BOARD_PUBLIC_ID
+            label = self._board_labels.get(identifier)
+            board = label if label is not None else t("{board} (unavailable)", board=identifier)
+            count = len(peripherals)
+            count_text = t("1 peripheral") if count == 1 else t("{count} peripherals", count=count)
+            return f"{board} · {count_text}"
+        except (OSError, UnicodeError, ValueError, AttributeError, TypeError):
+            return t("Lab details unavailable")
 
     def _update_actions(self) -> None:
         selected = self.selected_lab()

@@ -30,6 +30,7 @@ All notable changes to FPGALab are documented in this file.
 
 ### Changed
 
+- Enlarged the Lab manager with aligned board names and peripheral counts per Lab; unavailable boards remain identifiable. Window titles no longer receive an automatic application-name suffix.
 - Reordered first-run guides around application installation, required simulation tools and a first design; moved recent-project/update details to the usage guide and separated board architecture contracts into focused sections in both languages.
 - Workbench annotations are created from the context menu at the clicked position; geometry is edited on the canvas and Markdown text in a dedicated editor.
 - GitHub Actions caches Python dependencies for CI, documentation and release builds.

@@ -417,6 +417,45 @@ def test_deleting_the_active_lab_immediately_selects_the_starter_lab(tmp_path, m
     dialog.deleteLater()
 
 
+def test_lab_manager_summaries_preserve_selection_names_and_lab_contents(tmp_path):
+    from fpga_lab.board_catalog import BoardCatalog
+    from fpga_lab.i18n import t
+    from fpga_lab.main_window import LabSummaryDelegate
+
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    workspace = LabWorkspace(tmp_path / "workspace", settings)
+    bitsy = workspace.create("Counter", "iCEBreaker-bitsy1")
+    legacy = workspace.create("Legacy")
+    unavailable = workspace.create("Future", "missing-board")
+    raw = json.loads(bitsy.path.read_text())
+    raw["peripherals"] = [{"id": "one", "type": "led"}, {"id": "two", "type": "future_type"}]
+    raw["annotations"] = [{"type": "text", "text": "Not a peripheral"}]
+    bitsy.path.write_text(json.dumps(raw))
+    legacy.path.write_text('{"peripherals":[{"id":"one","type":"button"}]}')
+    broken = workspace.labs_dir / "broken.lab"
+    broken.write_text("not JSON")
+    originals = {descriptor.path: descriptor.path.read_bytes() for descriptor in workspace.labs()}
+    dialog = LabManagerDialog(workspace, bitsy.path)
+    assert dialog.windowTitle() == t("Laboratories")
+    assert dialog.selected_lab() == bitsy.path
+    assert dialog.width() >= 600
+    rows = {dialog._list.item(index).data(Qt.ItemDataRole.UserRole): dialog._list.item(index)
+            for index in range(dialog._list.count())}
+    summary = lambda path: rows[path].data(LabSummaryDelegate.SUMMARY_ROLE)
+    assert rows[bitsy.path].text() == "Counter"
+    assert summary(bitsy.path) == (
+        BoardCatalog().resolve("iCEBreaker-bitsy1").definition.label + " · " + t("{count} peripherals", count=2))
+    assert summary(legacy.path).endswith(" · " + t("1 peripheral"))
+    assert "missing-board" in summary(unavailable.path)
+    assert summary(broken) == t("Lab details unavailable")
+    assert rows[bitsy.path].data(Qt.ItemDataRole.AccessibleDescriptionRole) == summary(bitsy.path)
+    dialog._search.setText("Counter")
+    assert dialog._list.count() == 1 and dialog.selected_lab() == bitsy.path
+    assert all(path.read_bytes() == original for path, original in originals.items())
+    dialog.close()
+    dialog.deleteLater()
+
+
 def test_model_changing_controls_are_locked_while_running(tmp_path):
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
     window = FPGALabMainWindow(LabWorkspace(tmp_path / "labs", settings), settings=settings)

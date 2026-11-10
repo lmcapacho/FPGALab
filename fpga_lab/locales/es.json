@@ -1,5 +1,9 @@
 {
   "_meta": {"code": "es", "name": "Español", "contributors": []},
+  "1 peripheral": "1 periférico",
+  "{count} peripherals": "{count} periféricos",
+  "{board} (unavailable)": "{board} (no disponible)",
+  "Lab details unavailable": "Detalles del Lab no disponibles",
   "Simulation is closed.": "La simulación está cerrada.",
   "Elapsed wall time must be finite and nonnegative.": "El tiempo real transcurrido debe ser finito y no negativo.",
   "clock_hz and observation_hz must be positive.": "clock_hz y observation_hz deben ser positivos.",
