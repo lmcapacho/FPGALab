@@ -195,10 +195,32 @@ servicio/modelo concurrentemente desde otro hilo. Servicios separados no aíslan
 la ABI global del proceso: la misma biblioteca no admite varios dueños activos.
 
 Es la base de sesiones nativas, no un renderizador headless del Lab ni una API
-servidor. La persistencia del workbench y planes automáticos de captura temporal/
-serie por renderizador siguen en escritorio; un anfitrión sin GUI puede usar las
-conexiones resueltas para configurar explícitamente las API de captura/entradas
-del motor. No incluye HTTP, aislamiento multiusuario ni sandbox de servidor.
+servidor. No incluye HTTP, aislamiento multiusuario ni sandbox de servidor.
+
+### Plan de canales de periféricos
+
+`peripherals.channel_plan.build_channel_plan(project, wires, profile, catalog=...)`
+construye un `ChannelPlan` inmutable sin Qt. Recibe un `VirtualLabProject`, sus
+conexiones resueltas mediante tarjeta/restricciones y el `BoardProfile` del modelo
+nativo. El catálogo opcional relaciona identificadores de tipo con `PeripheralSpec`;
+si se omite, carga el catálogo integrado/del usuario. Preparar el plan no modifica
+el Lab ni configura el motor.
+
+El plan incluye predicados temporales, canales de captura/entrada y configuración
+del respondedor SPI nativo. Los enlaces identifican `(peripheral_id, terminal)`,
+no widgets. Los índices de canal siguen el orden del proyecto/manifiesto; los de
+salida siguen el perfil. Tipos no disponibles y referencias HDL inválidas o sin
+mapear no reservan canales. Se conserva el comportamiento del escritorio para
+polaridad/habilitación del común y avisos de respuesta SPI.
+
+El anfitrión puede pasar `plan.temporal_probes`, `plan.edge_channels`,
+`plan.drive_channels` y `plan.spi_slaves` a los métodos de configuración
+correspondientes del motor en su hilo dueño. Debe conservar el orden de las tuplas
+al distribuir frames y resultados de envío. El escritorio relaciona identificadores
+con elementos gráficos y emite sus señales Qt existentes. El historial de flujos,
+el ciclo de vida de los decodificadores y la presentación siguen en los
+renderizadores de escritorio; este plan todavía no es un runtime completo de
+periféricos independiente de la interfaz.
 
 ### Mapa de módulos
 

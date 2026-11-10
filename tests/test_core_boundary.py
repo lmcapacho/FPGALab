@@ -24,7 +24,8 @@ for name in ('board', 'board_layout', 'board_catalog', 'profile', 'constraints',
              'project_pins', 'signals', 'wiring', 'sink_bind', 'temporal',
              'compiler', 'cpp_wrapper', 'simulation', 'simulation_engine', 'session', 'ice_project', 'build_cache',
              'private_toolchain', 'toolchain', 'sdk_install', 'edge_drive',
-             'serial_edges', 'spi_edges', 'peripherals.catalog', 'peripherals.validate'):
+             'serial_edges', 'spi_edges', 'peripherals.catalog', 'peripherals.validate',
+             'peripherals.channel_plan'):
     importlib.import_module('fpga_lab.' + name)
 
 from fpga_lab.board_catalog import BoardCatalog
@@ -60,6 +61,13 @@ exported.mkdir(parents=True)
 prepared = SessionService(workspace / 'cache').prepare(ice)
 assert prepared.module_name == 'top' and prepared.board_id == 'alhambra_ii'
 assert not (workspace / 'cache').exists()
+from fpga_lab.peripherals.channel_plan import build_channel_plan
+from fpga_lab.wiring import VirtualLabProject, PeripheralInstance, ResolvedWire
+plan = build_channel_plan(
+    VirtualLabProject((PeripheralInstance('lamp', 'led', {}, {}),)),
+    (ResolvedWire('lamp', 'anode', 'pin', 'led'),), profile)
+assert plan.temporal_probes == (((0, 0, True),),)
+assert plan.temporal_bindings == (('lamp', 'anode'),)
 assert 'fpga_lab.lab_workspace' not in sys.modules
 assert not any(name.startswith(('PyQt6', 'PySide6')) for name in sys.modules)
 assert 'fpga_lab.i18n' not in sys.modules

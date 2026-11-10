@@ -12,11 +12,13 @@ from .constraints import parse_constraints_file
 from .i18n import language_manager, t
 from .peripheral_catalog_panel import PeripheralCatalogPanel
 from .peripherals.catalog import load_catalog, spec_for
+from .peripherals.channel_plan import ChannelPlan, build_channel_plan
+from .profile import BoardProfile
 from .peripherals.install import install_package, uninstall_package
 from .peripherals.manifest import RESERVED_PROPERTIES
 from .peripherals.renderers.vga_monitor import VgaMonitorRenderer
 from .temporal import LedModel, SignalWindow
-from .wiring import SUPPLY_ENDPOINTS, PeripheralInstance, VirtualLabProject
+from .wiring import PeripheralInstance, VirtualLabProject
 from .theme import color, style_button
 from .workbench import WorkbenchPeripheralItem, WorkbenchView
 from .workbench.annotation import WorkbenchAnnotationItem
@@ -319,12 +321,11 @@ class PeripheralsPanel(QWidget):
         super().__init__(parent); self._board, self._pcf, self._lab = board, pcf, lab
         self._input_widths = input_widths or {}
         self._output_widths = output_widths or {}
-        self._output_indexes = {name: index for index, name in enumerate(self._output_widths)}
         self._clock_name = clock_name
         self._input_values = {}; self._editing_enabled = True
         self._powered = False
         self._assigned_endpoints = None  # The entire board is available; the design PCF is optional.
-        self._temporal_probes: list[tuple[tuple[int, int, bool], ...]] = []
+        self._channel_plan = ChannelPlan()
         self._temporal_bindings: list[tuple[WorkbenchPeripheralItem, str]] = []
         self._temporal_terminals: set[tuple[str, str]] = set()
         self._temporal_models: list[LedModel] = []
@@ -582,9 +583,7 @@ class PeripheralsPanel(QWidget):
                 item = WorkbenchAnnotationItem(annotation, self._edit_annotation)
                 item.set_editable(self._editing_enabled)
                 self._workbench_scene.addItem(item)
-        self._rebuild_temporal_probes(project, workbench_items)
-        self._rebuild_edge_channels(project, workbench_items)
-        self._rebuild_drive_channels(project, workbench_items)
+        self._rebuild_channel_plan(project, workbench_items)
         self._restore_workbench_zoom()
         self._update_connection_status()
 
@@ -654,157 +653,49 @@ class PeripheralsPanel(QWidget):
         state["center"] = [round(center.x(), 2), round(center.y(), 2)]
         self._lab.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
 
-    def _output_condition(self, net: str | None, expected: bool) -> tuple[int, int, bool] | None:
-        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?", net or "")
-        if match is None:
-            return None
-        name, raw_bit = match.groups()
-        bit = int(raw_bit) if raw_bit else 0
-        if name not in self._output_widths or bit >= self._output_widths[name]:
-            return None
-        return self._output_indexes[name], bit, expected
-
-    def _rebuild_temporal_probes(self, project, workbench_items) -> None:
-        """Create output predicates from a peripheral's manifest metadata."""
-        probes: list[tuple[tuple[int, int, bool], ...]] = []
-        bindings: list[tuple[WorkbenchPeripheralItem, str]] = []
-        temporal_terminals: set[tuple[str, str]] = set()
-
-        def add(peripheral_id: str, terminal: str, conditions: list[tuple[int, int, bool]]) -> None:
-            if conditions:
-                probes.append(tuple(conditions))
-                bindings.append((workbench_items[peripheral_id], terminal))
-
-        for peripheral in project.peripherals:
-            try:
-                spec = spec_for(peripheral.kind)
-            except ValueError:
-                continue
-            temporal = spec.temporal
-            if temporal is None:
-                continue
-            if temporal["mode"] == "per_terminal":
-                for terminal in spec.terminals:
-                    if terminal.direction != "output":
-                        continue
-                    binding = self._workbench_bindings.get((peripheral.peripheral_id, terminal.name))
-                    condition = self._output_condition(binding[1] if binding else None, True)
-                    if condition is not None:
-                        add(peripheral.peripheral_id, terminal.name, [condition])
-                continue
-
-            common_terminal = str(temporal["common_terminal"])
-            common_type = str(peripheral.properties.get(str(temporal["polarity_property"]), "cathode"))
-            common_endpoint = peripheral.connections.get(
-                common_terminal, "GND" if common_type == "cathode" else "VCC"
-            )
-            if common_endpoint in SUPPLY_ENDPOINTS:
-                common_conditions = [] if common_endpoint == ("GND" if common_type == "cathode" else "VCC") else None
-            else:
-                binding = self._workbench_bindings.get((peripheral.peripheral_id, common_terminal))
-                condition = self._output_condition(binding[1] if binding else None, common_type == "anode")
-                common_conditions = [condition] if condition is not None else None
-            if common_conditions is None:
-                temporal_terminals.update(
-                    (peripheral.peripheral_id, str(terminal))
-                    for terminal in temporal.get("active_terminals", ())
-                )
-                continue
-            for terminal in temporal.get("active_terminals", ()):
-                temporal_terminals.add((peripheral.peripheral_id, str(terminal)))
-                binding = self._workbench_bindings.get((peripheral.peripheral_id, str(terminal)))
-                # Segment current flows low for common-anode displays and high
-                # for common-cathode displays. The common enable is handled above.
-                condition = self._output_condition(binding[1] if binding else None, common_type == "cathode")
-                if condition is not None:
-                    add(peripheral.peripheral_id, str(terminal), [*common_conditions, condition])
-
-        self._temporal_probes = probes
-        self._temporal_bindings = bindings
-        self._temporal_terminals = temporal_terminals | {
-            (item.peripheral.peripheral_id, terminal) for item, terminal in bindings
-        }
-        self._temporal_models = [LedModel(_EXTERNAL_LIGHT_PERSISTENCE_SECONDS) for _ in bindings]
+    def _rebuild_channel_plan(self, project, workbench_items) -> None:
+        profile = BoardProfile(
+            self._board.label, self._input_widths, self._output_widths,
+            clock_name=self._clock_name,
+        )
+        plan = build_channel_plan(project, self._resolved_wires, profile)
+        self._channel_plan = plan
+        self._temporal_bindings = [
+            (workbench_items[identifier], terminal)
+            for identifier, terminal in plan.temporal_bindings
+        ]
+        self._temporal_terminals = set(plan.temporal_terminals)
+        self._temporal_models = [
+            LedModel(_EXTERNAL_LIGHT_PERSISTENCE_SECONDS) for _ in plan.temporal_bindings
+        ]
+        self._edge_bindings = [
+            (workbench_items[identifier], terminal, output, bit)
+            for identifier, terminal, output, bit in plan.edge_bindings
+        ]
+        self._drive_bindings = [
+            (workbench_items[identifier], terminal, port, bit, idle)
+            for identifier, terminal, port, bit, idle in plan.drive_bindings
+        ]
+        for identifier, item in workbench_items.items():
+            item.set_spi_response_enabled(identifier in plan.spi_response_peripherals)
+        for warning in plan.warnings:
+            self.changed.emit(warning)
         self.temporal_probes_changed.emit(self.temporal_probes())
-
-    def temporal_probes(self) -> list[tuple[tuple[int, int, bool], ...]]:
-        return list(self._temporal_probes)
-
-    def _rebuild_edge_channels(self, project, workbench_items) -> None:
-        bindings: list[tuple[WorkbenchPeripheralItem, str, int, int]] = []
-        for peripheral in project.peripherals:
-            try:
-                spec = spec_for(peripheral.kind)
-            except ValueError:
-                continue
-            for terminal in spec.edge_channels:
-                wire = self._workbench_bindings.get((peripheral.peripheral_id, terminal))
-                condition = self._output_condition(wire[1] if wire else None, True)
-                if condition is not None:
-                    output, bit, _ = condition
-                    bindings.append((workbench_items[peripheral.peripheral_id], terminal, output, bit))
-        self._edge_bindings = bindings
         self.edge_channels_changed.emit(self.edge_channels())
-
-    def edge_channels(self) -> list[tuple[int, int]]:
-        return [(output, bit) for _, _, output, bit in self._edge_bindings]
-
-    def _rebuild_drive_channels(self, project, workbench_items) -> None:
-        bindings: list[tuple[WorkbenchPeripheralItem, str, str, int, bool]] = []
-        for peripheral in project.peripherals:
-            try:
-                spec = spec_for(peripheral.kind)
-            except ValueError:
-                continue
-            for terminal in spec.drive_channels:
-                wire = self._workbench_bindings.get((peripheral.peripheral_id, terminal))
-                match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_$]*)(?:\[(\d+)])?", wire[1] or "") if wire else None
-                if match is None:
-                    continue
-                port, raw_bit = match.groups()
-                bit = int(raw_bit) if raw_bit else 0
-                if port == self._clock_name or port not in self._input_widths or bit >= self._input_widths[port]:
-                    continue
-                bindings.append((
-                    workbench_items[peripheral.peripheral_id], terminal, port, bit,
-                    bool((spec.drive_idle or {}).get(terminal, False)),
-                ))
-        self._drive_bindings = bindings
         self.drive_channels_changed.emit(self.drive_channels())
         self.spi_slaves_changed.emit(self.spi_slaves())
 
+    def temporal_probes(self) -> list[tuple[tuple[int, int, bool], ...]]:
+        return list(self._channel_plan.temporal_probes)
+
+    def edge_channels(self) -> list[tuple[int, int]]:
+        return list(self._channel_plan.edge_channels)
+
     def drive_channels(self) -> list[tuple[str, int, bool]]:
-        return [(port, bit, idle) for _, _, port, bit, idle in self._drive_bindings]
+        return list(self._channel_plan.drive_channels)
 
     def spi_slaves(self) -> list[tuple]:
-        from .spi_edges import spi_response_byte
-        bindings = []
-        for channel, (item, terminal, _, _, _) in enumerate(self._drive_bindings):
-            spec = spec_for(item.peripheral.kind)
-            visual = spec.visual
-            if visual.get("miso_drive") != terminal:
-                continue
-            item.set_spi_response_enabled(False)
-            sources = []
-            for field in ("clock_channel", "select_channel"):
-                match = next(((output, bit) for bound_item, name, output, bit in self._edge_bindings
-                              if bound_item is item and name == visual[field]), None)
-                if match is None:
-                    break
-                sources.extend(match)
-            if len(sources) != 4:
-                continue
-            def value(field):
-                name = visual[field]
-                return item.peripheral.properties.get(name, spec.properties[name]["default"])
-            try:
-                bindings.append((*sources, channel, int(value("mode_property")),
-                                 value("bit_order_property") == "lsb", value("cs_polarity_property") == "low",
-                                 spi_response_byte(value("response_property"))))
-                item.set_spi_response_enabled(True)
-            except (ValueError, TypeError) as exc:
-                self.changed.emit(str(exc))
-        return bindings
+        return list(self._channel_plan.spi_slaves)
 
     def _queue_serial_text(self, peripheral_id: str, terminal: str, text: str) -> bool:
         if not self._powered or not text:

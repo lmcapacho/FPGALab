@@ -193,10 +193,32 @@ Separate services do not isolate the process-global C ABI: the same shared
 library must not have multiple live owners in one process.
 
 This is the native session foundation, not a headless renderer of a Lab or a
-server API. Workbench persistence and automatic per-renderer temporal/serial
-binding plans still belong to the desktop; a headless host can use the resolved
-wires to configure the engine's existing capture/drive APIs explicitly. There
-is no HTTP transport, multi-user isolation or public-server sandbox in this API.
+server API. There is no HTTP transport, multi-user isolation or public-server
+sandbox in this API.
+
+### Peripheral channel planning
+
+`peripherals.channel_plan.build_channel_plan(project, wires, profile, catalog=...)`
+builds an immutable `ChannelPlan` without Qt. Pass a `VirtualLabProject`, its
+board/constraint-resolved wires and the native model's `BoardProfile`. The
+optional catalog is a mapping of type identifiers to `PeripheralSpec`; omission
+loads the bundled/user catalog. Preparation does not change the Lab or configure
+the engine.
+
+The plan includes temporal predicates, capture/drive channels and native SPI
+response configuration. Bindings identify `(peripheral_id, terminal)` rather
+than widgets. Channel indices follow project/manifest order; output indices
+follow profile order. Unavailable types and unmapped or invalid HDL references
+allocate no channels. Display common polarity/gating and SPI response warnings
+retain the desktop behavior.
+
+Hosts can pass `plan.temporal_probes`, `plan.edge_channels`,
+`plan.drive_channels` and `plan.spi_slaves` to the engine's corresponding
+configuration methods on its owner thread. Preserve tuple order when routing
+frames and send results back to bindings. The desktop maps identifiers to
+workbench items and emits its existing Qt configuration signals. Stream history,
+decoder lifecycle and presentation remain in desktop renderers; this plan is
+not yet a complete framework-free peripheral runtime.
 
 ### Module map
 
