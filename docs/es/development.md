@@ -217,10 +217,37 @@ El anfitrión puede pasar `plan.temporal_probes`, `plan.edge_channels`,
 `plan.drive_channels` y `plan.spi_slaves` a los métodos de configuración
 correspondientes del motor en su hilo dueño. Debe conservar el orden de las tuplas
 al distribuir frames y resultados de envío. El escritorio relaciona identificadores
-con elementos gráficos y emite sus señales Qt existentes. El historial de flujos,
-el ciclo de vida de los decodificadores y la presentación siguen en los
-renderizadores de escritorio; este plan todavía no es un runtime completo de
-periféricos independiente de la interfaz.
+con elementos gráficos y emite sus señales Qt existentes. La presentación y la
+distribución de frames siguen en escritorio; este plan no es un runtime completo del Lab.
+
+### Estado de periféricos seriales
+
+`peripherals.serial_runtime.UartTerminalRuntime` y `SpiMonitorRuntime` administran
+decodificación, historial de texto limitado, contadores de errores y tramas
+parciales sin Qt. Se construyen con la configuración `visual` validada del
+manifiesto; no necesitan recursos gráficos ni tamaño. Reciben el
+`PeripheralInstance` correspondiente y eventos en ciclos virtuales mediante
+`feed_edges(...)` (UART) o `feed_edge_frame(...)` (SPI, pares terminal/evento).
+Cada llamada devuelve el texto agregado al historial. El snapshot inmutable
+`state` expone `text`, `dropped`, `configured`, `framing_errors` e `invalid_baud`
+para su presentación.
+
+`suspend_stream()` descarta decodificación parcial y contadores, conservando el
+texto (Stop del escritorio). `reset_stream()` limpia recepción y texto para un
+monitor nuevo; `preserve_output=True` conserva el historial. El retroceso de ciclos
+o cambios de configuración también descartan tramas parciales conservando el
+historial. `clear_output()` borra solo texto, sin perder alineación del protocolo.
+Los frames dañados por overflow se descartan, no se decodifican; el historial
+anterior se conserva. Estas operaciones deben ejecutarse en un único hilo dueño.
+
+Los renderizadores Qt delegan en estos runtimes y dibujan snapshots; los widgets
+conservan scroll/copia y distribuyen las llamadas de ciclo de vida. Otra interfaz
+puede instanciar los runtimes sin importar renderizadores. `response_enabled` de
+SPI refleja un respondedor nativo conectado correctamente; el runtime solo indica
+la respuesta configurada, no controla MISO. La transmisión UART y las respuestas
+SPI siguen ejecutándose mediante el motor/capa nativa. Estos dos runtimes seriales
+no cubren interacción GPIO, presentación temporal ni coordinación de todo el Lab.
+Los paquetes externos siguen siendo declarativos y no cambian de formato.
 
 ### Mapa de módulos
 

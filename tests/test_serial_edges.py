@@ -150,14 +150,14 @@ def test_uart_renderer_receives_byte_stream_and_resets_on_power_off():
     events = [EdgeEvent(edge.cycle, 0, edge.level) for edge in _uart_edges(ord("A"), 100)]
     renderer.feed_edges(peripheral, "rx", events[:3], 450, 1_000_000, 0)
     renderer.feed_edges(peripheral, "rx", events[3:], 1100, 1_000_000, 0)
-    assert renderer._text == "A"
+    assert renderer.runtime.state.text == "A"
     renderer.feed_edges(peripheral, "rx", [], 2000, 1_000_000, 0)
     restarted = [EdgeEvent(edge.cycle, 0, edge.level) for edge in _uart_edges(ord("B"), 100)]
     assert renderer.feed_edges(peripheral, "rx", restarted, 1100, 1_000_000, 0) == "B"
-    assert renderer._text == "AB"
+    assert renderer.runtime.state.text == "AB"
     renderer.suspend_stream()
-    assert renderer._text == "AB"
-    assert renderer._decoder is None
+    assert renderer.runtime.state.text == "AB"
+    assert renderer.runtime.state.configured is False
     renderer.output_limit = 16
     more = [
         EdgeEvent(edge.cycle, 0, edge.level)
@@ -165,9 +165,9 @@ def test_uart_renderer_receives_byte_stream_and_resets_on_power_off():
         for edge in _uart_edges(ord("B"), 100 + index * 1100)
     ]
     renderer.feed_edges(peripheral, "rx", more, 22_100, 1_000_000, 0)
-    assert renderer._text == "B" * 16
+    assert renderer.runtime.state.text == "B" * 16
     renderer.clear_output()
-    assert renderer._text == ""
+    assert renderer.runtime.state.text == ""
     image = QImage(300, 170, QImage.Format.Format_ARGB32)
     painter = QPainter(image)
     try:
@@ -175,7 +175,7 @@ def test_uart_renderer_receives_byte_stream_and_resets_on_power_off():
     finally:
         painter.end()
     renderer.reset_stream()
-    assert renderer._text == ""
+    assert renderer.runtime.state.text == ""
 
 
 def test_external_manifest_channels_reach_the_workbench(tmp_path, monkeypatch):
@@ -213,7 +213,7 @@ def test_external_manifest_channels_reach_the_workbench(tmp_path, monkeypatch):
         items = [item for item in panel._workbench_scene.items() if isinstance(item, WorkbenchPeripheralItem)]
         assert len(items) == 1
         terminal = items[0]
-        assert terminal._renderer._text == "A"
+        assert terminal._renderer.runtime.state.text == "A"
         assert terminal._rx_output.toPlainText() == "A"
         panel.set_powered(False)
         assert terminal._rx_output.toPlainText() == "A"
@@ -229,7 +229,7 @@ def test_external_manifest_channels_reach_the_workbench(tmp_path, monkeypatch):
         assert QApplication.clipboard().text() == "AB"
         terminal._rx_clear_button.click()
         assert terminal._rx_output.toPlainText() == ""
-        assert terminal._renderer._text == ""
+        assert terminal._renderer.runtime.state.text == ""
         assert terminal._rx_copy_button.isEnabled() is False
         terminal._append_received_text("line\n" * 80)
         panel.resize(600, 400)

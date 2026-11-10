@@ -216,9 +216,35 @@ Hosts can pass `plan.temporal_probes`, `plan.edge_channels`,
 `plan.drive_channels` and `plan.spi_slaves` to the engine's corresponding
 configuration methods on its owner thread. Preserve tuple order when routing
 frames and send results back to bindings. The desktop maps identifiers to
-workbench items and emits its existing Qt configuration signals. Stream history,
-decoder lifecycle and presentation remain in desktop renderers; this plan is
-not yet a complete framework-free peripheral runtime.
+workbench items and emits its existing Qt configuration signals. Presentation
+and frame routing remain desktop concerns; this plan is not a complete Lab runtime.
+
+### Serial peripheral state
+
+`peripherals.serial_runtime.UartTerminalRuntime` and `SpiMonitorRuntime` own
+receive decoding, bounded text history, error counters and partial-frame state
+without Qt. Construct either with its validated manifest `visual` configuration;
+artwork and size are not needed by these classes. Feed the matching
+`PeripheralInstance` and virtual-cycle events through `feed_edges(...)` (UART)
+or `feed_edge_frame(...)` (SPI, terminal/event pairs). Each call returns the text
+appended to history. The immutable `state` snapshot exposes `text`, `dropped`,
+`configured`, `framing_errors` and `invalid_baud` for presentation.
+
+`suspend_stream()` discards partial decoding and counters while retaining output
+(desktop Stop). `reset_stream()` clears receive state and output for a fresh
+monitor; `preserve_output=True` keeps history. A cycle rollback or changed protocol
+settings also discards partial state while keeping history. `clear_output()`
+clears only text, not protocol alignment. Damaged overflow frames are discarded,
+not decoded; previous history remains. Apply these operations on one owner thread.
+
+The Qt renderers delegate to these runtimes and paint snapshots; workbench
+widgets retain their scroll/copy controls and route lifecycle calls. Another host
+can instantiate the runtimes directly without importing renderers. SPI's
+`response_enabled` reflects a successfully bound native responder; the runtime
+only labels the configured response, it does not drive MISO. UART transmission
+and SPI responses still execute through the engine/native layer. GPIO interaction,
+temporal presentation and whole-Lab orchestration are not covered by these two
+serial runtimes. External packages remain declarative and need no format changes.
 
 ### Module map
 

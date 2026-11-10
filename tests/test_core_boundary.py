@@ -25,7 +25,7 @@ for name in ('board', 'board_layout', 'board_catalog', 'profile', 'constraints',
              'compiler', 'cpp_wrapper', 'simulation', 'simulation_engine', 'session', 'ice_project', 'build_cache',
              'private_toolchain', 'toolchain', 'sdk_install', 'edge_drive',
              'serial_edges', 'spi_edges', 'peripherals.catalog', 'peripherals.validate',
-             'peripherals.channel_plan'):
+             'peripherals.channel_plan', 'peripherals.serial_runtime'):
     importlib.import_module('fpga_lab.' + name)
 
 from fpga_lab.board_catalog import BoardCatalog
@@ -68,6 +68,19 @@ plan = build_channel_plan(
     (ResolvedWire('lamp', 'anode', 'pin', 'led'),), profile)
 assert plan.temporal_probes == (((0, 0, True),),)
 assert plan.temporal_bindings == (('lamp', 'anode'),)
+from fpga_lab.peripherals.serial_runtime import UartTerminalRuntime, SpiMonitorRuntime
+from fpga_lab.serial_edges import uart_8n1_drive_events, Transition
+uart = UartTerminalRuntime({'channel': 'rx', 'baud_property': 'baud'})
+instance = PeripheralInstance('uart', 'uart_terminal', {}, {'baud': 10000})
+events, end = uart_8n1_drive_events(b'A', 100, 1000000, 10000)
+assert uart.feed_edges(instance, 'rx', [Transition(*event) for event in events], end, 1000000, 0) == 'A'
+uart.suspend_stream()
+assert uart.state.text == 'A' and not uart.state.configured
+spi = SpiMonitorRuntime({'clock_channel': 'sck', 'select_channel': 'cs',
+    'mosi_channel': 'mosi', 'mode_property': 'mode', 'bit_order_property': 'order',
+    'cs_polarity_property': 'polarity'})
+assert spi.feed_edge_frame(PeripheralInstance('spi', 'spi_monitor', {}, {}), (), 1, 1000000, 0) == ''
+assert spi.state.configured
 assert 'fpga_lab.lab_workspace' not in sys.modules
 assert not any(name.startswith(('PyQt6', 'PySide6')) for name in sys.modules)
 assert 'fpga_lab.i18n' not in sys.modules

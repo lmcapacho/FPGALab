@@ -6,25 +6,19 @@ from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QFont, QPainter, QPen
 
 from ...i18n import t
-from ...serial_edges import Transition, Uart8N1Decoder
+from ..serial_runtime import UartTerminalRuntime
 from ...theme import color
 from .base import NullInputMixin
-
-
-MAX_SERIAL_HISTORY = 65_536
 
 
 class UartTerminalRenderer(NullInputMixin):
     """Render bytes decoded from a manifest-selected edge channel."""
 
-    output_limit = MAX_SERIAL_HISTORY
-
     def __init__(self, visual: dict[str, object]):
         self._size = tuple(int(value) for value in visual["size"])
-        self._channel = str(visual["channel"])
         self._baud_property = str(visual["baud_property"])
-        self.tx_channel = str(visual["tx_channel"]) if visual.get("tx_channel") else None
-        self.reset_stream()
+        self.runtime = UartTerminalRuntime(visual)
+        self.tx_channel = self.runtime.tx_channel
 
     def text_input_rect(self) -> tuple[int, int, int, int] | None:
         if self.tx_channel is None:
@@ -39,59 +33,25 @@ class UartTerminalRenderer(NullInputMixin):
     def size(self, peripheral) -> tuple[int, int]:
         return self._size  # type: ignore[return-value]
 
+    @property
+    def output_limit(self) -> int:
+        return self.runtime.output_limit
+
+    @output_limit.setter
+    def output_limit(self, value: int) -> None:
+        self.runtime.output_limit = value
+
     def reset_stream(self, *, preserve_output: bool = False) -> None:
-        self._decoder: Uart8N1Decoder | None = None
-        self._settings: tuple[int, int] | None = None
-        self._last_cycle = 0
-        if not preserve_output:
-            self._text = ""
-        self._dropped = 0
-        self._invalid_baud = False
+        self.runtime.reset_stream(preserve_output=preserve_output)
 
     def suspend_stream(self) -> None:
-        """Discard a partial UART frame while retaining the readable history."""
-        self.reset_stream(preserve_output=True)
+        self.runtime.suspend_stream()
 
     def clear_output(self) -> None:
-        self._text = ""
+        self.runtime.clear_output()
 
     def feed_edges(self, peripheral, terminal, events, cycle, clock_hz, dropped) -> str:
-        if terminal != self._channel or clock_hz <= 0:
-            return ""
-        if cycle < self._last_cycle:
-            self.reset_stream(preserve_output=True)
-        try:
-            baud = int(peripheral.properties.get(self._baud_property, 115200))
-        except (TypeError, ValueError):
-            self.reset_stream(preserve_output=True)
-            self._invalid_baud = True
-            return ""
-        settings = (clock_hz, baud)
-        if settings != self._settings:
-            self.reset_stream(preserve_output=True)
-            try:
-                self._decoder = Uart8N1Decoder(clock_hz, baud)
-            except ValueError:
-                self._invalid_baud = True
-                return ""
-            self._settings = settings
-        if self._decoder is None:
-            return ""
-        received: list[str] = []
-        if dropped:
-            self._dropped += dropped
-            self._decoder.reset()
-            received.append("\n[" + t("Signal overflow") + "]\n")
-        transitions = (Transition(event.cycle, event.level) for event in events)
-        for value in self._decoder.feed(transitions, cycle):
-            if value == 13:
-                continue
-            received.append(chr(value) if value == 10 or 32 <= value < 127 else f"\\x{value:02X}")
-        self._last_cycle = cycle
-        chunk = "".join(received)
-        if chunk:
-            self._text = (self._text + chunk)[-self.output_limit:]
-        return chunk
+        return self.runtime.feed_edges(peripheral, terminal, events, cycle, clock_hz, dropped)
 
     def paint(self, painter: QPainter, rect, peripheral, state) -> None:
         del rect
@@ -104,12 +64,13 @@ class UartTerminalRenderer(NullInputMixin):
         painter.setPen(color("text_muted"))
         baud = peripheral.properties.get(self._baud_property, 115200)
         painter.drawText(QRectF(11, 8, width - 22, 18), Qt.AlignmentFlag.AlignLeft, f"UART · {baud} · 8N1")
-        errors = self._decoder.framing_errors if self._decoder is not None else 0
-        if errors or self._dropped or self._invalid_baud:
+        snapshot = self.runtime.state
+        errors = snapshot.framing_errors
+        if errors or snapshot.dropped or snapshot.invalid_baud:
             painter.setPen(color("warning"))
             painter.drawText(
                 QRectF(width - 110, 8, 99, 18), Qt.AlignmentFlag.AlignRight,
-                f"ERR {errors}" if errors else f"DROP {self._dropped}" if self._dropped else "ERR BAUD",
+                f"ERR {errors}" if errors else f"DROP {snapshot.dropped}" if snapshot.dropped else "ERR BAUD",
             )
         painter.setPen(QPen(color("border"), 1))
         painter.drawLine(9, 29, width - 9, 29)
@@ -119,9 +80,9 @@ class UartTerminalRenderer(NullInputMixin):
             font.setStyleHint(QFont.StyleHint.TypeWriter)
             font.setPointSize(9)
             painter.setFont(font)
-            lines = self._text.splitlines()[-6:]
+            lines = snapshot.text.splitlines()[-6:]
             display = (
-                t("Baud rate is too high for the virtual clock.") if self._invalid_baud
+                t("Baud rate is too high for the virtual clock.") if snapshot.invalid_baud
                 else "\n".join(line[-43:] for line in lines)
             )
             text_height = height - (105 if self.tx_channel else 67)

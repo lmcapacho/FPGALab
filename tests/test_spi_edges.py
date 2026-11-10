@@ -55,7 +55,7 @@ def test_spi_discards_partial_transfer_when_chip_select_releases():
 
 
 def test_spi_overflow_discards_unsafe_frames_and_recovers_on_next_transaction():
-    from fpga_lab.peripherals.renderers.spi_monitor import SpiMonitorRenderer
+    from fpga_lab.peripherals.serial_runtime import SpiMonitorRuntime
     from fpga_lab.wiring import PeripheralInstance
     source = Path(__file__).parents[1] / "examples/peripherals/spi_monitor"
     manifest = json.loads((source / "manifest.json").read_text())
@@ -81,7 +81,7 @@ def test_spi_overflow_discards_unsafe_frames_and_recovers_on_next_transaction():
     # Normally the worker already drops the damaged frame. The renderer must
     # also be safe if a caller supplies the retained, incomplete queue contents.
     for retain_events in (False, True):
-        renderer = SpiMonitorRenderer(spec.visual)
+        renderer = SpiMonitorRuntime(spec.visual)
         assert "MOSI 96" in feed(renderer, transfer(0x96, 0), 46)
         assert feed(renderer, [edge for edge in transfer(0xA7, 60) if edge[0] <= 87], 87) == ""
         unsafe = transfer(0xFF, 90) if retain_events else []
@@ -94,8 +94,8 @@ def test_spi_overflow_discards_unsafe_frames_and_recovers_on_next_transaction():
         valid = transfer(0x3C, 200)
         assert feed(renderer, [edge for edge in valid if edge[0] <= 227], 227) == ""
         assert "MOSI 3C" in feed(renderer, [edge for edge in valid if edge[0] > 227], 246)
-        assert renderer._text.count("MOSI") == 2
-        assert renderer._dropped == 17
+        assert renderer.state.text.count("MOSI") == 2
+        assert renderer.state.dropped == 17
 
 
 @pytest.mark.parametrize("connect_miso", [False, True])
